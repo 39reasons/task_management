@@ -21,11 +21,11 @@ function TaskForm({ onAdd }: TaskFormProps) {
         value={newTask}
         onChange={(e) => setNewTask(e.target.value)}
         placeholder="New task..."
-        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+        className="flex-1 border border-[#6DA9D2] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6DA9D2] text-sm"
       />
       <button
         type="submit"
-        className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors"
+        className="bg-[#6DA9D2] hover:bg-[#4B8DBF] text-white px-4 py-2 rounded-lg text-sm font-medium shadow transition-colors"
       >
         Add
       </button>

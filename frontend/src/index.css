@@ -1,1 +1,6 @@
-@import 'tailwindcss';
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6DA9D2;       /* Pantone 7453C true */
+  --color-primary-dark: #4B8DBF;  /* darker hover */
+}

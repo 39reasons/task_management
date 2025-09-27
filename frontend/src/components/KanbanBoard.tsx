@@ -15,9 +15,9 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const STATUSES = ["todo", "in-progress", "done"];
   const STATUS_LABELS: Record<string, string> = {
-    "todo": "To Do",
+    todo: "To Do",
     "in-progress": "In Progress",
-    "done": "Done",
+    done: "Done",
   };
 
   return (
@@ -25,9 +25,9 @@ export function KanbanBoard({
       {STATUSES.map((status) => (
         <div
           key={status}
-          className="bg-gray-50 rounded-xl shadow-md p-4 flex flex-col"
+          className="bg-[#6DA9D2]/20 rounded-xl shadow-md p-4 flex flex-col"
         >
-          <h3 className="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b border-[#6DA9D2] pb-2">
             {STATUS_LABELS[status]}
           </h3>
           <div className="flex-1 space-y-4">
@@ -36,11 +36,11 @@ export function KanbanBoard({
               .map((task) => (
                 <div
                   key={task.id}
-                  className="bg-white rounded-lg shadow p-4 border border-gray-200"
+                  className="bg-white rounded-lg shadow p-4 border border-[#6DA9D2]"
                 >
-                  <h4 className="font-bold text-gray-800">{task.title}</h4>
+                  <h4 className="font-bold text-gray-900">{task.title}</h4>
                   {task.description && (
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-gray-700 mt-1">
                       {task.description}
                     </p>
                   )}
@@ -53,7 +53,7 @@ export function KanbanBoard({
                     <select
                       value={task.priority ? task.priority.trim() : "low"}
                       onChange={(e) => onUpdatePriority(task.id, e.target.value)}
-                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="appearance-none w-full border border-[#6DA9D2] rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-[#6DA9D2] focus:outline-none"
                     >
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
@@ -69,7 +69,7 @@ export function KanbanBoard({
                     <select
                       value={task.status}
                       onChange={(e) => onUpdateStatus(task.id, e.target.value)}
-                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="appearance-none w-full border border-[#6DA9D2] rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-[#6DA9D2] focus:outline-none"
                     >
                       <option value="todo">Todo</option>
                       <option value="in-progress">In Progress</option>
@@ -78,7 +78,7 @@ export function KanbanBoard({
                   </div>
 
                   {/* Due date */}
-                  <p className="text-xs text-gray-500 mt-3">
+                  <p className="text-xs text-gray-600 mt-3">
                     Due: {task.dueDate || "—"}
                   </p>
 
@@ -86,7 +86,7 @@ export function KanbanBoard({
                   <div className="mt-4">
                     <button
                       onClick={() => onDelete(task.id)}
-                      className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
+                      className="bg-[#6DA9D2] hover:bg-[#4B8DBF] text-white text-sm font-medium px-3 py-1.5 rounded-md shadow transition-colors"
                     >
                       Delete
                     </button>
@@ -94,7 +94,7 @@ export function KanbanBoard({
                 </div>
               ))}
             {tasks.filter((t) => t.status === status).length === 0 && (
-              <p className="text-sm text-gray-400 italic">No tasks</p>
+              <p className="text-sm text-gray-500 italic">No tasks</p>
             )}
           </div>
         </div>
