@@ -1,12 +1,20 @@
 import { query } from "../db/index.js";
 import type { Task } from "@shared/types";
 
-
 export async function getTasks(): Promise<Task[]> {
-    const result = await query<Task>(
-    "SELECT id, title, completed, description, dueDate, priority, status FROM tasks ORDER BY id ASC"
-    );
-    return result.rows;
+  const result = await query<Task>(
+    `SELECT
+       id,
+       title,
+       description,
+       due_date AS "dueDate",
+       priority,
+       status,
+       completed
+     FROM tasks
+     ORDER BY id ASC`
+  );
+  return result.rows;
 }
 
 export async function addTask({
@@ -33,13 +41,24 @@ export async function addTask({
 
 
 export async function toggleTask(id: string): Promise<Task> {
-    const result = await query<Task>(
-    "UPDATE tasks SET completed = NOT completed WHERE id = $1 RETURNING id, title, completed",
+  const result = await query<Task>(
+    `UPDATE tasks
+       SET completed = NOT completed
+     WHERE id = $1
+     RETURNING
+       id,
+       title,
+       description,
+       due_date AS "dueDate",
+       priority,
+       status,
+       completed`,
     [id]
-    );
-    if (result.rowCount === 0) throw new Error("Task not found");
-    return result.rows[0];
+  );
+  if (result.rowCount === 0) throw new Error("Task not found");
+  return result.rows[0];
 }
+
 
 export async function deleteTask(id: string): Promise<boolean> {
     const result = await query<Task>(
