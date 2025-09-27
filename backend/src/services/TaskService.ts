@@ -31,9 +31,9 @@ export async function addTask({
     }): Promise<Task> {
     const result = await query<Task>(
     `INSERT INTO tasks (title, description, due_date, priority, status)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, title, description, due_date AS "dueDate", priority, status`,
-    [title, description ?? null, dueDate ?? null, priority ?? "medium", status ?? "todo", false]
+    [title, description ?? null, dueDate ?? null, priority ?? "low", status ?? "todo"]
     );
     return result.rows[0];
 }
