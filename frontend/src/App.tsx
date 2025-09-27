@@ -6,14 +6,14 @@ function App() {
   const { tasks, deleteTask, addTask, updatePriority, updateStatus } = useTasks();
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gray-900 p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <header className="mb-8 text-center">
-          <h1 className="text-4xl font-extrabold text-gray-800 tracking-tight">
+          <h1 className="text-4xl font-extrabold tracking-tight text-white">
             Task Manager
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-400 mt-2">
             Manage tasks with drag-and-drop Kanban style organization
           </p>
         </header>
@@ -33,8 +33,8 @@ function App() {
         </section>
 
         {/* Add Task Form */}
-        <section className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-700">
+        <section className="bg-gray-800 rounded-xl shadow-lg p-6 ring-1 ring-white/10">
+          <h2 className="text-xl font-semibold mb-4 text-white">
             Add a New Task
           </h2>
           <TaskForm
