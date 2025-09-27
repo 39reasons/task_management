@@ -2,6 +2,10 @@ type Task {
   id: ID!
   title: String!
   completed: Boolean!
+  description: String
+  dueDate: String
+  priority: String
+  status: String
 }
 
 extend type Query {
@@ -9,7 +13,14 @@ extend type Query {
 }
 
 extend type Mutation {
-  addTask(title: String!): Task!
+  addTask(
+    title: String!
+    description: String
+    dueDate: String
+    priority: String
+    status: String
+  ): Task!
+  
   toggleTask(id: ID!): Task!
   deleteTask(id: ID!): Boolean!
 }

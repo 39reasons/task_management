@@ -5,9 +5,16 @@ export const taskResolvers = {
     tasks: async () => await TaskService.getTasks(),
   },
   Mutation: {
-    addTask: async (_: unknown, { title }: { title: string }) =>
-      await TaskService.addTask(title),
-
+  addTask: async (_: any, args: any, { dataSources }: any) => {
+    const { title, description, dueDate, priority, status } = args;
+    return dataSources.taskService.addTask({
+      title,
+      description,
+      dueDate,
+      priority,
+      status,
+    });
+  },
     toggleTask: async (_: unknown, { id }: { id: string }) =>
       await TaskService.toggleTask(id),
 

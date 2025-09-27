@@ -1,19 +1,19 @@
 import { useQuery } from "@apollo/client";
 import { GET_TASKS } from "../graphql";
-import { TaskItem } from "./TaskItem";
+import TaskItem from "./TaskItem";
 import type { TasksData } from "@shared/types";
 
-export function TaskList() {
-  const { loading, error, data } = useQuery<TasksData>(GET_TASKS);
+export default function TaskList() {
+  const { data, loading, error } = useQuery<TasksData>(GET_TASKS);
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p>Error 😢 {error.message}</p>;
+  if (loading) return <p>Loading tasks...</p>;
+  if (error) return <p>Error loading tasks</p>;
 
   return (
-    <ul>
+    <div className="task-list">
       {data?.tasks.map((task) => (
         <TaskItem key={task.id} task={task} />
       ))}
-    </ul>
+    </div>
   );
 }

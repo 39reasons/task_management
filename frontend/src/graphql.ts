@@ -6,16 +6,36 @@ export const GET_TASKS = gql`
       id
       title
       completed
+      description
+      dueDate
+      priority
+      status
     }
   }
 `;
 
 export const ADD_TASK = gql`
-  mutation AddTask($title: String!) {
-    addTask(title: $title) {
+  mutation AddTask(
+    $title: String!
+    $description: String
+    $dueDate: String
+    $priority: String
+    $status: String
+  ) {
+    addTask(
+      title: $title
+      description: $description
+      dueDate: $dueDate
+      priority: $priority
+      status: $status
+    ) {
       id
       title
       completed
+      description
+      dueDate
+      priority
+      status
     }
   }
 `;
