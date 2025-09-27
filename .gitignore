@@ -55,7 +55,6 @@ Thumbs.db
 # Misc
 # -----------------------------------
 # Postgres dumps
-*.sql
 *.dump
 
 # Temporary files
