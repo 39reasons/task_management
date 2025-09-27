@@ -84,4 +84,16 @@ export async function updateTaskPriority(id: string, priority: string) {
   return result.rows[0];
 }
 
+export async function updateTaskStatus(id: string, status: string) {
+  const result = await query<Task>(
+    `UPDATE tasks
+     SET status = $1
+     WHERE id = $2
+     RETURNING id, title, description, due_date AS "dueDate", priority, status, completed`,
+    [status, id]
+  );
+  return result.rows[0];
+}
+
+
 

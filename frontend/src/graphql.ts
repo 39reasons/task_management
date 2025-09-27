@@ -63,3 +63,12 @@ export const UPDATE_TASK_PRIORITY = gql`
     }
   }
 `;
+
+export const UPDATE_TASK_STATUS = gql`
+  mutation UpdateTaskStatus($id: ID!, $status: String!) {
+    updateTaskStatus(id: $id, status: $status) {
+      id
+      status
+    }
+  }
+`;

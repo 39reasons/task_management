@@ -29,9 +29,13 @@ export const taskResolvers = {
 
     deleteTask: async (_: unknown, { id }: { id: string }) =>
       await TaskService.deleteTask(id),
-    
+
     updateTaskPriority: async (_: unknown, { id, priority }: { id: string; priority: string }) =>
       await TaskService.updateTaskPriority(id, priority),
+    
+    updateTaskStatus: async (_: unknown, { id, status }: { id: string; status: string }) =>
+      await TaskService.updateTaskStatus(id, status),
+
 
     },
 }

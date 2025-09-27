@@ -24,4 +24,5 @@ extend type Mutation {
   toggleTask(id: ID!): Task!
   deleteTask(id: ID!): Boolean!
   updateTaskPriority(id: ID!, priority: String!): Task!
+  updateTaskStatus(id: ID!, status: String!): Task!
 }
