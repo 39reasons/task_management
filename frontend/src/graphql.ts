@@ -54,3 +54,12 @@ export const DELETE_TASK = gql`
     deleteTask(id: $id)
   }
 `;
+
+export const UPDATE_TASK_PRIORITY = gql`
+  mutation UpdateTaskPriority($id: ID!, $priority: String!) {
+    updateTaskPriority(id: $id, priority: $priority) {
+      id
+      priority
+    }
+  }
+`;

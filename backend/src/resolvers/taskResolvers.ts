@@ -1,5 +1,3 @@
-console.log("taskResolvers loaded");  // 👈 runs once when the server starts
-
 import * as TaskService from "../services/TaskService.js";
 
 export const taskResolvers = {
@@ -31,5 +29,9 @@ export const taskResolvers = {
 
     deleteTask: async (_: unknown, { id }: { id: string }) =>
       await TaskService.deleteTask(id),
-  },
-};
+    
+    updateTaskPriority: async (_: unknown, { id, priority }: { id: string; priority: string }) =>
+      await TaskService.updateTaskPriority(id, priority),
+
+    },
+}

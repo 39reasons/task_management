@@ -68,3 +68,20 @@ export async function deleteTask(id: string): Promise<boolean> {
     return (result.rowCount ?? 0) > 0;
 }
 
+export async function updateTaskPriority(id: string, priority: string) {
+  const result = await query<Task>(
+    `UPDATE tasks
+     SET priority = $1
+     WHERE id = $2
+     RETURNING id, title, description, due_date AS "dueDate", priority, status, completed`,
+    [priority, id]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error(`Task with id=${id} not found`);
+  }
+
+  return result.rows[0];
+}
+
+
