@@ -1,5 +1,5 @@
 import { useMutation } from "@apollo/client";
-import { TOGGLE_TASK, DELETE_TASK, GET_TASKS } from "../graphql";
+import { DELETE_TASK, GET_TASKS } from "../graphql";
 import type { Task } from "@shared/types";
 
 interface TaskItemProps {
@@ -7,19 +7,13 @@ interface TaskItemProps {
 }
 
 export default function TaskItem({ task }: TaskItemProps) {
-  const [toggleTask] = useMutation(TOGGLE_TASK, {
-    refetchQueries: [{ query: GET_TASKS }],
-  });
   const [deleteTask] = useMutation(DELETE_TASK, {
     refetchQueries: [{ query: GET_TASKS }],
   });
 
   return (
     <div className="task-item">
-      <span
-        onClick={() => toggleTask({ variables: { id: task.id } })}
-        style={{ textDecoration: task.completed ? "line-through" : "none" }}
-      >
+      <span>
         {task.title}
       </span>
 

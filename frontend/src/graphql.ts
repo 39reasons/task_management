@@ -5,7 +5,6 @@ export const GET_TASKS = gql`
     tasks {
       id
       title
-      completed
       description
       dueDate
       priority
@@ -31,20 +30,10 @@ export const ADD_TASK = gql`
     ) {
       id
       title
-      completed
       description
       dueDate
       priority
       status
-    }
-  }
-`;
-
-export const TOGGLE_TASK = gql`
-  mutation ToggleTask($id: ID!) {
-    toggleTask(id: $id) {
-      id
-      completed
     }
   }
 `;

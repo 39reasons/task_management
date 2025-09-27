@@ -3,7 +3,6 @@ import "./KanbanBoard.css";
 
 interface KanbanBoardProps {
   tasks: Task[];
-  onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdatePriority: (id: string, priority: string) => void;
   onUpdateStatus: (id: string, status: string) => void;
@@ -11,7 +10,6 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({
   tasks,
-  onToggle,
   onDelete,
   onUpdatePriority,
   onUpdateStatus,
@@ -28,7 +26,6 @@ export function KanbanBoard({
             .map((task) => (
               <div
                 key={task.id}
-                className={`task-card ${task.completed ? "task-done" : ""}`}
               >
                 <strong>{task.title}</strong>
                 <p>{task.description}</p>
@@ -68,10 +65,6 @@ export function KanbanBoard({
                 <small>Due: {task.dueDate || "—"}</small>
 
                 <div style={{ marginTop: "0.5rem" }}>
-                  {/* Toggle still flips completed */}
-                  <button onClick={() => onToggle(task.id)}>
-                    {task.completed ? "Mark Active" : "Mark Done"}
-                  </button>
                   <button onClick={() => onDelete(task.id)}>Delete</button>
                 </div>
               </div>

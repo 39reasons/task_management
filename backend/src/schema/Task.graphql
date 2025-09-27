@@ -1,7 +1,6 @@
 type Task {
   id: ID!
   title: String!
-  completed: Boolean!
   description: String
   dueDate: String
   priority: String
@@ -21,7 +20,6 @@ extend type Mutation {
     status: String
   ): Task!
   
-  toggleTask(id: ID!): Task!
   deleteTask(id: ID!): Boolean!
   updateTaskPriority(id: ID!, priority: String!): Task!
   updateTaskStatus(id: ID!, status: String!): Task!

@@ -1,12 +1,8 @@
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_TASKS, TOGGLE_TASK, DELETE_TASK, ADD_TASK, UPDATE_TASK_PRIORITY, UPDATE_TASK_STATUS } from "../graphql";
+import { GET_TASKS, DELETE_TASK, ADD_TASK, UPDATE_TASK_PRIORITY, UPDATE_TASK_STATUS } from "../graphql";
 
 export function useTasks() {
   const { data } = useQuery(GET_TASKS);
-  
-  const [toggleTask] = useMutation(TOGGLE_TASK, {
-    refetchQueries: [{ query: GET_TASKS }],
-  });
 
   const [deleteTask] = useMutation(DELETE_TASK, {
     refetchQueries: [{ query: GET_TASKS }],
@@ -24,7 +20,6 @@ export function useTasks() {
 
   return {
     tasks: data?.tasks || [],
-    toggleTask,
     deleteTask,
     addTask,
     updatePriority,

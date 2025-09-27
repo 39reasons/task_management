@@ -9,8 +9,7 @@ export async function getTasks(): Promise<Task[]> {
        description,
        due_date AS "dueDate",
        priority,
-       status,
-       completed
+       status
      FROM tasks
      ORDER BY id ASC`
   );
@@ -31,34 +30,13 @@ export async function addTask({
     status?: string;
     }): Promise<Task> {
     const result = await query<Task>(
-    `INSERT INTO tasks (title, description, due_date, priority, status, completed)
+    `INSERT INTO tasks (title, description, due_date, priority, status)
         VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, title, description, due_date AS "dueDate", priority, status, completed`,
+        RETURNING id, title, description, due_date AS "dueDate", priority, status`,
     [title, description ?? null, dueDate ?? null, priority ?? "medium", status ?? "todo", false]
     );
     return result.rows[0];
 }
-
-
-export async function toggleTask(id: string): Promise<Task> {
-  const result = await query<Task>(
-    `UPDATE tasks
-       SET completed = NOT completed
-     WHERE id = $1
-     RETURNING
-       id,
-       title,
-       description,
-       due_date AS "dueDate",
-       priority,
-       status,
-       completed`,
-    [id]
-  );
-  if (result.rowCount === 0) throw new Error("Task not found");
-  return result.rows[0];
-}
-
 
 export async function deleteTask(id: string): Promise<boolean> {
     const result = await query<Task>(
@@ -73,7 +51,7 @@ export async function updateTaskPriority(id: string, priority: string) {
     `UPDATE tasks
      SET priority = $1
      WHERE id = $2
-     RETURNING id, title, description, due_date AS "dueDate", priority, status, completed`,
+     RETURNING id, title, description, due_date AS "dueDate", priority, status`,
     [priority, id]
   );
 
@@ -89,7 +67,7 @@ export async function updateTaskStatus(id: string, status: string) {
     `UPDATE tasks
      SET status = $1
      WHERE id = $2
-     RETURNING id, title, description, due_date AS "dueDate", priority, status, completed`,
+     RETURNING id, title, description, due_date AS "dueDate", priority, status`,
     [status, id]
   );
   return result.rows[0];

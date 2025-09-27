@@ -24,9 +24,6 @@ export const taskResolvers = {
       });
     },
 
-    toggleTask: async (_: unknown, { id }: { id: string }) =>
-      await TaskService.toggleTask(id),
-
     deleteTask: async (_: unknown, { id }: { id: string }) =>
       await TaskService.deleteTask(id),
 
