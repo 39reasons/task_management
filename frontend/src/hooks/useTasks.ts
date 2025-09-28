@@ -5,6 +5,7 @@ import {
   ADD_TASK,
   UPDATE_TASK_PRIORITY,
   UPDATE_TASK_STATUS,
+  UPDATE_TASK,
 } from "../graphql";
 import type { Task } from "@shared/types";
 
@@ -27,6 +28,10 @@ export function useTasks() {
     refetchQueries: [{ query: GET_TASKS }],
   });
 
+  const [updateTask] = useMutation(UPDATE_TASK, {
+    refetchQueries: [{ query: GET_TASKS }],
+  });
+
   return {
     tasks: data?.tasks || [],
     loading,
@@ -35,5 +40,6 @@ export function useTasks() {
     addTask,
     updatePriority,
     updateStatus,
+    updateTask,
   };
 }

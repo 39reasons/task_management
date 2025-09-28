@@ -1,15 +1,16 @@
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/core"; // 👈 add this
 import type { Task } from "@shared/types";
 import { KanbanTask } from "./KanbanTask";
 
 interface KanbanColumnProps {
-  id: string;
+  id: Task["status"];
   title: string;
   tasks: Task[];
   onDelete: (id: string) => void;
-  onUpdatePriority: (id: string, priority: string) => void;
-  onUpdateStatus: (id: string, status: string) => void;
+  onUpdatePriority: (id: string, priority: Task["priority"]) => void;
+  onUpdateStatus: (id: string, status: Task["status"]) => void;
+  onTaskClick: (task: Task) => void;
 }
 
 export function KanbanColumn({
@@ -19,17 +20,22 @@ export function KanbanColumn({
   onDelete,
   onUpdatePriority,
   onUpdateStatus,
+  onTaskClick,
 }: KanbanColumnProps) {
-  const { setNodeRef } = useDroppable({ id });
+  const { setNodeRef, isOver } = useDroppable({ id }); // 👈 droppable area = the whole column
 
   return (
     <div
       ref={setNodeRef}
-      className="bg-gray-800 rounded-xl shadow-md p-4 flex flex-col ring-1 ring-white/10 min-h-[200px]"
+      className={[
+        "bg-gray-800 rounded-xl shadow-md p-4 flex flex-col ring-1 ring-white/10 min-h-[200px]",
+        isOver ? "outline outline-2 outline-primary/60" : ""
+      ].join(" ")}
     >
       <h3 className="text-lg font-semibold text-white mb-4 border-b border-primary pb-2">
         {title}
       </h3>
+
       <SortableContext
         items={tasks.map((t) => String(t.id))}
         strategy={verticalListSortingStrategy}
@@ -42,6 +48,7 @@ export function KanbanColumn({
               onDelete={onDelete}
               onUpdatePriority={onUpdatePriority}
               onUpdateStatus={onUpdateStatus}
+              onClick={onTaskClick}
             />
           ))}
           {tasks.length === 0 && (

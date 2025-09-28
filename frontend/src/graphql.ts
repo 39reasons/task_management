@@ -61,3 +61,30 @@ export const UPDATE_TASK_STATUS = gql`
     }
   }
 `;
+
+export const UPDATE_TASK = gql`
+  mutation UpdateTask(
+    $id: ID!
+    $title: String
+    $description: String
+    $dueDate: String
+    $priority: String
+    $status: String
+  ) {
+    updateTask(
+      id: $id
+      title: $title
+      description: $description
+      dueDate: $dueDate
+      priority: $priority
+      status: $status
+    ) {
+      id
+      title
+      description
+      dueDate
+      priority
+      status
+    }
+  }
+`;

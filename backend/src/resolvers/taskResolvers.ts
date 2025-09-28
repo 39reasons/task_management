@@ -32,7 +32,22 @@ export const taskResolvers = {
     
     updateTaskStatus: async (_: unknown, { id, status }: { id: string; status: string }) =>
       await TaskService.updateTaskStatus(id, status),
-
-
-    },
+    updateTask: async (_: unknown,
+    {
+      id,
+      title,
+      description,
+      dueDate,
+      priority,
+      status,
+    }: {
+      id: string;
+      title?: string;
+      description?: string;
+      dueDate?: string;
+      priority?: string;
+      status?: string;
+    }
+  ) => await TaskService.updateTask(id, title, description, dueDate, priority, status),
+  },
 }

@@ -1,7 +1,7 @@
 import type { Task } from "@shared/types";
 import {
   DndContext,
-  closestCenter,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
@@ -10,13 +10,15 @@ import {
 } from "@dnd-kit/core";
 import { useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
-import { KanbanTask } from "./KanbanTask";
+import { KanbanOverlay } from "./KanbanOverlay";
+import { TaskModal } from "..//TaskModal/TaskModal";
 
 interface KanbanBoardProps {
   tasks: Task[];
-  onDelete: (id: string) => void;
-  onUpdatePriority: (id: string, priority: string) => void;
-  onUpdateStatus: (id: string, status: string) => void;
+  onDelete: (id: Task["id"]) => void;
+  onUpdatePriority: (id: Task["id"], priority: Task["priority"]) => void;
+  onUpdateStatus: (id: Task["id"], status: Task["status"]) => void;
+  onUpdateTask: (updatedTask: Partial<Task>) => void;
 }
 
 export function KanbanBoard({
@@ -24,9 +26,10 @@ export function KanbanBoard({
   onDelete,
   onUpdatePriority,
   onUpdateStatus,
+  onUpdateTask,
 }: KanbanBoardProps) {
-  const STATUSES = ["todo", "in-progress", "done"];
-  const STATUS_LABELS: Record<string, string> = {
+  const STATUSES: Task["status"][] = ["todo", "in-progress", "done"];
+  const STATUS_LABELS: Record<Task["status"], string> = {
     todo: "To Do",
     "in-progress": "In Progress",
     done: "Done",
@@ -34,6 +37,9 @@ export function KanbanBoard({
 
   const sensors = useSensors(useSensor(PointerSensor));
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isModalOpen, setModalOpen] = useState(false);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -46,9 +52,10 @@ export function KanbanBoard({
     const task = tasks.find((t) => String(t.id) === activeId);
     if (!task) return;
 
-    if (STATUSES.includes(overId)) {
-      if (task.status !== overId) {
-        onUpdateStatus(task.id, overId);
+    if (STATUSES.includes(overId as Task["status"])) {
+      const newStatus = overId as Task["status"];
+      if (task.status !== newStatus) {
+        onUpdateStatus(task.id, newStatus);
       }
     } else {
       const targetTask = tasks.find((t) => String(t.id) === overId);
@@ -59,40 +66,52 @@ export function KanbanBoard({
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={(event) => {
-        const task = tasks.find((t) => String(t.id) === String(event.active.id));
-        setActiveTask(task || null);
-      }}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveTask(null)}
-    >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {STATUSES.map((status) => (
-          <KanbanColumn
-            key={status}
-            id={status}
-            title={STATUS_LABELS[status]}
-            tasks={tasks.filter((t) => t.status === status)}
-            onDelete={onDelete}
-            onUpdatePriority={onUpdatePriority}
-            onUpdateStatus={onUpdateStatus}
-          />
-        ))}
-      </div>
+    <>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={pointerWithin} // 👈 more accurate than closestCenter
+        onDragStart={(event) => {
+          const task = tasks.find(
+            (t) => String(t.id) === String(event.active.id)
+          );
+          setActiveTask(task || null);
+        }}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveTask(null)}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {STATUSES.map((status) => (
+            <KanbanColumn
+              key={status}
+              id={status}
+              title={STATUS_LABELS[status]}
+              tasks={tasks.filter((t) => t.status === status)}
+              onDelete={onDelete}
+              onUpdatePriority={onUpdatePriority}
+              onUpdateStatus={onUpdateStatus}
+              onTaskClick={(task) => {
+                setSelectedTask(task);
+                setModalOpen(true);
+              }}
+            />
+          ))}
+        </div>
 
-    <DragOverlay>
-    {activeTask ? (
-        <KanbanTask
-        task={activeTask}
-        onDelete={() => {}}
-        onUpdatePriority={() => {}}
-        onUpdateStatus={() => {}}
-        />
-    ) : null}
-    </DragOverlay>
-    </DndContext>
+        <DragOverlay>
+          <KanbanOverlay task={activeTask} />
+        </DragOverlay>
+      </DndContext>
+
+      {/* Task Editing Modal */}
+      <TaskModal
+        task={selectedTask}
+        isOpen={isModalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={(updatedTask: Partial<Task>) => {
+          onUpdateTask(updatedTask);
+          setModalOpen(false);
+        }}
+      />
+    </>
   );
 }

@@ -1,9 +1,17 @@
+import type { Task } from "@shared/types";
 import { useTasks } from "./hooks/useTasks";
 import { KanbanBoard } from "./components/KanbanBoard/KanbanBoard";
 import TaskForm from "./components/TaskForm";
 
 function App() {
-  const { tasks, deleteTask, addTask, updatePriority, updateStatus } = useTasks();
+  const {
+    tasks,
+    deleteTask,
+    addTask,
+    updatePriority,
+    updateStatus,
+    updateTask,
+  } = useTasks();
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
@@ -22,12 +30,17 @@ function App() {
         <section className="mb-10">
           <KanbanBoard
             tasks={tasks}
-            onDelete={(id) => deleteTask({ variables: { id } })}
-            onUpdatePriority={(id, priority) =>
+            onDelete={(id: Task["id"]) =>
+              deleteTask({ variables: { id } })
+            }
+            onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
               updatePriority({ variables: { id, priority } })
             }
-            onUpdateStatus={(id, status) =>
+            onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
               updateStatus({ variables: { id, status } })
+            }
+            onUpdateTask={(updatedTask: Partial<Task>) =>
+              updateTask({ variables: updatedTask })
             }
           />
         </section>
