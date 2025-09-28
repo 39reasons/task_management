@@ -2,12 +2,13 @@ import * as TaskService from "../services/TaskService.js";
 
 export const taskResolvers = {
   Query: {
-    tasks: async () => await TaskService.getTasks(),
+    tasks: async (_: unknown, args: { projectId: string }) => await TaskService.getTasks(args.projectId),
   },
   Mutation: {
     addTask: async (
       _: unknown,
-      { title, description, dueDate, priority, status }: {
+      { projectId, title, description, dueDate, priority, status }: {
+        projectId: string,
         title: string;
         description?: string;
         dueDate?: string;
@@ -16,6 +17,7 @@ export const taskResolvers = {
       }
     ) => {
       return await TaskService.addTask({
+        projectId,
         title,
         description,
         dueDate,

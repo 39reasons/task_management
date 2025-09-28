@@ -1,7 +1,7 @@
 import { query } from "../db/index.js";
 import type { Task } from "@shared/types";
 
-export async function getTasks(): Promise<Task[]> {
+export async function getTasks(projectId: string): Promise<Task[]> {
   const result = await query<Task>(
     `SELECT
        id,
@@ -9,20 +9,25 @@ export async function getTasks(): Promise<Task[]> {
        description,
        to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
        priority,
-       status
+       status,
+       project_id
      FROM tasks
-     ORDER BY id ASC`
+     WHERE project_id = $1
+     ORDER BY id ASC`,
+    [projectId]
   );
   return result.rows;
 }
 
 export async function addTask({
+  projectId,
   title,
   description,
   dueDate,
   priority,
   status,
 }: {
+  projectId: string;
   title: string;
   description?: string;
   dueDate?: string;
@@ -30,18 +35,20 @@ export async function addTask({
   status?: string;
 }): Promise<Task> {
   const result = await query<Task>(
-    `INSERT INTO tasks (title, description, due_date, priority, status)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO tasks (project_id, title, description, due_date, priority, status)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id,
                title,
                description,
                to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
                priority,
-               status`,
-    [title, description ?? null, dueDate ?? null, priority ?? "low", status ?? "todo"]
+               status,
+               project_id AS "projectId"`,
+    [projectId, title, description ?? null, dueDate ?? null, priority ?? "low", status ?? "todo"]
   );
   return result.rows[0];
 }
+
 
 export async function deleteTask(id: string): Promise<boolean> {
   const result = await query<Task>(

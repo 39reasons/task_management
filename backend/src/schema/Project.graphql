@@ -1,0 +1,16 @@
+type Project {
+  id: ID!
+  name: String!
+  description: String
+  tasks: [Task!]!
+}
+
+extend type Query {
+  projects: [Project!]!
+  project(id: ID!): Project
+}
+
+extend type Mutation {
+  addProject(name: String!, description: String): Project!
+  deleteProject(id: ID!): Boolean!
+}

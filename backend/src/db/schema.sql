@@ -8,3 +8,10 @@ CREATE TABLE tasks (
     priority TEXT DEFAULT 'medium',
     status TEXT DEFAULT 'todo'
 );
+
+CREATE TABLE projects (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT now()
+);
