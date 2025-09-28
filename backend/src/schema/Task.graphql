@@ -5,23 +5,23 @@ type Task {
   dueDate: String
   priority: String
   status: String
-  projectId: String
+  projectId: ID
 }
 
 extend type Query {
-  tasks: [Task!]!
+  tasks(projectId: ID!): [Task!]!
 }
 
 extend type Mutation {
   addTask(
-    projectId: String
+    projectId: ID!
     title: String!
     description: String
     dueDate: String
     priority: String
     status: String
   ): Task!
-  
+
   deleteTask(id: ID!): Boolean!
   updateTaskPriority(id: ID!, priority: String!): Task!
   updateTaskStatus(id: ID!, status: String!): Task!

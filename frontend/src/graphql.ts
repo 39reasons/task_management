@@ -1,20 +1,23 @@
 import { gql } from "@apollo/client";
 
 export const GET_TASKS = gql`
-  query {
-    tasks {
+  query GetTasks($projectId: ID!) {
+    tasks(projectId: $projectId) {
       id
       title
       description
       dueDate
       priority
       status
+      projectId
     }
   }
 `;
 
+
 export const ADD_TASK = gql`
   mutation AddTask(
+    $projectId: ID!
     $title: String!
     $description: String
     $dueDate: String
@@ -22,6 +25,7 @@ export const ADD_TASK = gql`
     $status: String
   ) {
     addTask(
+      projectId: $projectId
       title: $title
       description: $description
       dueDate: $dueDate
@@ -30,19 +34,19 @@ export const ADD_TASK = gql`
     ) {
       id
       title
-      description
-      dueDate
-      priority
+      projectId
       status
     }
   }
 `;
+
 
 export const DELETE_TASK = gql`
   mutation DeleteTask($id: ID!) {
     deleteTask(id: $id)
   }
 `;
+
 
 export const UPDATE_TASK_PRIORITY = gql`
   mutation UpdateTaskPriority($id: ID!, $priority: String!) {
@@ -53,6 +57,7 @@ export const UPDATE_TASK_PRIORITY = gql`
   }
 `;
 
+
 export const UPDATE_TASK_STATUS = gql`
   mutation UpdateTaskStatus($id: ID!, $status: String!) {
     updateTaskStatus(id: $id, status: $status) {
@@ -61,6 +66,7 @@ export const UPDATE_TASK_STATUS = gql`
     }
   }
 `;
+
 
 export const UPDATE_TASK = gql`
   mutation UpdateTask(
@@ -85,6 +91,7 @@ export const UPDATE_TASK = gql`
       dueDate
       priority
       status
+      projectId
     }
   }
 `;

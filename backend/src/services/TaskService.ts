@@ -10,7 +10,7 @@ export async function getTasks(projectId: string): Promise<Task[]> {
        to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
        priority,
        status,
-       project_id
+       project_id AS "projectId"
      FROM tasks
      WHERE project_id = $1
      ORDER BY id ASC`,
@@ -49,7 +49,6 @@ export async function addTask({
   return result.rows[0];
 }
 
-
 export async function deleteTask(id: string): Promise<boolean> {
   const result = await query<Task>(
     "DELETE FROM tasks WHERE id = $1",
@@ -68,7 +67,8 @@ export async function updateTaskPriority(id: string, priority: string) {
                description,
                to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
                priority,
-               status`,
+               status,
+               project_id AS "projectId"`,
     [priority, id]
   );
 
@@ -89,7 +89,8 @@ export async function updateTaskStatus(id: string, status: string) {
                description,
                to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
                priority,
-               status`,
+               status,
+               project_id AS "projectId"`,
     [status, id]
   );
   return result.rows[0];
@@ -125,7 +126,8 @@ export async function updateTask(
                description,
                to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
                priority,
-               status`,
+               status,
+               project_id AS "projectId"`,
     [numericId, cleanTitle, cleanDescription, cleanDueDate, cleanPriority, cleanStatus]
   );
 
