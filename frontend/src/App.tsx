@@ -1,9 +1,13 @@
+import { useState } from "react";
 import type { Task } from "@shared/types";
 import { useTasks } from "./hooks/useTasks";
 import { KanbanBoard } from "./components/KanbanBoard/KanbanBoard";
 import TaskForm from "./components/TaskForm";
+import Sidebar from "./components/Sidebar";
 
 function App() {
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
   const {
     tasks,
     deleteTask,
@@ -11,49 +15,58 @@ function App() {
     updatePriority,
     updateStatus,
     updateTask,
-  } = useTasks();
+  } = useTasks(selectedProjectId);
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 text-center">
-          <h1 className="text-4xl font-extrabold tracking-tight text-white">
-            Task Manager
-          </h1>
-          <p className="text-gray-400 mt-2">
-            Manage tasks with drag-and-drop Kanban style organization
-          </p>
-        </header>
+    <div className="flex min-h-screen bg-gray-900">
+      {/* Sidebar on the left */}
+      <Sidebar
+        selectedProjectId={selectedProjectId}
+        onSelectProject={setSelectedProjectId}
+      />
 
-        {/* Kanban Board */}
-        <section className="mb-10">
-          <KanbanBoard
-            tasks={tasks}
-            onDelete={(id: Task["id"]) =>
-              deleteTask({ variables: { id } })
-            }
-            onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
-              updatePriority({ variables: { id, priority } })
-            }
-            onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
-              updateStatus({ variables: { id, status } })
-            }
-            onUpdateTask={(updatedTask: Partial<Task>) =>
-              updateTask({ variables: updatedTask })
-            }
-          />
-        </section>
+      {/* Main content area */}
+      <div className="flex-1 p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <header className="mb-8 text-center">
+            <h1 className="text-4xl font-extrabold tracking-tight text-white">
+              Task Manager
+            </h1>
+            <p className="text-gray-400 mt-2">
+              Manage tasks with drag-and-drop Kanban style organization
+            </p>
+          </header>
 
-        {/* Add Task Form */}
-        <section className="bg-gray-800 rounded-xl shadow-lg p-6 ring-1 ring-white/10">
-          <h2 className="text-xl font-semibold mb-4 text-white">
-            Add a New Task
-          </h2>
-          <TaskForm
-            onAdd={(title: string) => addTask({ variables: { title } })}
-          />
-        </section>
+          {/* Kanban Board */}
+          <section className="mb-10">
+            <KanbanBoard
+              tasks={tasks}
+              onDelete={(id: Task["id"]) =>
+                deleteTask({ variables: { id } })
+              }
+              onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
+                updatePriority({ variables: { id, priority } })
+              }
+              onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
+                updateStatus({ variables: { id, status } })
+              }
+              onUpdateTask={(updatedTask: Partial<Task>) =>
+                updateTask({ variables: updatedTask })
+              }
+            />
+          </section>
+
+          {/* Add Task Form */}
+          <section className="bg-gray-800 rounded-xl shadow-lg p-6 ring-1 ring-white/10">
+            <h2 className="text-xl font-semibold mb-4 text-white">
+              Add a New Task
+            </h2>
+            <TaskForm
+              onAdd={(title: string) => addTask({ variables: { title } })}
+            />
+          </section>
+        </div>
       </div>
     </div>
   );
