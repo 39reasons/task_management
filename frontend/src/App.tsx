@@ -1,5 +1,5 @@
 import { useTasks } from "./hooks/useTasks";
-import { KanbanBoard } from "./components/KanbanBoard";
+import { KanbanBoard } from "./components/KanbanBoard/KanbanBoard";
 import TaskForm from "./components/TaskForm";
 
 function App() {
