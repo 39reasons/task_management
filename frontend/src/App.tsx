@@ -8,22 +8,62 @@ import AuthModal from "./components/auth/AuthModal";
 import { useApolloClient } from "@apollo/client";
 import { jwtDecode } from "jwt-decode";
 import type { DecodedToken } from "@shared/types";
+import { Routes, Route, Navigate } from "react-router-dom";
 
+function AllTasksPage({ user }: { user: AuthUser | null }) {
+  const { tasks, deleteTask, updatePriority, updateStatus, updateTask } = useTasks();
+
+  return (
+    <KanbanBoard
+      tasks={tasks}
+      onDelete={(id: Task["id"]) => deleteTask({ variables: { id } })}
+      onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
+        updatePriority({ variables: { id, priority } })
+      }
+      onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
+        updateStatus({ variables: { id, status } })
+      }
+      onUpdateTask={(updatedTask: Partial<Task>) =>
+        updateTask({ variables: updatedTask })
+      }
+      user={user}
+    />
+  );
+}
+
+function ProjectBoardPage({ user }: { user: AuthUser | null }) {
+  const { tasks, deleteTask, addTask, updatePriority, updateStatus, updateTask, projectId } =
+    useTasks();
+
+  return (
+    <KanbanBoard
+      tasks={tasks}
+      onDelete={(id: Task["id"]) => deleteTask({ variables: { id } })}
+      onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
+        updatePriority({ variables: { id, priority } })
+      }
+      onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
+        updateStatus({ variables: { id, status } })
+      }
+      onUpdateTask={(updatedTask: Partial<Task>) =>
+        updateTask({ variables: updatedTask })
+      }
+      onAddTask={(title, status) => {
+        console.log("Submitting addTask:", { projectId, title, status });
+        if (!projectId) return;
+        addTask({
+          variables: { projectId, title, status },
+        });
+      }}
+      user={user}
+    />
+  );
+}
 
 function App() {
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
   const client = useApolloClient();
-
-  const {
-    tasks,
-    deleteTask,
-    addTask,
-    updatePriority,
-    updateStatus,
-    updateTask,
-  } = useTasks(selectedProjectId);
 
   const handleLogout = async () => {
     localStorage.removeItem("token");
@@ -35,7 +75,6 @@ const [user, setUser] = useState<AuthUser | null>(null);
     const token = localStorage.getItem("token");
     if (token) {
       try {
-        // decode token payload { userId, username, name }
         const decoded: DecodedToken = jwtDecode(token);
         setUser({
           id: decoded.id,
@@ -43,7 +82,6 @@ const [user, setUser] = useState<AuthUser | null>(null);
           name: decoded.name,
         });
       } catch {
-        // invalid/expired token → clear
         localStorage.removeItem("token");
         setUser(null);
       }
@@ -52,17 +90,10 @@ const [user, setUser] = useState<AuthUser | null>(null);
     }
   }, []);
 
-  
   return (
     <div className="flex flex-col min-h-screen bg-gray-900">
-      {/* Navbar */}
-      <Navbar
-        user={user}
-        onLoginClick={() => setAuthModalOpen(true)}
-        onLogout={handleLogout}
-      />
+      <Navbar user={user} onLoginClick={() => setAuthModalOpen(true)} onLogout={handleLogout} />
 
-      {/* Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setAuthModalOpen(false)}
@@ -74,42 +105,16 @@ const [user, setUser] = useState<AuthUser | null>(null);
       />
 
       <div className="flex flex-1">
-        {/* Sidebar */}
-        <Sidebar
-          selectedProjectId={selectedProjectId}
-          onSelectProject={setSelectedProjectId}
-          user={user}
-        />
+        <Sidebar user={user} />
 
-        {/* Main content area */}
         <main className="flex-1 p-6">
           <div className="max-w-6xl mx-auto">
             <section className="mb-10">
-              <KanbanBoard
-                tasks={tasks}
-                onDelete={(id: Task["id"]) => deleteTask({ variables: { id } })}
-                onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
-                  updatePriority({ variables: { id, priority } })
-                }
-                onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
-                  updateStatus({ variables: { id, status } })
-                }
-                onUpdateTask={(updatedTask: Partial<Task>) =>
-                  updateTask({ variables: updatedTask })
-                }
-                onAddTask={(title, status) => {
-                  if (!selectedProjectId) return;
-                  addTask({
-                    variables: {
-                      projectId: selectedProjectId,
-                      title,
-                      status,
-                    },
-                  });
-                }}
-                selectedProjectId={selectedProjectId}
-                user={user}
-              />
+              <Routes>
+                <Route path="/" element={<AllTasksPage user={user} />} />
+                <Route path="/projects/:id" element={<ProjectBoardPage user={user} />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
             </section>
           </div>
         </main>

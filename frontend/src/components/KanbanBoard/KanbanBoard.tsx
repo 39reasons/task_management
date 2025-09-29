@@ -11,7 +11,8 @@ import {
 import { useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanOverlay } from "./KanbanOverlay";
-import { TaskModal } from "..//TaskModal/TaskModal";
+import { TaskModal } from "../TaskModal/TaskModal";
+import { useParams } from "react-router-dom";
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -20,7 +21,6 @@ interface KanbanBoardProps {
   onUpdateStatus: (id: Task["id"], status: Task["status"]) => void;
   onUpdateTask: (updatedTask: Partial<Task>) => void;
   onAddTask?: (title: string, status: Task["status"]) => void;
-  selectedProjectId: string | null;
   user: { id: string; username: string; name: string } | null;
 }
 
@@ -31,9 +31,10 @@ export function KanbanBoard({
   onUpdateStatus,
   onUpdateTask,
   onAddTask,
-  selectedProjectId,
-  user
+  user,
 }: KanbanBoardProps) {
+  const { id: selectedProjectId } = useParams<{ id: string }>();
+
   const STATUSES: Task["status"][] = ["todo", "in-progress", "done"];
   const STATUS_LABELS: Record<Task["status"], string> = {
     todo: "To Do",
@@ -92,15 +93,15 @@ export function KanbanBoard({
               id={status}
               title={STATUS_LABELS[status]}
               tasks={tasks.filter((t) => t.status === status)}
-              onDelete={user ? onDelete : undefined} 
+              onDelete={user ? onDelete : undefined}
               onUpdatePriority={onUpdatePriority}
               onUpdateStatus={onUpdateStatus}
               onTaskClick={(task) => {
                 setSelectedTask(task);
                 setModalOpen(true);
               }}
-              onAddTask={user ? onAddTask : undefined}
-              selectedProjectId={selectedProjectId}
+              onAddTask={user && onAddTask ? onAddTask : undefined}
+              selectedProjectId={selectedProjectId ?? null}
             />
           ))}
         </div>

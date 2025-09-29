@@ -2,14 +2,13 @@ import { useQuery, useMutation } from "@apollo/client";
 import { GET_PROJECTS, ADD_PROJECT } from "../graphql/projects";
 import { useState, useEffect } from "react";
 import { PlusCircle } from "lucide-react";
+import { NavLink } from "react-router-dom";
 
 interface SidebarProps {
-  selectedProjectId: string | null;
-  onSelectProject: (id: string | null) => void;
   user: { username: string } | null;
 }
 
-export default function Sidebar({ selectedProjectId, onSelectProject, user }: SidebarProps) {
+export default function Sidebar({ user }: SidebarProps) {
   const { data, loading, refetch } = useQuery(GET_PROJECTS);
   const [addProject] = useMutation(ADD_PROJECT, {
     refetchQueries: [{ query: GET_PROJECTS }],
@@ -30,7 +29,11 @@ export default function Sidebar({ selectedProjectId, onSelectProject, user }: Si
     e.preventDefault();
     if (!newProjectName.trim()) return;
     await addProject({
-      variables: { name: newProjectName, description: newProjectDesc || null, is_public: isPublic },
+      variables: {
+        name: newProjectName,
+        description: newProjectDesc || null,
+        is_public: isPublic,
+      },
     });
     setNewProjectName("");
     setNewProjectDesc("");
@@ -44,26 +47,39 @@ export default function Sidebar({ selectedProjectId, onSelectProject, user }: Si
 
       {/* Project list */}
       <ul className="space-y-2">
-        <li
-          className={`cursor-pointer p-2 rounded ${
-            selectedProjectId === null ? "bg-gray-700" : "hover:bg-gray-700"
-          }`}
-          onClick={() => onSelectProject(null)}
-        >
-          All Tasks
-        </li>
-        {data?.projects?.map((project: { id: string; name: string; is_public: boolean }) => (
-          <li
-            key={project.id}
-            className={`cursor-pointer p-2 rounded flex justify-between ${
-              selectedProjectId === project.id ? "bg-gray-700" : "hover:bg-gray-700"
-            }`}
-            onClick={() => onSelectProject(project.id)}
+        {/* All Tasks */}
+        <li>
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `block p-2 rounded ${isActive ? "bg-gray-700" : "hover:bg-gray-700"}`
+            }
           >
-            <span>{project.name}</span>
-            {project.is_public && <span className="text-xs text-green-400">Public</span>}
-          </li>
-        ))}
+            All Tasks
+          </NavLink>
+        </li>
+
+        {/* User projects */}
+        {data?.projects?.map(
+          (project: { id: string; name: string; is_public: boolean }) => (
+            <li key={project.id}>
+              <NavLink
+                to={`/projects/${project.id}`}
+                className={({ isActive }) =>
+                  `flex justify-between p-2 rounded ${
+                    isActive ? "bg-gray-700" : "hover:bg-gray-700"
+                  }`
+                }
+              >
+                <span>{project.name}</span>
+                {project.is_public && (
+                  <span className="text-xs text-green-400">Public</span>
+                )}
+              </NavLink>
+            </li>
+          )
+        )}
       </ul>
 
       {/* New Project Button (only if logged in) */}
