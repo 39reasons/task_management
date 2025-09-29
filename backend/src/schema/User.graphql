@@ -1,0 +1,17 @@
+type User {
+  id: ID!
+  name: String!
+  username: String!
+  created_at: String!
+  updated_at: String!
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+extend type Mutation {
+  signUp(name: String!, username: String!, password: String!): AuthPayload!
+  login(username: String!, password: String!): AuthPayload!
+}

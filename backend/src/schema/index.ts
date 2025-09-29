@@ -11,9 +11,15 @@ const projectSchema = readFileSync(
   "utf8"
 );
 
+const userSchema = readFileSync(
+  path.join(process.cwd(), "src/schema/User.graphql"),
+  "utf8"
+);
+
 export const typeDefs = `
   type Query
   type Mutation
   ${taskSchema}
   ${projectSchema}
+  ${userSchema}
 `;
