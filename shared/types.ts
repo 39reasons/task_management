@@ -19,3 +19,9 @@ export interface Project {
   created_at: string;
   tasks?: Task[];
 }
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  name: string;
+}

@@ -2,8 +2,13 @@ import { useState } from "react";
 import { useMutation } from "@apollo/client";
 import { LOGIN } from "../../graphql/users";
 import InputField from "./InputField";
+import type { AuthUser } from "@shared/types";
 
-export default function LoginForm({ onLogin }: { onLogin: (user: any, token: string) => void }) {
+interface LoginFormProps {
+  onLogin: (user: AuthUser, token: string) => void;
+}
+
+export default function LoginForm({ onLogin }: LoginFormProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

@@ -4,10 +4,12 @@ import Sidebar from "./components/Sidebar";
 import { KanbanBoard } from "./components/KanbanBoard/KanbanBoard";
 import { useTasks } from "./hooks/useTasks";
 import type { Task } from "@shared/types";
+import AuthModal from "./components/auth/AuthModal";
 
 function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [user, setUser] = useState<{ username: string } | null>(null);
+  const [isAuthModalOpen, setAuthModalOpen] = useState(false);
 
   const {
     tasks,
@@ -23,13 +25,21 @@ function App() {
       {/* Navbar at the top */}
       <Navbar
         user={user}
-        onLogin={(user, token) => {
-          localStorage.setItem("token", token);
-          setUser(user);
-        }}
+        onLoginClick={() => setAuthModalOpen(true)}
         onLogout={() => {
           localStorage.removeItem("token");
           setUser(null);
+        }}
+      />
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onLogin={(user, token) => {
+          localStorage.setItem("token", token);
+          setUser(user);
+          setAuthModalOpen(false);
         }}
       />
 

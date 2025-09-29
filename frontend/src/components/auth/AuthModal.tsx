@@ -1,11 +1,12 @@
 import { useState } from "react";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignUpForm";
+import type { AuthUser } from "@shared/types";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (user: any, token: string) => void; // 👈 add this
+  onLogin: (user: AuthUser, token: string) => void;
 }
 
 export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
@@ -46,7 +47,13 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
         ) : (
           <>
             <h2 className="text-2xl font-bold text-white mb-6 text-center">Sign Up</h2>
-            <SignupForm />
+            <SignupForm
+              onSignUp={(user, token) => {
+                localStorage.setItem("token", token);
+                onLogin(user, token);
+                onClose();
+              }}
+            />
             <p className="text-gray-400 text-sm mt-6 text-center">
               Already have an account?{" "}
               <button
