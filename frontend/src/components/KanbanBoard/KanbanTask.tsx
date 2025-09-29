@@ -5,7 +5,7 @@ import { SquarePen, Trash2 } from "lucide-react";
 
 interface KanbanTaskProps {
   task: Task;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onUpdatePriority: (id: string, priority: Task["priority"]) => void;
   onUpdateStatus: (id: string, status: Task["status"]) => void;
   onClick: (task: Task) => void;
@@ -45,7 +45,7 @@ export function KanbanTask({
       <div className="flex justify-between items-start">
         <h4 className="font-bold text-white">{task.title}</h4>
         <button
-          onPointerDown={(e) => e.stopPropagation()} // 🚫 stop drag
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onClick(task);
@@ -67,7 +67,7 @@ export function KanbanTask({
           Priority
         </label>
         <select
-          onPointerDown={(e) => e.stopPropagation()} // 🚫 stop drag
+          onPointerDown={(e) => e.stopPropagation()}
           value={task.priority?.trim() || "low"}
           onChange={(e) =>
             onUpdatePriority(task.id, e.target.value as Task["priority"])
@@ -86,7 +86,7 @@ export function KanbanTask({
           Status
         </label>
         <select
-          onPointerDown={(e) => e.stopPropagation()} // 🚫 stop drag
+          onPointerDown={(e) => e.stopPropagation()}
           value={task.status}
           onChange={(e) =>
             onUpdateStatus(task.id, e.target.value as Task["status"])
@@ -101,7 +101,7 @@ export function KanbanTask({
 
       {/* Due Date */}
       <span
-        onPointerDown={(e) => e.stopPropagation()} // 🚫 stop drag
+        onPointerDown={(e) => e.stopPropagation()}
         className="text-xs text-gray-400 mt-3 select-text cursor-text block"
       >
         Due: {task.dueDate || "—"}
@@ -109,8 +109,10 @@ export function KanbanTask({
 
       {/* Delete button */}
       <div className="mt-4">
+        {
+          onDelete && (
         <button
-          onPointerDown={(e) => e.stopPropagation()} // 🚫 stop drag
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onDelete(task.id);
@@ -121,6 +123,8 @@ export function KanbanTask({
           <Trash2 className="w-4 h-4" />
           <span>Delete</span>
         </button>
+          )
+        }
       </div>
     </div>
   );

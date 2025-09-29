@@ -8,11 +8,11 @@ interface KanbanColumnProps {
   id: Task["status"];
   title: string;
   tasks: Task[];
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onUpdatePriority: (id: string, priority: Task["priority"]) => void;
   onUpdateStatus: (id: string, status: Task["status"]) => void;
   onTaskClick: (task: Task) => void;
-  onAddTask: (title: string, status: Task["status"]) => void;
+  onAddTask?: (title: string, status: Task["status"]) => void;
   selectedProjectId: string | null;
 }
 
@@ -34,7 +34,7 @@ export function KanbanColumn({
       ref={setNodeRef}
       className={[
         "bg-gray-800 rounded-xl shadow-md p-4 flex flex-col ring-1 ring-white/10 min-h-[200px]",
-        isOver ? "outline outline-2 outline-primary/60" : ""
+        isOver ? "outline outline-primary/60" : ""
       ].join(" ")}
     >
       <h3 className="text-lg font-semibold text-white mb-4 border-b border-primary pb-2">
@@ -63,10 +63,10 @@ export function KanbanColumn({
       </SortableContext>
 
       {/* Add Card composer */}
-      {selectedProjectId && (
+      {selectedProjectId && onAddTask && (
         <TaskForm
           status={id}
-          onAdd={(title: string, status: Task["status"]) => onAddTask(title, status)}
+          onAdd={(title, status) => onAddTask(title, status)}
         />
       )}
     </div>

@@ -106,6 +106,7 @@ const [user, setUser] = useState<AuthUser | null>(null);
                   });
                 }}
                 selectedProjectId={selectedProjectId}
+                user={user}
               />
             </section>
           </div>

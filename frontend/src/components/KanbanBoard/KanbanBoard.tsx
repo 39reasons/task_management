@@ -15,12 +15,13 @@ import { TaskModal } from "..//TaskModal/TaskModal";
 
 interface KanbanBoardProps {
   tasks: Task[];
-  onDelete: (id: Task["id"]) => void;
+  onDelete?: (id: Task["id"]) => void;
   onUpdatePriority: (id: Task["id"], priority: Task["priority"]) => void;
   onUpdateStatus: (id: Task["id"], status: Task["status"]) => void;
   onUpdateTask: (updatedTask: Partial<Task>) => void;
-  onAddTask: (title: string, status: Task["status"]) => void; 
+  onAddTask?: (title: string, status: Task["status"]) => void;
   selectedProjectId: string | null;
+  user: { id: string; username: string; name: string } | null;
 }
 
 export function KanbanBoard({
@@ -30,7 +31,8 @@ export function KanbanBoard({
   onUpdateStatus,
   onUpdateTask,
   onAddTask,
-  selectedProjectId
+  selectedProjectId,
+  user
 }: KanbanBoardProps) {
   const STATUSES: Task["status"][] = ["todo", "in-progress", "done"];
   const STATUS_LABELS: Record<Task["status"], string> = {
@@ -90,14 +92,14 @@ export function KanbanBoard({
               id={status}
               title={STATUS_LABELS[status]}
               tasks={tasks.filter((t) => t.status === status)}
-              onDelete={onDelete}
+              onDelete={user ? onDelete : undefined} 
               onUpdatePriority={onUpdatePriority}
               onUpdateStatus={onUpdateStatus}
               onTaskClick={(task) => {
                 setSelectedTask(task);
                 setModalOpen(true);
               }}
-              onAddTask={onAddTask}
+              onAddTask={user ? onAddTask : undefined}
               selectedProjectId={selectedProjectId}
             />
           ))}
