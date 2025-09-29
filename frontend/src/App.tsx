@@ -2,7 +2,6 @@ import { useState } from "react";
 import type { Task } from "@shared/types";
 import { useTasks } from "./hooks/useTasks";
 import { KanbanBoard } from "./components/KanbanBoard/KanbanBoard";
-import TaskForm from "./components/TaskForm";
 import Sidebar from "./components/Sidebar";
 
 function App() {
@@ -42,9 +41,7 @@ function App() {
           <section className="mb-10">
             <KanbanBoard
               tasks={tasks}
-              onDelete={(id: Task["id"]) =>
-                deleteTask({ variables: { id } })
-              }
+              onDelete={(id: Task["id"]) => deleteTask({ variables: { id } })}
               onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
                 updatePriority({ variables: { id, priority } })
               }
@@ -54,17 +51,17 @@ function App() {
               onUpdateTask={(updatedTask: Partial<Task>) =>
                 updateTask({ variables: updatedTask })
               }
-            />
-          </section>
-
-          {/* Add Task Form */}
-          <section className="bg-gray-800 rounded-xl shadow-lg p-6 ring-1 ring-white/10">
-            <h2 className="text-xl font-semibold mb-4 text-white">
-              Add a New Task
-            </h2>
-            <TaskForm
-              onAdd={(title: string) => addTask({ variables: { title } })}
-            />
+              onAddTask={(title, status) => {
+                if (!selectedProjectId) return;
+                addTask({
+                  variables: {
+                    projectId: selectedProjectId,
+                    title,
+                    status,
+                  },
+                });
+              }}
+              selectedProjectId={selectedProjectId}/>
           </section>
         </div>
       </div>

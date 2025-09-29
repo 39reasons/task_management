@@ -2,6 +2,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { useDroppable } from "@dnd-kit/core"; // 👈 add this
 import type { Task } from "@shared/types";
 import { KanbanTask } from "./KanbanTask";
+import { TaskForm } from "../TaskForm";
 
 interface KanbanColumnProps {
   id: Task["status"];
@@ -11,6 +12,8 @@ interface KanbanColumnProps {
   onUpdatePriority: (id: string, priority: Task["priority"]) => void;
   onUpdateStatus: (id: string, status: Task["status"]) => void;
   onTaskClick: (task: Task) => void;
+  onAddTask: (title: string, status: Task["status"]) => void;
+  selectedProjectId: string | null;
 }
 
 export function KanbanColumn({
@@ -21,8 +24,10 @@ export function KanbanColumn({
   onUpdatePriority,
   onUpdateStatus,
   onTaskClick,
+  onAddTask,
+  selectedProjectId
 }: KanbanColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id }); // 👈 droppable area = the whole column
+  const { setNodeRef, isOver } = useDroppable({ id });
 
   return (
     <div
@@ -56,6 +61,14 @@ export function KanbanColumn({
           )}
         </div>
       </SortableContext>
+
+      {/* Add Card composer */}
+      {selectedProjectId && (
+        <TaskForm
+          status={id}
+          onAdd={(title: string, status: Task["status"]) => onAddTask(title, status)}
+        />
+      )}
     </div>
   );
 }

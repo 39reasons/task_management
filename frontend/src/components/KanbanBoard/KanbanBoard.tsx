@@ -19,6 +19,8 @@ interface KanbanBoardProps {
   onUpdatePriority: (id: Task["id"], priority: Task["priority"]) => void;
   onUpdateStatus: (id: Task["id"], status: Task["status"]) => void;
   onUpdateTask: (updatedTask: Partial<Task>) => void;
+  onAddTask: (title: string, status: Task["status"]) => void; 
+  selectedProjectId: string | null;
 }
 
 export function KanbanBoard({
@@ -27,6 +29,8 @@ export function KanbanBoard({
   onUpdatePriority,
   onUpdateStatus,
   onUpdateTask,
+  onAddTask,
+  selectedProjectId
 }: KanbanBoardProps) {
   const STATUSES: Task["status"][] = ["todo", "in-progress", "done"];
   const STATUS_LABELS: Record<Task["status"], string> = {
@@ -69,7 +73,7 @@ export function KanbanBoard({
     <>
       <DndContext
         sensors={sensors}
-        collisionDetection={pointerWithin} // 👈 more accurate than closestCenter
+        collisionDetection={pointerWithin}
         onDragStart={(event) => {
           const task = tasks.find(
             (t) => String(t.id) === String(event.active.id)
@@ -93,6 +97,8 @@ export function KanbanBoard({
                 setSelectedTask(task);
                 setModalOpen(true);
               }}
+              onAddTask={onAddTask}
+              selectedProjectId={selectedProjectId}
             />
           ))}
         </div>

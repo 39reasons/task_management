@@ -38,7 +38,7 @@ export async function addTask({
     `INSERT INTO tasks (project_id, title, description, due_date, priority, status)
      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING ${TASK_FIELDS}`,
-    [projectId || null, title, description, dueDate, priority, status]
+    [projectId, title, description, dueDate, priority, status]
   );
   return result.rows[0];
 }

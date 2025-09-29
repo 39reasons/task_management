@@ -1,38 +1,38 @@
-type Task {
-  id: ID!
-  projectId: ID
-  title: String!
-  description: String
-  dueDate: String
-  priority: String
-  status: String
-}
-
-extend type Query {
-  tasks(projectId: ID): [Task!]!
-}
-
-extend type Mutation {
-  addTask(
+  type Task {
+    id: ID!
     projectId: ID
     title: String!
     description: String
     dueDate: String
     priority: String
     status: String
-  ): Task!
+  }
 
-  deleteTask(id: ID!): Boolean!
+  extend type Query {
+    tasks(projectId: ID): [Task!]!
+  }
 
-  updateTaskPriority(id: ID!, priority: String!): Task!
-  updateTaskStatus(id: ID!, status: String!): Task!
+  extend type Mutation {
+    addTask(
+      projectId: ID!
+      title: String!
+      description: String
+      dueDate: String
+      priority: String
+      status: String
+    ): Task!
 
-  updateTask(
-    id: ID!
-    title: String
-    description: String
-    dueDate: String
-    priority: String
-    status: String
-  ): Task!
-}
+    deleteTask(id: ID!): Boolean!
+
+    updateTaskPriority(id: ID!, priority: String!): Task!
+    updateTaskStatus(id: ID!, status: String!): Task!
+
+    updateTask(
+      id: ID!
+      title: String
+      description: String
+      dueDate: String
+      priority: String
+      status: String
+    ): Task!
+  }
