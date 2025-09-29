@@ -27,3 +27,9 @@ export interface AuthUser {
   username: string;
   name: string;
 }
+
+export interface DecodedToken {
+  id: string;
+  username: string;
+  name: string;
+}

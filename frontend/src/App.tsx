@@ -7,6 +7,8 @@ import type { AuthUser, Task } from "@shared/types";
 import AuthModal from "./components/auth/AuthModal";
 import { useApolloClient } from "@apollo/client";
 import { jwtDecode } from "jwt-decode";
+import type { DecodedToken } from "@shared/types";
+
 
 function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -34,9 +36,9 @@ const [user, setUser] = useState<AuthUser | null>(null);
     if (token) {
       try {
         // decode token payload { userId, username, name }
-        const decoded: any = jwtDecode(token);
+        const decoded: DecodedToken = jwtDecode(token);
         setUser({
-          id: decoded.userId,
+          id: decoded.id,
           username: decoded.username,
           name: decoded.name,
         });

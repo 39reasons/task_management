@@ -14,8 +14,16 @@ export interface User {
   password_hash?: string;
 }
 
-function generateToken(userId: string) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
+function generateToken(user: User) {
+  return jwt.sign(
+    {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+    },
+    process.env.JWT_SECRET!,
+    { expiresIn: "7d" }
+  );
 }
 
 export async function getUserByUsername(username: string): Promise<User | null> {
@@ -41,7 +49,7 @@ export async function createUser(
   );
 
   const user = result.rows[0];
-  const token = generateToken(user.id);
+  const token = generateToken(user);
 
   return { token, user };
 }
@@ -65,7 +73,7 @@ export async function loginUser(
     throw new Error("Invalid username or password");
   }
 
-  const token = generateToken(user.id);
+  const token = generateToken(user);
 
   return {
     token,

@@ -1,17 +1,18 @@
 import * as TaskService from "../services/TaskService.js";
 import type { Task } from "@shared/types";
+import type { GraphQLContext } from "../types/context";
 
 export const taskResolvers = {
   Query: {
     tasks: async (
       _: unknown,
       args: { projectId?: string },
-      { user }: any
+      ctx: GraphQLContext
     ): Promise<Task[]> => {
       if (args.projectId) {
-        return await TaskService.getTasks(args.projectId, user?.id || null);
+        return await TaskService.getTasks(args.projectId, ctx.user?.id ?? null);
       } else {
-        return await TaskService.getAllVisibleTasks(user?.id || null);
+        return await TaskService.getAllVisibleTasks(ctx.user?.id ?? null);
       }
     },
   },
@@ -36,9 +37,9 @@ export const taskResolvers = {
         status?: string;
         assignedTo?: string;
       },
-      { user }: any
+      ctx: GraphQLContext
     ): Promise<Task> => {
-      if (!user) throw new Error("Not authenticated");
+      if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.addTask({
         projectId,
         title,
@@ -46,30 +47,34 @@ export const taskResolvers = {
         dueDate,
         priority,
         status,
-        assignedTo,
+        assignedTo: assignedTo ?? ctx.user.id, // fallback to current user
       });
     },
 
-    deleteTask: async (_: unknown, { id }: { id: string }, { user }: any) => {
-      if (!user) throw new Error("Not authenticated");
+    deleteTask: async (
+      _: unknown,
+      { id }: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.deleteTask(id);
     },
 
     updateTaskPriority: async (
       _: unknown,
       { id, priority }: { id: string; priority: string },
-      { user }: any
+      ctx: GraphQLContext
     ) => {
-      if (!user) throw new Error("Not authenticated");
+      if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.updateTaskPriority(id, priority);
     },
 
     updateTaskStatus: async (
       _: unknown,
       { id, status }: { id: string; status: string },
-      { user }: any
+      ctx: GraphQLContext
     ) => {
-      if (!user) throw new Error("Not authenticated");
+      if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.updateTaskStatus(id, status);
     },
 
@@ -92,9 +97,9 @@ export const taskResolvers = {
         status?: string;
         assignedTo?: string;
       },
-      { user }: any
+      ctx: GraphQLContext
     ) => {
-      if (!user) throw new Error("Not authenticated");
+      if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.updateTask(
         id,
         title,
@@ -102,7 +107,7 @@ export const taskResolvers = {
         dueDate,
         priority,
         status,
-        assignedTo
+        assignedTo ?? ctx.user.id
       );
     },
   },

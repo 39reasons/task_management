@@ -48,7 +48,6 @@ export async function getProjects(userId?: string): Promise<Project[]> {
   }
 }
 
-
 export async function getProjectById(
   id: string,
   userId: string
@@ -100,10 +99,11 @@ export async function addProject(
     `
     INSERT INTO projects (name, description, is_public)
     VALUES ($1, $2, $3)
-    RETURNING ${PROJECT_FIELDS_SELECT}, is_public
+    RETURNING ${PROJECT_FIELDS_RETURNING}
     `,
     [name, description, isPublic]
   );
+
   const project = result.rows[0];
 
   await query(
@@ -133,7 +133,7 @@ export async function updateProject(
         SELECT 1 FROM user_projects up
         WHERE up.project_id = p.id AND up.user_id = $2
       )
-    RETURNING ${PROJECT_FIELDS_RETURNING}, is_public
+    RETURNING ${PROJECT_FIELDS_RETURNING}
     `,
     [id, userId, name, description, isPublic]
   );
