@@ -2,15 +2,29 @@ type Project {
   id: ID!
   name: String!
   description: String
-  tasks: [Task!]!
+  created_at: String
+  updated_at: String
+  is_public: Boolean!
+  tasks: [Task!]
 }
-
 extend type Query {
   projects: [Project!]!
   project(id: ID!): Project
 }
 
 extend type Mutation {
-  addProject(name: String!, description: String): Project!
+  addProject(
+    name: String!
+    description: String
+    is_public: Boolean
+  ): Project!
+
+  updateProject(
+    id: ID!
+    name: String
+    description: String
+    is_public: Boolean
+  ): Project!
+
   deleteProject(id: ID!): Boolean!
 }
