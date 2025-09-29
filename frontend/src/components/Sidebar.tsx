@@ -61,7 +61,7 @@ export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarP
       {/* New Project Button directly below the list */}
       <button
         onClick={() => setShowModal(true)}
-        className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors"
+        className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors cursor-pointer"
       >
         <PlusCircle className="w-4 h-4" />
         New Project
