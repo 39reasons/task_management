@@ -12,11 +12,11 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-function getUserIdFromToken(token: string | null): string | null {
+function getUserFromToken(token: string | null): { id: string } | null {
   if (!token) return null;
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    return decoded.userId;
+    return { id: decoded.userId }; // return an object with id
   } catch {
     return null; // invalid or expired token
   }
@@ -32,11 +32,11 @@ const { url } = await startStandaloneServer(server, {
   context: async ({ req }) => {
     const authHeader = req.headers.authorization || "";
     const token = authHeader.replace("Bearer ", "");
-    const userId = getUserIdFromToken(token);
+    const user = getUserFromToken(token);
 
     return {
       db: pool,
-      userId,
+      user,
     };
   },
 });

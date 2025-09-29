@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import { KanbanBoard } from "./components/KanbanBoard/KanbanBoard";
 import { useTasks } from "./hooks/useTasks";
-import type { Task } from "@shared/types";
+import type { AuthUser, Task } from "@shared/types";
 import AuthModal from "./components/auth/AuthModal";
+import { useApolloClient } from "@apollo/client";
+import { jwtDecode } from "jwt-decode";
 
 function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [user, setUser] = useState<{ username: string } | null>(null);
+const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+  const client = useApolloClient();
 
   const {
     tasks,
@@ -20,16 +23,41 @@ function App() {
     updateTask,
   } = useTasks(selectedProjectId);
 
+  const handleLogout = async () => {
+    localStorage.removeItem("token");
+    setUser(null);
+    await client.resetStore();
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        // decode token payload { userId, username, name }
+        const decoded: any = jwtDecode(token);
+        setUser({
+          id: decoded.userId,
+          username: decoded.username,
+          name: decoded.name,
+        });
+      } catch {
+        // invalid/expired token → clear
+        localStorage.removeItem("token");
+        setUser(null);
+      }
+    } else {
+      setUser(null);
+    }
+  }, []);
+
+  
   return (
     <div className="flex flex-col min-h-screen bg-gray-900">
-      {/* Navbar at the top */}
+      {/* Navbar */}
       <Navbar
         user={user}
         onLoginClick={() => setAuthModalOpen(true)}
-        onLogout={() => {
-          localStorage.removeItem("token");
-          setUser(null);
-        }}
+        onLogout={handleLogout}
       />
 
       {/* Auth Modal */}
@@ -44,10 +72,11 @@ function App() {
       />
 
       <div className="flex flex-1">
-        {/* Sidebar on the left */}
+        {/* Sidebar */}
         <Sidebar
           selectedProjectId={selectedProjectId}
           onSelectProject={setSelectedProjectId}
+          user={user}
         />
 
         {/* Main content area */}

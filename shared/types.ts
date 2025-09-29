@@ -6,6 +6,7 @@ export interface Task {
   priority: "low" | "medium" | "high";
   status: "todo" | "in-progress" | "done";
   projectId: string;
+  assignedTo?: string | null;
 }
 
 export interface TasksData {
@@ -13,10 +14,11 @@ export interface TasksData {
 }
 
 export interface Project {
-  id: number;
+  id: string;
   name: string;
-  description?: string;
-  created_at: string;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
   tasks?: Task[];
 }
 

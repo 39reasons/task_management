@@ -1,15 +1,16 @@
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_PROJECTS, ADD_PROJECT } from "../graphql/projects";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PlusCircle } from "lucide-react";
 
 interface SidebarProps {
   selectedProjectId: string | null;
   onSelectProject: (id: string | null) => void;
+  user: { username: string } | null;
 }
 
-export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarProps) {
-  const { data, loading } = useQuery(GET_PROJECTS);
+export default function Sidebar({ selectedProjectId, onSelectProject, user }: SidebarProps) {
+  const { data, loading, refetch } = useQuery(GET_PROJECTS);
   const [addProject] = useMutation(ADD_PROJECT, {
     refetchQueries: [{ query: GET_PROJECTS }],
   });
@@ -17,6 +18,11 @@ export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarP
   const [showModal, setShowModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+
+  useEffect(() => {
+    refetch();
+  }, [user, refetch]);
 
   if (loading) return <div className="p-4 text-gray-400">Loading...</div>;
 
@@ -24,10 +30,11 @@ export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarP
     e.preventDefault();
     if (!newProjectName.trim()) return;
     await addProject({
-      variables: { name: newProjectName, description: newProjectDesc || null },
+      variables: { name: newProjectName, description: newProjectDesc || null, is_public: isPublic },
     });
     setNewProjectName("");
     setNewProjectDesc("");
+    setIsPublic(false);
     setShowModal(false);
   };
 
@@ -45,27 +52,30 @@ export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarP
         >
           All Tasks
         </li>
-        {data.projects.map((project: { id: string; name: string }) => (
+        {data?.projects?.map((project: { id: string; name: string; is_public: boolean }) => (
           <li
             key={project.id}
-            className={`cursor-pointer p-2 rounded ${
+            className={`cursor-pointer p-2 rounded flex justify-between ${
               selectedProjectId === project.id ? "bg-gray-700" : "hover:bg-gray-700"
             }`}
             onClick={() => onSelectProject(project.id)}
           >
-            {project.name}
+            <span>{project.name}</span>
+            {project.is_public && <span className="text-xs text-green-400">Public</span>}
           </li>
         ))}
       </ul>
 
-      {/* New Project Button directly below the list */}
-      <button
-        onClick={() => setShowModal(true)}
-        className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors cursor-pointer"
-      >
-        <PlusCircle className="w-4 h-4" />
-        New Project
-      </button>
+      {/* New Project Button (only if logged in) */}
+      {user && (
+        <button
+          onClick={() => setShowModal(true)}
+          className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors cursor-pointer"
+        >
+          <PlusCircle className="w-4 h-4" />
+          New Project
+        </button>
+      )}
 
       {/* Modal */}
       {showModal && (
@@ -87,6 +97,15 @@ export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarP
                 rows={3}
                 className="w-full rounded-lg px-3 py-2 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <label className="flex items-center gap-2 text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={(e) => setIsPublic(e.target.checked)}
+                  className="form-checkbox h-4 w-4 text-blue-600"
+                />
+                Make project public
+              </label>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
