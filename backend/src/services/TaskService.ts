@@ -167,19 +167,20 @@ export async function updateTask(
   status?: string,
   assignedTo?: string
 ): Promise<Task> {
+  const normalizedDueDate = !dueDate || dueDate.trim() === "" ? null : dueDate;
   const result = await query<Task>(
     `
     UPDATE tasks
     SET title = COALESCE($2, title),
         description = COALESCE($3, description),
-        due_date = COALESCE($4, due_date),
+        due_date = COALESCE($4::DATE, due_date),
         priority = COALESCE($5, priority),
         status = COALESCE($6, status),
         assigned_to = COALESCE($7, assigned_to)
     WHERE id = $1
     RETURNING ${TASK_FIELDS_RETURNING}
     `,
-    [id, title ?? null, description ?? null, dueDate ?? null, priority ?? null, status ?? null, assignedTo ?? null]
+    [id, title ?? null, description ?? null, normalizedDueDate, priority ?? null, status ?? null, assignedTo ?? null]
   );
   return result.rows[0];
 }
