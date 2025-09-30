@@ -16,10 +16,16 @@ const userSchema = readFileSync(
   "utf8"
 );
 
+const commentsSchema = readFileSync(
+  path.join(process.cwd(), "src/schema/Comments.graphql"),
+  "utf8"
+);
+
 export const typeDefs = `
   type Query
   type Mutation
   ${taskSchema}
   ${projectSchema}
   ${userSchema}
+  ${commentsSchema}
 `;

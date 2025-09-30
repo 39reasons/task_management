@@ -95,3 +95,42 @@ export const UPDATE_TASK = gql`
     }
   }
 `;
+
+export const GET_COMMENTS = gql`
+  query GetComments($taskId: ID!) {
+    task(id: $taskId) {
+      id
+      comments {
+        id
+        content
+        createdAt
+        user {
+          id
+          username
+          name
+        }
+      }
+    }
+  }
+`;
+
+export const ADD_COMMENT = gql`
+  mutation AddComment($taskId: ID!, $content: String!) {
+    addComment(taskId: $taskId, content: $content) {
+      id
+      content
+      createdAt
+      user {
+        id
+        username
+        name
+      }
+    }
+  }
+`;
+
+export const DELETE_COMMENT = gql`
+  mutation DeleteComment($id: ID!) {
+    deleteComment(id: $id)
+  }
+`;

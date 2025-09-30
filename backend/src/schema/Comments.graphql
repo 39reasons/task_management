@@ -1,0 +1,18 @@
+type Comment {
+  id: ID!
+  taskId: ID!
+  userId: ID!
+  content: String!
+  createdAt: String!
+  updatedAt: String!
+  user: User!
+}
+
+extend type Task {
+  comments: [Comment!]!
+}
+
+extend type Mutation {
+  addComment(taskId: ID!, content: String!): Comment!
+  deleteComment(id: ID!): Boolean!
+}

@@ -11,6 +11,7 @@ type Task {
 
 extend type Query {
   tasks(projectId: ID): [Task!]!
+  task(id: ID!): Task
 }
 
 extend type Mutation {

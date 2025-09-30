@@ -184,3 +184,22 @@ export async function updateTask(
   );
   return result.rows[0];
 }
+
+export async function getTaskById(id: string) {
+  const result = await query<Task>(
+    `
+    SELECT 
+      id,
+      title,
+      description,
+      to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
+      priority,
+      status,
+      project_id AS "projectId"
+    FROM tasks
+    WHERE id = $1
+    `,
+    [id]
+  );
+  return result.rows[0] || null;
+}

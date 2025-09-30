@@ -1,4 +1,5 @@
 import * as TaskService from "../services/TaskService.js";
+import * as CommentService from "../services/CommentService.js";
 import type { Task } from "@shared/types";
 import type { GraphQLContext } from "../types/context";
 
@@ -14,6 +15,14 @@ export const taskResolvers = {
       } else {
         return await TaskService.getAllVisibleTasks(ctx.user?.id ?? null);
       }
+    },
+
+    task: async (
+      _: unknown,
+      { id }: { id: string },
+      ctx: GraphQLContext
+    ): Promise<Task | null> => {
+      return await TaskService.getTaskById(id);
     },
   },
 
@@ -47,7 +56,7 @@ export const taskResolvers = {
         dueDate,
         priority,
         status,
-        assignedTo: assignedTo ?? ctx.user.id, // fallback to current user
+        assignedTo: assignedTo ?? ctx.user.id,
       });
     },
 
@@ -110,5 +119,9 @@ export const taskResolvers = {
         assignedTo ?? ctx.user.id
       );
     },
+  },
+
+  Task: {
+    comments: (parent: any) => CommentService.getCommentsByTask(parent.id),
   },
 };

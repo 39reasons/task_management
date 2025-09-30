@@ -26,6 +26,14 @@ function generateToken(user: User) {
   );
 }
 
+export async function getUserById(id: string): Promise<User | null> {
+  const result = await query<User>(
+    `SELECT ${USER_FIELDS} FROM users WHERE id = $1`,
+    [id]
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function getUserByUsername(username: string): Promise<User | null> {
   const result = await query<User>(
     `SELECT ${USER_FIELDS}, password_hash FROM users WHERE username = $1`,
@@ -85,4 +93,5 @@ export async function loginUser(
       updated_at: user.updated_at,
     },
   };
+  
 }
