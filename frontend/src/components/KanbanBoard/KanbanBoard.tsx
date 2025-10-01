@@ -116,10 +116,6 @@ export function KanbanBoard({
         task={selectedTask}
         isOpen={isModalOpen}
         onClose={() => setModalOpen(false)}
-        onSave={(updatedTask: Partial<Task>) => {
-          onUpdateTask(updatedTask);
-          setModalOpen(false);
-        }}
       />
     </>
   );
