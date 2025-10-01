@@ -10,9 +10,9 @@ import {
 } from "@dnd-kit/core";
 import { useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
+import { KanbanOverlay } from "./KanbanOverlay";
 import { TaskModal } from "../../components/TaskModal/TaskModal";
 import { useParams } from "react-router-dom";
-import { KanbanTask } from "./KanbanTask";
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -24,6 +24,8 @@ interface KanbanBoardProps {
   user: { id: string; username: string; name: string } | null;
 }
 
+type StatusKey = "todo" | "in-progress" | "done";
+
 export function KanbanBoard({
   tasks,
   onDelete,
@@ -34,18 +36,21 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const { id: selectedProjectId } = useParams<{ id: string }>();
 
-  type StatusKey = "todo" | "in-progress" | "done";
-
   const STATUSES: StatusKey[] = ["todo", "in-progress", "done"];
-  const STATUS_LABELS: Record<"todo" | "in-progress" | "done", string> = {
+  const STATUS_LABELS: Record<StatusKey, string> = {
     todo: "To Do",
     "in-progress": "In Progress",
     done: "Done",
   };
 
-  const sensors = useSensors(useSensor(PointerSensor));
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  );
 
+
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
 
@@ -60,7 +65,7 @@ export function KanbanBoard({
     const task = tasks.find((t) => String(t.id) === activeId);
     if (!task) return;
 
-    if (STATUSES.includes(overId as StatusKey)) {
+    if ((STATUSES as string[]).includes(overId)) {
       const newStatus = overId as StatusKey;
       if (task.status !== newStatus) {
         onUpdateStatus(task.id, newStatus);
@@ -68,7 +73,7 @@ export function KanbanBoard({
     } else {
       const targetTask = tasks.find((t) => String(t.id) === overId);
       if (targetTask && task.status !== targetTask.status) {
-        onUpdateStatus(task.id, targetTask.status);
+        onUpdateStatus(task.id, targetTask.status as StatusKey);
       }
     }
   };
@@ -79,9 +84,7 @@ export function KanbanBoard({
         sensors={sensors}
         collisionDetection={pointerWithin}
         onDragStart={(event) => {
-          const task = tasks.find(
-            (t) => String(t.id) === String(event.active.id)
-          );
+          const task = tasks.find((t) => String(t.id) === String(event.active.id));
           setActiveTask(task || null);
         }}
         onDragEnd={handleDragEnd}
@@ -93,7 +96,7 @@ export function KanbanBoard({
               key={status}
               id={status}
               title={STATUS_LABELS[status]}
-              tasks={tasks.filter((t) => t.status === status || (!t.status && status === "todo"))}
+              tasks={tasks.filter((t) => (t.status ?? "todo") === status)}
               onDelete={user ? onDelete : undefined}
               onUpdatePriority={onUpdatePriority}
               onUpdateStatus={onUpdateStatus}
@@ -108,12 +111,10 @@ export function KanbanBoard({
         </div>
 
         <DragOverlay>
-          {activeTask ? <KanbanTask task={activeTask} onClick={() => {}} isOverlay /> : null}
+          <KanbanOverlay task={activeTask} />
         </DragOverlay>
-
       </DndContext>
 
-      {/* Task Editing Modal */}
       <TaskModal
         task={selectedTask}
         isOpen={isModalOpen}
