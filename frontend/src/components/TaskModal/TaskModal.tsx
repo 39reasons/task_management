@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import type { Task } from "@shared/types";
 import { GET_COMMENTS, ADD_COMMENT, UPDATE_TASK } from "../../graphql.js";
+import { SendHorizonal } from "lucide-react";
 
 interface TaskModalProps {
   task: Task | null;
@@ -114,13 +115,11 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   }}
 >
   {/* Modal content */}
-  <div className="
-      bg-gray-800 rounded-xl shadow-lg w-full max-w-4xl
-      h-[80vh] overflow-hidden
-      grid grid-cols-1 md:grid-cols-2 gap-6 p-6
-      min-h-0
-    "
-  >
+<div className="
+  bg-gray-800 rounded-xl shadow-lg w-full max-w-4xl
+  max-h-[80vh] overflow-hidden
+  grid grid-cols-1 md:grid-cols-2 gap-6 p-6
+">
     {/* LEFT: Task details */}
     <div className="flex flex-col min-h-0 pr-2">
       {/* Title */}
@@ -216,12 +215,33 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     </div>
 
     {/* RIGHT: Comments */}
-    <div className="flex flex-col min-h-0 pl-2">
-      {/* Non-scrolling header */}
+    <div className="flex flex-col pl-2">
+      {/* Composer at the top */}
+<form onSubmit={handleAddComment} className="mb-2">
+  <div className="relative w-full">
+    <input
+      type="text"
+      className="w-full rounded p-2 pr-16 bg-gray-700 text-white border border-gray-600"
+      placeholder="Write a comment..."
+      value={commentText}
+      onChange={(e) => setCommentText(e.target.value)}
+    />
+    {commentText.trim() && (
+      <button
+        type="submit"
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors cursor-pointer"
+      >
+        <SendHorizonal size={18} strokeWidth={2} />
+      </button>
+    )}
+  </div>
+</form>
+
+
       <h3 className="font-semibold text-white mb-2">Comments</h3>
 
       {/* Scrollable list */}
-      <div className="flex-1 overflow-y-auto min-h-0 pr-2 space-y-2">
+      <div className="overflow-y-auto min-h-0 pr-2 space-y-2 max-h-[calc(80vh-10rem)]">
         {loading ? (
           <p className="text-gray-400 text-sm">Loading...</p>
         ) : (
@@ -235,19 +255,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
           ))
         )}
       </div>
-
-      {/* Sticky composer at bottom */}
-      <form onSubmit={handleAddComment} className="mt-2 flex gap-2">
-        <input
-          type="text"
-          className="flex-1 rounded p-2 bg-gray-700 text-white border border-gray-600"
-          placeholder="Write a comment..."
-          value={commentText}
-          onChange={(e) => setCommentText(e.target.value)}
-        />
-        <button className="bg-blue-600 px-4 rounded text-white">Send</button>
-      </form>
     </div>
+
   </div>
 </div>
 
