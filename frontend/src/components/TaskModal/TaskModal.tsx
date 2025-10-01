@@ -18,8 +18,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
 
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [priority, setPriority] = useState<Task["priority"]>("medium");
-  const [status, setStatus] = useState<Task["status"]>("todo");
+  const [priority, setPriority] = useState<Task["priority"] | null>(null);
   const [commentText, setCommentText] = useState("");
 
   const { data, loading } = useQuery(GET_COMMENTS, {
@@ -41,8 +40,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       setInitialTitle(task.title || "");
       setDescription(task.description || "");
       setDueDate(task.dueDate || "");
-      setPriority(task.priority || "medium");
-      setStatus(task.status || "todo");
+      setPriority(task.priority ?? null);
     }
   }, [task]);
 
@@ -50,12 +48,10 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         const active = document.activeElement as HTMLElement | null;
-
         if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) {
           active.blur();
           return;
         }
-
         saveAllChanges();
         onClose();
       }
@@ -67,7 +63,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, title, description, dueDate, priority, status]);
+  }, [isOpen, title, description, dueDate, priority]);
 
   if (!isOpen || !task) return null;
 
@@ -92,10 +88,6 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     if (priority !== task.priority) {
       updateTask({ variables: { id: task.id, priority } });
     }
-
-    if (status !== task.status) {
-      updateTask({ variables: { id: task.id, status } });
-    }
   };
 
   const handleAddComment = async (e: React.FormEvent) => {
@@ -105,7 +97,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     setCommentText("");
   };
 
-return (
+  return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       onClick={(e) => {
@@ -115,7 +107,6 @@ return (
         }
       }}
     >
-      {/* Modal content */}
       <div
         className="
           bg-gray-800 rounded-xl shadow-lg w-full max-w-4xl
@@ -123,9 +114,7 @@ return (
           grid grid-cols-1 md:grid-cols-2 gap-6 p-6
         "
       >
-        {/* LEFT: Task details */}
         <div className="flex flex-col min-h-0 pr-2">
-          {/* Title */}
           {isEditingTitle ? (
             <input
               type="text"
@@ -154,66 +143,60 @@ return (
             </h2>
           )}
 
-          {/* Scrollable details */}
           <div className="flex-1 overflow-y-auto min-h-0 space-y-3">
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                onBlur={() => updateTask({ variables: { id: task.id, description } })}
-                className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
-              />
-            </div>
+            {description && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={() =>
+                    updateTask({ variables: { id: task.id, description } })
+                  }
+                  className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
+                />
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-4">
-          {/* Due Date */}
-          <div className="flex-1 min-w-[10rem]">
-            <label className="block text-sm font-medium text-gray-300 mb-1">Due Date</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => {
-                setDueDate(e.target.value);
-                updateTask({ variables: { id: task.id, dueDate: e.target.value || null } });
-              }}
-              className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
-            />
-          </div>
+              {dueDate && (
+                <div className="flex-1 min-w-[10rem]">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => {
+                      setDueDate(e.target.value);
+                      updateTask({
+                        variables: { id: task.id, dueDate: e.target.value || null },
+                      });
+                    }}
+                    className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
+                  />
+                </div>
+              )}
 
-          {/* Priority */}
-          <div className="flex-1 min-w-[8rem]">
-            <label className="block text-sm font-medium text-gray-300 mb-1">Priority</label>
-            <Dropdown
-              value={priority}
-              options={["low", "medium", "high"]}
-              onChange={(val) => {
-                setPriority(val as Task["priority"]);
-                updateTask({ variables: { id: task.id, priority: val } });
-              }}
-            />
-          </div>
-
-          {/* Status */}
-          <div className="flex-1 min-w-[10rem]">
-            <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-            <Dropdown
-              value={status}
-              options={["todo", "in-progress", "done"]}
-              onChange={(val) => {
-                setStatus(val as Task["status"]);
-                updateTask({ variables: { id: task.id, status: val } });
-              }}
-            />
+              {priority && (
+                <div className="flex-1 min-w-[8rem]">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Priority
+                  </label>
+                  <Dropdown
+                    value={priority}
+                    options={["low", "medium", "high"]}
+                    onChange={(val) => setPriority(val as Task["priority"])}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-      </div>
 
-        {/* RIGHT: Comments */}
         <div className="flex flex-col pl-2">
-          {/* Composer at the top */}
           <form onSubmit={handleAddComment} className="mb-2">
             <div className="relative w-full">
               <input
@@ -236,13 +219,15 @@ return (
 
           <h3 className="font-semibold text-white mb-2">Comments</h3>
 
-          {/* Scrollable list */}
           <div className="overflow-y-auto min-h-0 pr-2 space-y-2 max-h-[calc(80vh-10rem)]">
             {loading ? (
               <p className="text-gray-400 text-sm">Loading...</p>
             ) : (
               data?.task?.comments.map((c: any) => (
-                <div key={c.id} className="bg-gray-900 p-2 rounded border border-gray-700">
+                <div
+                  key={c.id}
+                  className="bg-gray-900 p-2 rounded border border-gray-700"
+                >
                   <span className="text-sm text-gray-300">{c.content}</span>
                   <span className="block text-xs text-gray-500 mt-1">
                     {new Date(c.createdAt).toLocaleString()}

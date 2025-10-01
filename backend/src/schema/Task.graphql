@@ -3,8 +3,8 @@ type Task {
   title: String!
   description: String
   dueDate: String
-  priority: String!
-  status: String!
+  priority: String
+  status: String
   projectId: ID!
   assignedTo: ID
 }
@@ -18,6 +18,12 @@ extend type Mutation {
   addTask(
     projectId: ID!
     title: String!
+    status: String!
+  ): Task!
+
+  updateTask(
+    id: ID!
+    title: String
     description: String
     dueDate: String
     priority: String
@@ -28,13 +34,4 @@ extend type Mutation {
   deleteTask(id: ID!): Boolean!
   updateTaskPriority(id: ID!, priority: String!): Task!
   updateTaskStatus(id: ID!, status: String!): Task!
-  updateTask(
-    id: ID!
-    title: String
-    description: String
-    dueDate: String
-    priority: String
-    status: String
-    assignedTo: ID
-  ): Task!
 }

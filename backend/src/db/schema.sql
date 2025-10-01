@@ -28,14 +28,13 @@ CREATE TABLE tasks (
   title TEXT NOT NULL,
   description TEXT,
   due_date DATE,
-  priority TEXT DEFAULT 'medium',
-  status TEXT DEFAULT 'todo',
+  priority TEXT,
+  status TEXT,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
-
 CREATE TABLE user_projects (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

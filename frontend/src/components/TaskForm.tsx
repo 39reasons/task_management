@@ -20,6 +20,7 @@ export function TaskForm({ status, onAdd }: TaskFormProps) {
     if (!title.trim()) return;
     onAdd(title.trim(), status);
     setTitle("");
+    setOpen(false);
   };
 
   return (

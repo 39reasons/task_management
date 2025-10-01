@@ -3,11 +3,14 @@ export interface Task {
   title: string;
   description?: string | null;
   dueDate?: string | null;
-  priority: "low" | "medium" | "high";
-  status: "todo" | "in-progress" | "done";
+  priority?: "low" | "medium" | "high" | null;
+  status?: "todo" | "in-progress" | "done" | null;
   projectId: string;
   assignedTo?: string | null;
 }
+
+
+
 
 export interface TasksData {
   tasks: Task[];

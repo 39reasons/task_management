@@ -98,31 +98,22 @@ export async function getAllVisibleTasks(userId: string | null): Promise<Task[]>
   }
 }
 
-//
 export async function addTask({
   projectId,
   title,
-  description,
-  dueDate,
-  priority,
   status,
-  assignedTo,
 }: {
   projectId: string;
   title: string;
-  description?: string;
-  dueDate?: string;
-  priority?: string;
-  status?: string;
-  assignedTo?: string;
+  status: string;
 }): Promise<Task> {
   const result = await query<Task>(
     `
-    INSERT INTO tasks (project_id, title, description, due_date, priority, status, assigned_to)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO tasks (project_id, title, status)
+    VALUES ($1, $2, $3)
     RETURNING ${TASK_FIELDS_RETURNING}
     `,
-    [projectId, title, description ?? null, dueDate ?? null, priority ?? "medium", status ?? "todo", assignedTo ?? null]
+    [projectId, title, status]
   );
   return result.rows[0];
 }

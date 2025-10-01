@@ -11,7 +11,7 @@ import {
 import { useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanOverlay } from "./KanbanOverlay";
-import { TaskModal } from "../TaskModal/TaskModal";
+import { TaskModal } from "../../components/TaskModal/TaskModal";
 import { useParams } from "react-router-dom";
 
 interface KanbanBoardProps {
@@ -29,14 +29,15 @@ export function KanbanBoard({
   onDelete,
   onUpdatePriority,
   onUpdateStatus,
-  onUpdateTask,
   onAddTask,
   user,
 }: KanbanBoardProps) {
   const { id: selectedProjectId } = useParams<{ id: string }>();
 
-  const STATUSES: Task["status"][] = ["todo", "in-progress", "done"];
-  const STATUS_LABELS: Record<Task["status"], string> = {
+  type StatusKey = "todo" | "in-progress" | "done";
+
+  const STATUSES: StatusKey[] = ["todo", "in-progress", "done"];
+  const STATUS_LABELS: Record<"todo" | "in-progress" | "done", string> = {
     todo: "To Do",
     "in-progress": "In Progress",
     done: "Done",
@@ -59,8 +60,8 @@ export function KanbanBoard({
     const task = tasks.find((t) => String(t.id) === activeId);
     if (!task) return;
 
-    if (STATUSES.includes(overId as Task["status"])) {
-      const newStatus = overId as Task["status"];
+    if (STATUSES.includes(overId as StatusKey)) {
+      const newStatus = overId as StatusKey;
       if (task.status !== newStatus) {
         onUpdateStatus(task.id, newStatus);
       }
@@ -92,7 +93,7 @@ export function KanbanBoard({
               key={status}
               id={status}
               title={STATUS_LABELS[status]}
-              tasks={tasks.filter((t) => t.status === status)}
+              tasks={tasks.filter((t) => t.status === status || (!t.status && status === "todo"))}
               onDelete={user ? onDelete : undefined}
               onUpdatePriority={onUpdatePriority}
               onUpdateStatus={onUpdateStatus}
