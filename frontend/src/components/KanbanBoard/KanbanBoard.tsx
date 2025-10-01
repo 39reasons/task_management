@@ -10,9 +10,9 @@ import {
 } from "@dnd-kit/core";
 import { useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
-import { KanbanOverlay } from "./KanbanOverlay";
 import { TaskModal } from "../../components/TaskModal/TaskModal";
 import { useParams } from "react-router-dom";
+import { KanbanTask } from "./KanbanTask";
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -108,8 +108,9 @@ export function KanbanBoard({
         </div>
 
         <DragOverlay>
-          <KanbanOverlay task={activeTask} />
+          {activeTask ? <KanbanTask task={activeTask} onClick={() => {}} isOverlay /> : null}
         </DragOverlay>
+
       </DndContext>
 
       {/* Task Editing Modal */}
