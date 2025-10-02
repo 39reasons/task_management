@@ -1,10 +1,10 @@
 type Comment {
   id: ID!
-  taskId: ID!
-  userId: ID!
+  task_id: ID!
+  user_id: ID!
   content: String!
-  createdAt: String!
-  updatedAt: String!
+  created_at: String!
+  updated_at: String!
   user: User!
 }
 
@@ -13,6 +13,6 @@ extend type Task {
 }
 
 extend type Mutation {
-  addComment(taskId: ID!, content: String!): Comment!
+  addComment(task_id: ID!, content: String!): Comment!
   deleteComment(id: ID!): Boolean!
 }

@@ -20,7 +20,7 @@ interface KanbanBoardProps {
   onUpdatePriority: (id: Task["id"], priority: Task["priority"]) => void;
   onUpdateStatus: (id: Task["id"], status: Task["status"]) => void;
   onUpdateTask: (updatedTask: Partial<Task>) => void;
-  onAddTask?: (title: string, status: Task["status"]) => void;
+  onAddTask?: (title: string, status: Task["status"], project_id: string) => void;
   user: { id: string; username: string; name: string } | null;
 }
 
@@ -34,7 +34,7 @@ export function KanbanBoard({
   onAddTask,
   user,
 }: KanbanBoardProps) {
-  const { id: selectedProjectId } = useParams<{ id: string }>();
+  const { id: selected_project_id } = useParams<{ id: string }>();
 
   const STATUSES: StatusKey[] = ["todo", "in-progress", "done"];
   const STATUS_LABELS: Record<StatusKey, string> = {
@@ -48,7 +48,6 @@ export function KanbanBoard({
       activationConstraint: { distance: 5 },
     })
   );
-
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -105,7 +104,7 @@ export function KanbanBoard({
                 setModalOpen(true);
               }}
               onAddTask={user && onAddTask ? onAddTask : undefined}
-              selectedProjectId={selectedProjectId ?? null}
+              selected_project_id={selected_project_id ?? null}
             />
           ))}
         </div>

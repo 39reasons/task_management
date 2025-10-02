@@ -1,0 +1,24 @@
+type Tag {
+  id: ID!
+  name: String!
+  color: String
+}
+
+extend type Task {
+  tags: [Tag!]!
+}
+
+extend type Project {
+  tags: [Tag!]!
+}
+
+extend type Query {
+  tags(project_id: ID!): [Tag!]!
+}
+
+extend type Mutation {
+  addTag(project_id: ID!, name: String!, color: String): Tag!
+  addTagToTask(task_id: ID!, name: String!, color: String): Task!
+  assignTagToTask(task_id: ID!, tag_id: ID!): Task!
+  removeTagFromTask(task_id: ID!, tag_id: ID!): Task!
+}

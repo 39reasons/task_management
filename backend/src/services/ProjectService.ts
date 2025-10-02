@@ -19,8 +19,8 @@ const PROJECT_FIELDS_RETURNING = `
   is_public
 `;
 
-export async function getProjects(userId?: string): Promise<Project[]> {
-  if (userId) {
+export async function getProjects(user_id?: string): Promise<Project[]> {
+  if (user_id) {
     const result = await query<Project>(
       `
       SELECT ${PROJECT_FIELDS_SELECT}
@@ -32,7 +32,7 @@ export async function getProjects(userId?: string): Promise<Project[]> {
          )
       ORDER BY p.created_at DESC
       `,
-      [userId]
+      [user_id]
     );
     return result.rows;
   } else {
@@ -50,7 +50,7 @@ export async function getProjects(userId?: string): Promise<Project[]> {
 
 export async function getProjectById(
   id: string,
-  userId: string
+  user_id: string
 ): Promise<Project> {
   const projRes = await query<Project>(
     `
@@ -59,7 +59,7 @@ export async function getProjectById(
     JOIN user_projects up ON up.project_id = p.id
     WHERE p.id = $1 AND up.user_id = $2
     `,
-    [id, userId]
+    [id, user_id]
   );
 
   if (projRes.rowCount === 0) {
@@ -71,11 +71,11 @@ export async function getProjectById(
     SELECT id,
            title,
            description,
-           to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
+           to_char(due_date, 'YYYY-MM-DD') AS due_date,
            priority,
            status,
-           project_id AS "projectId",
-           assigned_to AS "assignedTo"
+           project_id,
+           assigned_to
     FROM tasks
     WHERE project_id = $1
     ORDER BY created_at ASC
@@ -92,8 +92,8 @@ export async function getProjectById(
 export async function addProject(
   name: string,
   description: string | null,
-  isPublic: boolean = false,
-  userId: string
+  is_public: boolean = false,
+  user_id: string
 ): Promise<Project> {
   const result = await query<Project>(
     `
@@ -101,14 +101,14 @@ export async function addProject(
     VALUES ($1, $2, $3)
     RETURNING ${PROJECT_FIELDS_RETURNING}
     `,
-    [name, description, isPublic]
+    [name, description, is_public]
   );
 
   const project = result.rows[0];
 
   await query(
     `INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)`,
-    [userId, project.id]
+    [user_id, project.id]
   );
 
   return project;
@@ -116,10 +116,10 @@ export async function addProject(
 
 export async function updateProject(
   id: string,
-  userId: string,
+  user_id: string,
   name?: string,
   description?: string,
-  isPublic?: boolean
+  is_public?: boolean
 ): Promise<Project> {
   const result = await query<Project>(
     `
@@ -135,7 +135,7 @@ export async function updateProject(
       )
     RETURNING ${PROJECT_FIELDS_RETURNING}
     `,
-    [id, userId, name, description, isPublic]
+    [id, user_id, name, description, is_public]
   );
 
   if (result.rowCount === 0) throw new Error("Project not found or not accessible");
@@ -144,7 +144,7 @@ export async function updateProject(
 
 export async function deleteProject(
   id: string,
-  userId: string
+  user_id: string
 ): Promise<boolean> {
   const result = await query(
     `
@@ -156,7 +156,7 @@ export async function deleteProject(
         WHERE user_id = $2 AND project_id = $1
       )
     `,
-    [id, userId]
+    [id, user_id]
   );
   return (result.rowCount ?? 0) > 0;
 }

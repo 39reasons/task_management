@@ -1,27 +1,31 @@
 import * as CommentService from "../services/CommentService.js";
-import * as UserService from "../services/UserService.js";
+import type { GraphQLContext } from "../types/context";
+import type { Comment, Task } from "@shared/types";
 
 export const commentResolvers = {
   Task: {
-    comments: (parent: any) => CommentService.getCommentsByTask(parent.id),
-  },
-
-  Comment: {
-    user: (parent: any) => {
-      // parent.userId comes from your DB row
-      if (!parent.userId) return null;
-      return UserService.getUserById(parent.userId);
+    comments: async (parent: Task): Promise<Comment[]> => {
+      return await CommentService.getCommentsByTask(parent.id);
     },
   },
 
   Mutation: {
-    addComment: async (_: any, { taskId, content }: any, ctx: any) => {
+    addComment: async (
+      _: unknown,
+      { task_id, content }: { task_id: string; content: string },
+      ctx: GraphQLContext
+    ): Promise<Comment> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return CommentService.addComment(taskId, ctx.user.id, content);
+      return await CommentService.addComment(task_id, ctx.user.id, content);
     },
-    deleteComment: async (_: any, { id }: any, ctx: any) => {
+
+    deleteComment: async (
+      _: unknown,
+      { id }: { id: string },
+      ctx: GraphQLContext
+    ): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return CommentService.deleteComment(id, ctx.user.id);
+      return await CommentService.deleteComment(id, ctx.user.id);
     },
   },
 };

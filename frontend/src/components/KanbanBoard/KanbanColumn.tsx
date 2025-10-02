@@ -1,5 +1,5 @@
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core"; // 👈 add this
+import { useDroppable } from "@dnd-kit/core";
 import type { Task } from "@shared/types";
 import { KanbanTask } from "./KanbanTask";
 import { TaskForm } from "../TaskForm";
@@ -12,8 +12,8 @@ interface KanbanColumnProps {
   onUpdatePriority: (id: string, priority: Task["priority"]) => void;
   onUpdateStatus: (id: string, status: Task["status"]) => void;
   onTaskClick: (task: Task) => void;
-  onAddTask?: (title: string, status: Task["status"]) => void;
-  selectedProjectId: string | null;
+  onAddTask?: (title: string, status: Task["status"], project_id: string) => void;
+  selected_project_id: string | null;
 }
 
 export function KanbanColumn({
@@ -25,9 +25,9 @@ export function KanbanColumn({
   onUpdateStatus,
   onTaskClick,
   onAddTask,
-  selectedProjectId
+  selected_project_id
 }: KanbanColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+  const { setNodeRef, isOver } = useDroppable({ id: id! });
 
   return (
     <div
@@ -62,11 +62,11 @@ export function KanbanColumn({
         </div>
       </SortableContext>
 
-      {/* Add Card composer */}
-      {selectedProjectId && onAddTask && (
+      {selected_project_id && onAddTask && (
         <TaskForm
           status={id}
-          onAdd={(title, status) => onAddTask(title, status)}
+          project_id={selected_project_id}
+          onAdd={(title, status, project_id) => onAddTask(title, status, project_id)}
         />
       )}
     </div>

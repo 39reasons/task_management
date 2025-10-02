@@ -2,21 +2,22 @@ type Task {
   id: ID!
   title: String!
   description: String
-  dueDate: String
+  due_date: String
   priority: String
   status: String
-  projectId: ID!
-  assignedTo: ID
+  project_id: ID!
+  assigned_to: ID
+  tags: [Tag!]!
 }
 
 extend type Query {
-  tasks(projectId: ID): [Task!]!
+  tasks(project_id: ID): [Task!]!
   task(id: ID!): Task
 }
 
 extend type Mutation {
   addTask(
-    projectId: ID!
+    project_id: ID!
     title: String!
     status: String!
   ): Task!
@@ -25,13 +26,14 @@ extend type Mutation {
     id: ID!
     title: String
     description: String
-    dueDate: String
+    due_date: String
     priority: String
     status: String
-    assignedTo: ID
+    assigned_to: ID
   ): Task!
 
   deleteTask(id: ID!): Boolean!
+
   updateTaskPriority(id: ID!, priority: String!): Task!
   updateTaskStatus(id: ID!, status: String!): Task!
 }

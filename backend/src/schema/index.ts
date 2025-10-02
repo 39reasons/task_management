@@ -21,6 +21,11 @@ const commentsSchema = readFileSync(
   "utf8"
 );
 
+const tagSchema = readFileSync(
+  path.join(process.cwd(), "src/schema/Tag.graphql"),
+  "utf8"
+);
+
 export const typeDefs = `
   type Query
   type Mutation
@@ -28,4 +33,5 @@ export const typeDefs = `
   ${projectSchema}
   ${userSchema}
   ${commentsSchema}
+  ${tagSchema}
 `;

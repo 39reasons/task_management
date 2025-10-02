@@ -7,11 +7,11 @@ export const taskResolvers = {
   Query: {
     tasks: async (
       _: unknown,
-      args: { projectId?: string },
+      args: { project_id?: string },
       ctx: GraphQLContext
     ): Promise<Task[]> => {
-      if (args.projectId) {
-        return await TaskService.getTasks(args.projectId, ctx.user?.id ?? null);
+      if (args.project_id) {
+        return await TaskService.getTasks(args.project_id, ctx.user?.id ?? null);
       } else {
         return await TaskService.getAllVisibleTasks(ctx.user?.id ?? null);
       }
@@ -29,12 +29,12 @@ export const taskResolvers = {
   Mutation: {
     addTask: async (
       _: unknown,
-      { projectId, title, status }: { projectId: string; title: string; status: string },
+      { project_id, title, status }: { project_id: string; title: string; status: string },
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.addTask({
-        projectId,
+        project_id,
         title,
         status,
       });
@@ -46,18 +46,18 @@ export const taskResolvers = {
         id,
         title,
         description,
-        dueDate,
+        due_date,
         priority,
         status,
-        assignedTo,
+        assigned_to,
       }: {
         id: string;
         title?: string;
         description?: string;
-        dueDate?: string;
+        due_date?: string;
         priority?: string;
         status?: string;
-        assignedTo?: string;
+        assigned_to?: string;
       },
       ctx: GraphQLContext
     ): Promise<Task> => {
@@ -66,10 +66,10 @@ export const taskResolvers = {
         id,
         title,
         description,
-        dueDate,
+        due_date,
         priority,
         status,
-        assignedTo ?? ctx.user.id
+        assigned_to ?? ctx.user.id
       );
     },
 

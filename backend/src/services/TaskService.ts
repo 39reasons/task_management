@@ -3,29 +3,28 @@ import type { Task } from "@shared/types";
 
 const TASK_FIELDS_SELECT = `
   t.id,
-  t.project_id AS "projectId",
+  t.project_id,
   t.title,
   t.description,
-  to_char(t.due_date, 'YYYY-MM-DD') AS "dueDate",
+  to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
   t.priority,
   t.status,
-  t.assigned_to AS "assignedTo"
+  t.assigned_to
 `;
 
 const TASK_FIELDS_RETURNING = `
   id,
-  project_id AS "projectId",
+  project_id,
   title,
   description,
-  to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
+  to_char(due_date, 'YYYY-MM-DD') AS due_date,
   priority,
   status,
-  assigned_to AS "assignedTo"
+  assigned_to
 `;
 
-export async function getTasks(projectId: string, userId: string | null): Promise<Task[]> {
-  if (userId) {
-    // Logged in: tasks from this project if member OR project is public
+export async function getTasks(project_id: string, user_id: string | null): Promise<Task[]> {
+  if (user_id) {
     const result = await query<Task>(
       `
       SELECT ${TASK_FIELDS_SELECT}
@@ -43,11 +42,10 @@ export async function getTasks(projectId: string, userId: string | null): Promis
         )
       ORDER BY t.id ASC
       `,
-      [projectId, userId]
+      [project_id, user_id]
     );
     return result.rows;
   } else {
-    // Guest: only tasks from public project
     const result = await query<Task>(
       `
       SELECT ${TASK_FIELDS_SELECT}
@@ -57,15 +55,14 @@ export async function getTasks(projectId: string, userId: string | null): Promis
         AND p.is_public = true
       ORDER BY t.id ASC
       `,
-      [projectId]
+      [project_id]
     );
     return result.rows;
   }
 }
 
-export async function getAllVisibleTasks(userId: string | null): Promise<Task[]> {
-  if (userId) {
-    // Logged in: tasks from user’s projects OR public projects
+export async function getAllVisibleTasks(user_id: string | null): Promise<Task[]> {
+  if (user_id) {
     const result = await query<Task>(
       `
       SELECT ${TASK_FIELDS_SELECT}
@@ -80,11 +77,10 @@ export async function getAllVisibleTasks(userId: string | null): Promise<Task[]>
       )
       ORDER BY t.id ASC
       `,
-      [userId]
+      [user_id]
     );
     return result.rows;
   } else {
-    // Guest: only public tasks
     const result = await query<Task>(
       `
       SELECT ${TASK_FIELDS_SELECT}
@@ -99,11 +95,11 @@ export async function getAllVisibleTasks(userId: string | null): Promise<Task[]>
 }
 
 export async function addTask({
-  projectId,
+  project_id,
   title,
   status,
 }: {
-  projectId: string;
+  project_id: string;
   title: string;
   status: string;
 }): Promise<Task> {
@@ -113,7 +109,7 @@ export async function addTask({
     VALUES ($1, $2, $3)
     RETURNING ${TASK_FIELDS_RETURNING}
     `,
-    [projectId, title, status]
+    [project_id, title, status]
   );
   return result.rows[0];
 }
@@ -153,12 +149,12 @@ export async function updateTask(
   id: string,
   title?: string,
   description?: string,
-  dueDate?: string,
+  due_date?: string,
   priority?: string,
   status?: string,
-  assignedTo?: string
+  assigned_to?: string
 ): Promise<Task> {
-  const normalizedDueDate = !dueDate || dueDate.trim() === "" ? null : dueDate;
+  const normalized_due_date = !due_date || due_date.trim() === "" ? null : due_date;
   const result = await query<Task>(
     `
     UPDATE tasks
@@ -171,7 +167,7 @@ export async function updateTask(
     WHERE id = $1
     RETURNING ${TASK_FIELDS_RETURNING}
     `,
-    [id, title ?? null, description ?? null, normalizedDueDate, priority ?? null, status ?? null, assignedTo ?? null]
+    [id, title ?? null, description ?? null, normalized_due_date, priority ?? null, status ?? null, assigned_to ?? null]
   );
   return result.rows[0];
 }
@@ -183,10 +179,11 @@ export async function getTaskById(id: string) {
       id,
       title,
       description,
-      to_char(due_date, 'YYYY-MM-DD') AS "dueDate",
+      to_char(due_date, 'YYYY-MM-DD') AS due_date,
       priority,
       status,
-      project_id AS "projectId"
+      project_id,
+      assigned_to
     FROM tasks
     WHERE id = $1
     `,

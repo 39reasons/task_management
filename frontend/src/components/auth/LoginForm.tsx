@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@apollo/client";
-import { LOGIN } from "../../graphql/users";
+import { LOGIN } from "../../graphql.js";
 import InputField from "./InputField";
 import type { AuthUser } from "@shared/types";
 

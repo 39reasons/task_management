@@ -24,7 +24,18 @@ function AllTasksPage({ user }: { user: AuthUser | null }) {
         updateStatus({ variables: { id, status } })
       }
       onUpdateTask={(updatedTask: Partial<Task>) =>
-        updateTask({ variables: updatedTask })
+        updateTask({
+          variables: {
+            id: updatedTask.id,
+            title: updatedTask.title,
+            description: updatedTask.description,
+            due_date: updatedTask.due_date,
+            priority: updatedTask.priority,
+            status: updatedTask.status,
+            assigned_to: updatedTask.assigned_to,
+            project_id: updatedTask.project_id,
+          },
+        })
       }
       user={user}
     />
@@ -32,7 +43,7 @@ function AllTasksPage({ user }: { user: AuthUser | null }) {
 }
 
 function ProjectBoardPage({ user }: { user: AuthUser | null }) {
-  const { tasks, deleteTask, addTask, updatePriority, updateStatus, updateTask, projectId } =
+  const { tasks, deleteTask, addTask, updatePriority, updateStatus, updateTask, project_id } =
     useTasks();
 
   return (
@@ -46,14 +57,22 @@ function ProjectBoardPage({ user }: { user: AuthUser | null }) {
         updateStatus({ variables: { id, status } })
       }
       onUpdateTask={(updatedTask: Partial<Task>) =>
-        updateTask({ variables: updatedTask })
+        updateTask({
+          variables: {
+            id: updatedTask.id,
+            title: updatedTask.title,
+            description: updatedTask.description,
+            due_date: updatedTask.due_date,
+            priority: updatedTask.priority,
+            status: updatedTask.status,
+            assigned_to: updatedTask.assigned_to,
+            project_id: updatedTask.project_id,
+          },
+        })
       }
       onAddTask={(title, status) => {
-        console.log("Submitting addTask:", { projectId, title, status });
-        if (!projectId) return;
-        addTask({
-          variables: { projectId, title, status },
-        });
+        if (!project_id) return;
+        addTask(project_id, title, status);
       }}
       user={user}
     />

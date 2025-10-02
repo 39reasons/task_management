@@ -2,5 +2,6 @@ import { commentResolvers } from "./commentResolvers.js";
 import { projectResolvers } from "./projectResolvers.js";
 import { taskResolvers } from "./taskResolvers.js";
 import { userResolvers } from "./userResolvers.js";
+import { tagResolvers } from "./tagResolvers.js";
 
-export const resolvers = [taskResolvers, projectResolvers, userResolvers, commentResolvers];
+export const resolvers = [taskResolvers, projectResolvers, userResolvers, commentResolvers, tagResolvers];

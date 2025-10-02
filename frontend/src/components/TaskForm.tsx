@@ -4,21 +4,22 @@ import type { Task } from "@shared/types";
 
 interface TaskFormProps {
   status: Task["status"];
-  onAdd: (title: string, status: Task["status"]) => void;
+  project_id: string;
+  onAdd: (title: string, status: Task["status"], project_id: string) => void;
 }
 
-export function TaskForm({ status, onAdd }: TaskFormProps) {
+export function TaskForm({ status, project_id, onAdd }: TaskFormProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const textarea_ref = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    if (open && textareaRef.current) textareaRef.current.focus();
+    if (open && textarea_ref.current) textarea_ref.current.focus();
   }, [open]);
 
-  const handleSubmit = () => {
+  const handle_submit = () => {
     if (!title.trim()) return;
-    onAdd(title.trim(), status);
+    onAdd(title.trim(), status, project_id);
     setTitle("");
     setOpen(false);
   };
@@ -40,13 +41,13 @@ export function TaskForm({ status, onAdd }: TaskFormProps) {
           className="bg-gray-900 border border-primary rounded-lg shadow p-4"
         >
           <textarea
-            ref={textareaRef}
+            ref={textarea_ref}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSubmit();
+                handle_submit();
               } else if (e.key === "Escape") {
                 setOpen(false);
                 setTitle("");
@@ -59,7 +60,7 @@ export function TaskForm({ status, onAdd }: TaskFormProps) {
           />
           <div className="mt-3 flex items-center gap-2">
             <button
-              onClick={handleSubmit}
+              onClick={handle_submit}
               disabled={!title.trim()}
               className="bg-primary hover:bg-primary-dark disabled:opacity-50 
                          text-white text-sm font-medium px-3 py-1.5 rounded-md"
@@ -72,7 +73,6 @@ export function TaskForm({ status, onAdd }: TaskFormProps) {
                 setTitle("");
               }}
               className="p-1 hover:bg-gray-800 rounded-md"
-              title="Cancel"
             >
               <X className="w-5 h-5 text-gray-300" />
             </button>

@@ -12,11 +12,9 @@ import { useParams } from "react-router-dom";
 
 export function useTasks() {
   const { id } = useParams<{ id: string }>();
-  const projectId = id;
+  const project_id = id ?? null;
 
-  const variables = projectId ? { projectId } : {};
-
-  console.log("useTasks → projectId:", projectId, "variables:", variables);
+  const variables = project_id ? { project_id } : {};
 
   const { data, loading, error } = useQuery<{ tasks: Task[] }>(GET_TASKS, {
     variables,
@@ -26,12 +24,19 @@ export function useTasks() {
     refetchQueries: [{ query: GET_TASKS, variables }],
   });
 
-  const [addTask] = useMutation(ADD_TASK, {
-    refetchQueries: [
-      { query: GET_TASKS, variables },   // project-scoped
-      { query: GET_TASKS, variables: {} } // all-tasks
-    ],
+  const [addTaskMutation] = useMutation(ADD_TASK, {
+    refetchQueries: [{ query: GET_TASKS, variables }],
   });
+
+  const addTask = async (
+    project_id: string,
+    title: string,
+    status: Task["status"]
+  ) => {
+    await addTaskMutation({
+      variables: { project_id, title, status },
+    });
+  };
 
 
   const [updatePriority] = useMutation(UPDATE_TASK_PRIORITY, {
@@ -55,6 +60,6 @@ export function useTasks() {
     updatePriority,
     updateStatus,
     updateTask,
-    projectId: projectId ?? null,
+    project_id,
   };
 }

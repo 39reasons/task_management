@@ -1,8 +1,15 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import type { Task } from "@shared/types";
-import { GET_COMMENTS, ADD_COMMENT, UPDATE_TASK } from "../../graphql.js";
-import { SendHorizonal } from "lucide-react";
+import {
+  GET_COMMENTS,
+  ADD_COMMENT,
+  UPDATE_TASK,
+  GET_TASK_TAGS, // ✅ use task tags, not project tags
+  ADD_TAG,
+  ASSIGN_TAG_TO_TASK,
+} from "../../graphql.js";
+import { SendHorizonal, Plus } from "lucide-react";
 import { Dropdown } from "../Dropdown.js";
 
 interface TaskModalProps {
@@ -21,28 +28,47 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   const [priority, setPriority] = useState<Task["priority"] | null>(null);
   const [commentText, setCommentText] = useState("");
 
+  const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#3b82f6");
+
   const { data, loading } = useQuery(GET_COMMENTS, {
-    variables: { taskId: task?.id },
+    variables: { task_id: task?.id },
+    skip: !task,
+  });
+
+  // ✅ fetch only tags attached to this task
+  const { data: tagsData, refetch: refetchTags } = useQuery(GET_TASK_TAGS, {
+    variables: { task_id: task?.id },
     skip: !task,
   });
 
   const [addComment] = useMutation(ADD_COMMENT, {
     refetchQueries: task
-      ? [{ query: GET_COMMENTS, variables: { taskId: task.id } }]
+      ? [{ query: GET_COMMENTS, variables: { task_id: task.id } }]
       : [],
   });
 
   const [updateTask] = useMutation(UPDATE_TASK);
+  const [addTag] = useMutation(ADD_TAG);
+  const [assignTagToTask] = useMutation(ASSIGN_TAG_TO_TASK);
 
   useEffect(() => {
     if (task) {
       setTitle(task.title || "");
       setInitialTitle(task.title || "");
       setDescription(task.description || "");
-      setDueDate(task.dueDate || "");
+      setDueDate(task.due_date || "");
       setPriority(task.priority ?? null);
     }
   }, [task]);
+
+  useEffect(() => {
+    if (tagsData?.task?.tags) {
+      setTags(tagsData.task.tags);
+    }
+  }, [tagsData]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -81,8 +107,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       updateTask({ variables: { id: task.id, description } });
     }
 
-    if (dueDate !== task.dueDate) {
-      updateTask({ variables: { id: task.id, dueDate: dueDate || null } });
+    if (dueDate !== task.due_date) {
+      updateTask({ variables: { id: task.id, due_date: dueDate || null } });
     }
 
     if (priority !== task.priority) {
@@ -93,8 +119,25 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentText.trim()) return;
-    await addComment({ variables: { taskId: task.id, content: commentText } });
+    await addComment({ variables: { task_id: task.id, content: commentText } });
     setCommentText("");
+  };
+
+  const handleAddTag = async () => {
+    if (!newTagName.trim()) return;
+    const res = await addTag({
+      variables: {
+        project_id: task.project_id,
+        name: newTagName,
+        color: newTagColor,
+      },
+    });
+    const tag_id = res.data.addTag.id;
+    await assignTagToTask({ variables: { task_id: task.id, tagId: tag_id } });
+    await refetchTags();
+    setNewTagName("");
+    setNewTagColor("#3b82f6");
+    setIsTagModalOpen(false);
   };
 
   return (
@@ -116,24 +159,46 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       >
         <div className="flex flex-col min-h-0 pr-2">
           {isEditingTitle ? (
-            <input
-              type="text"
-              value={title}
-              autoFocus
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => {
-                if (!title.trim()) setTitle(initialTitle);
-                else if (title !== initialTitle) {
-                  updateTask({ variables: { id: task.id, title } });
-                  setInitialTitle(title);
-                }
-                setIsEditingTitle(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
-              }}
-              className="w-full mb-4 px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600 text-xl font-bold"
-            />
+            <div className="relative mb-4">
+              <input
+                type="text"
+                value={title}
+                autoFocus
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    (e.currentTarget as HTMLInputElement).blur();
+                  }
+                }}
+                onBlur={() => {
+                  if (!title.trim()) setTitle(initialTitle);
+                  else if (title !== initialTitle) {
+                    updateTask({ variables: { id: task.id, title } });
+                    setInitialTitle(title);
+                  }
+                  setIsEditingTitle(false);
+                }}
+                className="w-full px-3 py-2 pr-10 rounded-md bg-gray-900 text-white border border-gray-600 text-xl font-bold"
+              />
+              {title.trim() && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!title.trim()) {
+                      setTitle(initialTitle);
+                    } else if (title !== initialTitle) {
+                      updateTask({ variables: { id: task.id, title } });
+                      setInitialTitle(title);
+                    }
+                    setIsEditingTitle(false);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors cursor-pointer"
+                >
+                  <SendHorizonal size={20} strokeWidth={2} />
+                </button>
+              )}
+            </div>
           ) : (
             <h2
               className="text-xl font-bold text-white mb-4 cursor-pointer hover:underline"
@@ -172,7 +237,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                     onChange={(e) => {
                       setDueDate(e.target.value);
                       updateTask({
-                        variables: { id: task.id, dueDate: e.target.value || null },
+                        variables: { id: task.id, due_date: e.target.value || null },
                       });
                     }}
                     className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
@@ -192,6 +257,44 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                   />
                 </div>
               )}
+            </div>
+
+            {/* Tags */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Tags
+              </label>
+              <div className="flex flex-wrap gap-2 mb-2 items-center">
+                {tags.length > 0 ? (
+                  <>
+                    {tags.map((tag) => (
+                      <span
+                        key={tag.id}
+                        className="px-2 py-1 text-xs rounded-full"
+                        style={{ backgroundColor: tag.color, color: "white" }}
+                      >
+                        {tag.name}
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setIsTagModalOpen(true)}
+                      className="w-6 h-6 flex items-center justify-center bg-gray-700 text-white rounded hover:bg-gray-600"
+                      title="Add another tag"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsTagModalOpen(true)}
+                    className="w-8 h-8 flex items-center justify-center bg-gray-700 text-white rounded hover:bg-gray-600"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -230,7 +333,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                 >
                   <span className="text-sm text-gray-300">{c.content}</span>
                   <span className="block text-xs text-gray-500 mt-1">
-                    {new Date(c.createdAt).toLocaleString()}
+                    {new Date(c.created_at).toLocaleString()}
                   </span>
                 </div>
               ))
@@ -238,6 +341,52 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
           </div>
         </div>
       </div>
+
+      {/* Tag Modal */}
+      {isTagModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsTagModalOpen(false);
+          }}
+        >
+          <div className="bg-gray-800 rounded-xl shadow-lg w-full max-w-sm p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-white">Add Tag</h3>
+            <input
+              type="text"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              placeholder="Tag name"
+              className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
+            />
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Color
+              </label>
+              <input
+                type="color"
+                value={newTagColor}
+                onChange={(e) => setNewTagColor(e.target.value)}
+                className="w-12 h-12 p-1 border border-gray-600 rounded cursor-pointer"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsTagModalOpen(false)}
+                className="px-3 py-1 rounded bg-gray-700 text-white hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddTag}
+                className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
