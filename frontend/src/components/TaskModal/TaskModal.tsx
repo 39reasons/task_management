@@ -14,6 +14,18 @@ interface TaskModalProps {
   task: Task | null;
 }
 
+function timeAgo(timestamp: number) {
+  const now = Date.now();
+  const diff = Math.floor((now - timestamp) / 1000); // in seconds
+
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 31536000) return `${Math.floor(diff / 2592000)}mo ago`;
+  return `${Math.floor(diff / 31536000)}y ago`;
+}
+
 export function TaskModal({ task }: TaskModalProps) {
   const { modals, closeModal, openModal } = useModal();
   const isOpen = modals.includes("task");
@@ -104,7 +116,7 @@ export function TaskModal({ task }: TaskModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center">
+    <div className="fixed inset-0 z-40 flex items-start justify-center pt-16">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50"
@@ -153,43 +165,30 @@ export function TaskModal({ task }: TaskModalProps) {
               />
             )}
 
-            {/* Tags */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Tags
-              </label>
-              <div className="flex flex-wrap gap-2 mb-2 items-center">
-                {tags.length > 0 ? (
-                  <>
-                    {tags.map((tag) => (
-                      <span
-                        key={tag.id}
-                        className="px-2 py-1 text-xs rounded-full"
-                        style={{ backgroundColor: tag.color, color: "white" }}
-                      >
-                        {tag.name}
-                      </span>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => openModal("tag")}
-                      className="w-6 h-6 flex items-center justify-center bg-gray-700 text-white rounded hover:bg-gray-600"
-                      title="Add another tag"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openModal("tag")}
-                    className="w-8 h-8 flex items-center justify-center bg-gray-700 text-white rounded hover:bg-gray-600"
-                  >
-                    <Plus size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
+          {/* Tags */}
+          <div className="flex flex-wrap gap-2 mb-2 items-center">
+            {tags.length > 0 &&
+              tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="px-2 py-1 text-xs rounded-full"
+                  style={{ backgroundColor: tag.color, color: "white" }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+
+            <button
+              type="button"
+              onClick={() => openModal("tag")}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-gray-700 text-white text-xs hover:bg-gray-600"
+            >
+              <Plus size={14} />
+              Tags
+            </button>
+          </div>
+
+
           </div>
         </div>
 
@@ -227,7 +226,7 @@ export function TaskModal({ task }: TaskModalProps) {
                 >
                   <span className="text-sm text-gray-300">{c.content}</span>
                   <span className="block text-xs text-gray-500 mt-1">
-                    {new Date(c.created_at).toLocaleString()}
+                    {timeAgo(Number(c.created_at))}
                   </span>
                 </div>
               ))
