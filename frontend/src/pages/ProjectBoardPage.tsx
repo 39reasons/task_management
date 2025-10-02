@@ -1,5 +1,5 @@
 import { KanbanBoard } from "../components/KanbanBoard/KanbanBoard";
-import { useTasks } from "../hooks/useTasks";
+import { useProjectBoard } from "../hooks/useProjectBoard";
 import type { AuthUser, Task } from "@shared/types";
 
 export function ProjectBoardPage({
@@ -9,25 +9,19 @@ export function ProjectBoardPage({
   user: AuthUser | null;
   setSelectedTask: (task: Task) => void;
 }) {
-  const { tasks, deleteTask, addTask, updatePriority, updateStatus, updateTask } = useTasks();
+  const { stages, createTask, deleteTask, moveTask, addStage, loading } = useProjectBoard();
+
+  if (loading) {
+    return <div className="text-white">Loading board…</div>;
+  }
 
   return (
     <KanbanBoard
-      tasks={tasks}
-      onDelete={(id: Task["id"]) => deleteTask({ variables: { id } })}
-      onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
-        updatePriority({ variables: { id, priority } })
-      }
-      onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
-        updateStatus({ variables: { id, status } })
-      }
-      onUpdateTask={(updatedTask: Partial<Task>) =>
-        updateTask({ variables: { id: updatedTask.id, ...updatedTask } })
-      }
-      onAddTask={(title, status, project_id) => {
-        if (!project_id) return;
-        addTask(project_id, title, status);
-      }}
+      stages={stages}
+      onDelete={user ? (id: Task["id"]) => deleteTask(id) : undefined}
+      onMoveTask={moveTask}
+      onAddTask={user ? (stageId, title) => createTask(stageId, title) : undefined}
+      onAddStage={user ? addStage : undefined}
       user={user}
       setSelectedTask={setSelectedTask}
     />

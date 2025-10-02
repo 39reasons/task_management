@@ -1,4 +1,4 @@
-import type { Task } from "@shared/types";
+import type { Stage, Task } from "@shared/types";
 import {
   DndContext,
   pointerWithin,
@@ -8,69 +8,78 @@ import {
   DragEndEvent,
   DragOverlay,
 } from "@dnd-kit/core";
-import { useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanOverlay } from "./KanbanOverlay";
-import { useParams } from "react-router-dom";
 import { useModal } from "../ModalStack";
 
 interface KanbanBoardProps {
-  tasks: Task[];
+  stages: Array<Stage & { tasks: Task[] }>;
   onDelete?: (id: Task["id"]) => void;
-  onUpdatePriority: (id: Task["id"], priority: Task["priority"]) => void;
-  onUpdateStatus: (id: Task["id"], status: Task["status"]) => void;
-  onUpdateTask: (updatedTask: Partial<Task>) => void;
-  onAddTask?: (title: string, status: Task["status"], project_id: string | null) => void;
+  onMoveTask?: (taskId: Task["id"], stageId: Stage["id"]) => void;
+  onAddTask?: (stage_id: Stage["id"], title: string) => void;
+  onAddStage?: (name: string) => void;
   user: { id: string; username: string; name: string } | null;
   setSelectedTask: (task: Task) => void;
 }
 
-type StatusKey = "todo" | "in-progress" | "done";
-
 export function KanbanBoard({
-  tasks,
+  stages,
   onDelete,
-  onUpdateStatus,
+  onMoveTask,
   onAddTask,
+  onAddStage,
   user,
   setSelectedTask,
 }: KanbanBoardProps) {
-  const { id: selected_project_id } = useParams<{ id: string }>();
   const { openModal } = useModal();
-
-  const STATUSES: StatusKey[] = ["todo", "in-progress", "done"];
-  const STATUS_LABELS: Record<StatusKey, string> = {
-    todo: "To Do",
-    "in-progress": "In Progress",
-    done: "Done",
-  };
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [isAddingStage, setIsAddingStage] = useState(false);
+  const [newStageName, setNewStageName] = useState("");
+
+  const allTasks = useMemo(() => stages.flatMap((stage) => stage.tasks ?? []), [stages]);
+  const stageMap = useMemo(() => {
+    const map = new Map<string, Stage>();
+    for (const stage of stages) {
+      map.set(stage.id, stage);
+    }
+    return map;
+  }, [stages]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
-    if (!over) return;
+    if (!over || !onMoveTask) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    const task = tasks.find((t) => String(t.id) === activeId);
+    const task = allTasks.find((t) => String(t.id) === activeId);
     if (!task) return;
 
-    if (["todo", "in-progress", "done"].includes(overId)) {
-      const newStatus = overId as StatusKey;
-      if (task.status !== newStatus) onUpdateStatus(task.id, newStatus);
-    } else {
-      const targetTask = tasks.find((t) => String(t.id) === overId);
-      if (targetTask && task.status !== targetTask.status) {
-        onUpdateStatus(task.id, targetTask.status as StatusKey);
-      }
+    if (stageMap.has(overId)) {
+      if (task.stage_id !== overId) onMoveTask(task.id, overId);
+      return;
     }
+
+    const targetTask = allTasks.find((t) => String(t.id) === overId);
+    if (targetTask && targetTask.stage_id !== task.stage_id) {
+      onMoveTask(task.id, targetTask.stage_id);
+    }
+  };
+
+  const handleAddStageSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!onAddStage) return;
+    const value = newStageName.trim();
+    if (!value) return;
+    await Promise.resolve(onAddStage(value));
+    setNewStageName("");
+    setIsAddingStage(false);
   };
 
   return (
@@ -78,28 +87,66 @@ export function KanbanBoard({
       sensors={sensors}
       collisionDetection={pointerWithin}
       onDragStart={(e) => {
-        const task = tasks.find((t) => String(t.id) === String(e.active.id));
+        const task = allTasks.find((t) => String(t.id) === String(e.active.id));
         setActiveTask(task || null);
       }}
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveTask(null)}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {STATUSES.map((status) => (
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+        {stages.map((stage) => (
           <KanbanColumn
-            key={status}
-            id={status}
-            title={STATUS_LABELS[status]}
-            tasks={tasks.filter((t) => (t.status ?? "todo") === status)}
+            key={stage.id}
+            stage={stage}
             onDelete={user ? onDelete : undefined}
             onTaskClick={(task) => {
               setSelectedTask(task);
               openModal("task");
             }}
             onAddTask={user && onAddTask ? onAddTask : undefined}
-            selected_project_id={selected_project_id ?? null}
           />
         ))}
+
+        {user && onAddStage && (
+          <div className="bg-gray-800 rounded-lg p-4 shadow border border-dashed border-gray-600 flex flex-col justify-between">
+            {!isAddingStage ? (
+              <button
+                onClick={() => setIsAddingStage(true)}
+                className="w-full h-full text-left text-white/80 hover:text-white"
+              >
+                + Add Stage
+              </button>
+            ) : (
+              <form onSubmit={handleAddStageSubmit} className="flex flex-col gap-2">
+                <input
+                  value={newStageName}
+                  onChange={(e) => setNewStageName(e.target.value)}
+                  placeholder="Stage name"
+                  className="rounded-md bg-gray-900 border border-gray-700 text-white px-3 py-2"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-md px-3 py-2"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingStage(false);
+                      setNewStageName("");
+                    }}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md px-3 py-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
       </div>
 
       <DragOverlay>

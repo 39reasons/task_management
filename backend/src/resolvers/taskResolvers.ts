@@ -1,5 +1,6 @@
 import * as TaskService from "../services/TaskService.js";
 import * as CommentService from "../services/CommentService.js";
+import * as StageService from "../services/StageService.js";
 import type { Task } from "@shared/types";
 import type { GraphQLContext } from "../types/context";
 
@@ -7,36 +8,49 @@ export const taskResolvers = {
   Query: {
     tasks: async (
       _: unknown,
-      args: { project_id?: string },
+      args: { stage_id?: string; workflow_id?: string; project_id?: string },
       ctx: GraphQLContext
     ): Promise<Task[]> => {
-      if (args.project_id) {
-        return await TaskService.getTasks(args.project_id, ctx.user?.id ?? null);
-      } else {
-        return await TaskService.getAllVisibleTasks(ctx.user?.id ?? null);
-      }
+      return await TaskService.getTasks(args, ctx.user?.id ?? null);
     },
 
     task: async (
       _: unknown,
       { id }: { id: string },
-      ctx: GraphQLContext
+      _ctx: GraphQLContext
     ): Promise<Task | null> => {
       return await TaskService.getTaskById(id);
     },
   },
 
   Mutation: {
-    addTask: async (
+    createTask: async (
       _: unknown,
-      { project_id, title, status }: { project_id: string; title: string; status: string },
+      {
+        stage_id,
+        title,
+        description,
+        due_date,
+        priority,
+        assigned_to,
+      }: {
+        stage_id: string;
+        title: string;
+        description?: string;
+        due_date?: string;
+        priority?: string;
+        assigned_to?: string;
+      },
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await TaskService.addTask({
-        project_id,
+      return await TaskService.createTask({
+        stage_id,
         title,
-        status,
+        description,
+        due_date,
+        priority,
+        assigned_to: assigned_to ?? null,
       });
     },
 
@@ -48,29 +62,28 @@ export const taskResolvers = {
         description,
         due_date,
         priority,
-        status,
+        stage_id,
         assigned_to,
       }: {
         id: string;
         title?: string;
         description?: string;
-        due_date?: string;
-        priority?: string;
-        status?: string;
-        assigned_to?: string;
+        due_date?: string | null;
+        priority?: string | null;
+        stage_id?: string;
+        assigned_to?: string | null;
       },
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await TaskService.updateTask(
-        id,
+      return await TaskService.updateTask(id, {
         title,
         description,
         due_date,
         priority,
-        status,
-        assigned_to ?? ctx.user.id
-      );
+        stage_id,
+        assigned_to: assigned_to ?? null,
+      });
     },
 
     deleteTask: async (
@@ -82,6 +95,15 @@ export const taskResolvers = {
       return await TaskService.deleteTask(id);
     },
 
+    moveTask: async (
+      _: unknown,
+      { task_id, to_stage_id }: { task_id: string; to_stage_id: string },
+      ctx: GraphQLContext
+    ): Promise<Task> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      return await TaskService.moveTask(task_id, to_stage_id);
+    },
+
     updateTaskPriority: async (
       _: unknown,
       { id, priority }: { id: string; priority: string },
@@ -90,18 +112,10 @@ export const taskResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.updateTaskPriority(id, priority);
     },
-
-    updateTaskStatus: async (
-      _: unknown,
-      { id, status }: { id: string; status: string },
-      ctx: GraphQLContext
-    ): Promise<Task> => {
-      if (!ctx.user) throw new Error("Not authenticated");
-      return await TaskService.updateTaskStatus(id, status);
-    },
   },
 
   Task: {
     comments: (parent: Task) => CommentService.getCommentsByTask(parent.id),
+    stage: (parent: Task) => StageService.getStageById(parent.stage_id),
   },
 };

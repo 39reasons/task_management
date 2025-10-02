@@ -6,6 +6,7 @@ import {
   ADD_COMMENT,
   UPDATE_TASK,
   GET_TASK_TAGS,
+  GET_WORKFLOW,
 } from "../../graphql";
 import { SendHorizonal, Plus, Dot } from "lucide-react";
 import { useModal } from "../ModalStack";
@@ -37,6 +38,7 @@ export function TaskModal({ task }: TaskModalProps) {
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<Task["priority"] | null>(null);
+  const [stageId, setStageId] = useState<string>("");
   const [commentText, setCommentText] = useState("");
   const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
 
@@ -48,6 +50,11 @@ export function TaskModal({ task }: TaskModalProps) {
   const { data: tagsData } = useQuery(GET_TASK_TAGS, {
     variables: { task_id: task?.id },
     skip: !task,
+  });
+
+  const { data: workflowData } = useQuery(GET_WORKFLOW, {
+    variables: { id: task?.stage?.workflow_id },
+    skip: !task?.stage?.workflow_id,
   });
 
   const [addComment] = useMutation(ADD_COMMENT, {
@@ -63,6 +70,7 @@ export function TaskModal({ task }: TaskModalProps) {
       setDescription(task.description || "");
       setDueDate(task.due_date || "");
       setPriority(task.priority ?? null);
+      setStageId(task.stage_id);
     }
   }, [task]);
 
@@ -82,7 +90,7 @@ export function TaskModal({ task }: TaskModalProps) {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, title, description, dueDate, priority]);
+  }, [isOpen, title, description, dueDate, priority, stageId]);
 
   if (!isOpen || !task) return null;
 
@@ -106,6 +114,10 @@ export function TaskModal({ task }: TaskModalProps) {
 
     if (priority !== task.priority) {
       updateTask({ variables: { id: task.id, priority } });
+    }
+
+    if (stageId && stageId !== task.stage_id) {
+      updateTask({ variables: { id: task.id, stage_id: stageId } });
     }
   };
 
@@ -157,6 +169,25 @@ export function TaskModal({ task }: TaskModalProps) {
           )}
 
           <div className="flex-1 overflow-y-auto min-h-0 space-y-3">
+            {workflowData?.workflow?.stages && workflowData.workflow.stages.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-xs uppercase tracking-wide text-gray-400">
+                  Stage
+                </label>
+                <select
+                  value={stageId}
+                  onChange={(e) => setStageId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
+                >
+                  {workflowData.workflow.stages.map((stage: any) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stage.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {description && (
               <textarea
                 value={description}

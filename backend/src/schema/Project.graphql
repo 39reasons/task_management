@@ -6,6 +6,7 @@ type Project {
   updated_at: String
   is_public: Boolean!
   tasks: [Task!]
+  workflows: [Workflow!]
 }
 extend type Query {
   projects: [Project!]!

@@ -1,14 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, X } from "lucide-react";
-import type { Task } from "@shared/types";
-
 interface TaskFormProps {
-  status: Task["status"];
-  project_id: string | null;
-  onAdd: (title: string, status: Task["status"], project_id: string | null) => void;
+  stageId: string;
+  onAdd: (stage_id: string, title: string) => void;
 }
 
-export function TaskForm({ status, project_id, onAdd }: TaskFormProps) {
+export function TaskForm({ stageId, onAdd }: TaskFormProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const textarea_ref = useRef<HTMLTextAreaElement | null>(null);
@@ -19,7 +16,7 @@ export function TaskForm({ status, project_id, onAdd }: TaskFormProps) {
 
   const handle_submit = () => {
     if (!title.trim()) return;
-    onAdd(title.trim(), status, project_id);
+    onAdd(stageId, title.trim());
     setTitle("");
     setOpen(false);
   };

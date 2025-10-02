@@ -1,42 +1,32 @@
-import type { Task } from "@shared/types";
+import type { Stage, Task } from "@shared/types";
 import { useDroppable } from "@dnd-kit/core";
 import { KanbanTask } from "./KanbanTask";
 import { TaskForm } from "../TaskForm";
 
 interface KanbanColumnProps {
-  id: Task["status"];
-  title: string;
-  tasks: Task[];
+  stage: Stage & { tasks: Task[] };
   onDelete?: (id: string) => void;
   onTaskClick: (task: Task) => void;
-  onAddTask?: (
-    title: string,
-    status: Task["status"],
-    project_id: string | null
-  ) => void;
-  selected_project_id: string | null;
+  onAddTask?: (stage_id: string, title: string) => void;
 }
 
 export function KanbanColumn({
-  id,
-  title,
-  tasks,
+  stage,
   onDelete,
   onTaskClick,
   onAddTask,
-  selected_project_id,
 }: KanbanColumnProps) {
-  const { setNodeRef } = useDroppable({ id: id ?? `column-${title}` });
+  const { setNodeRef } = useDroppable({ id: stage.id });
 
   return (
     <div
       ref={setNodeRef}
       className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700"
     >
-      <h3 className="font-semibold text-white mb-3">{title}</h3>
+      <h3 className="font-semibold text-white mb-3">{stage.name}</h3>
 
       <div>
-        {tasks.map((task) => (
+        {stage.tasks.map((task) => (
           <KanbanTask
             key={task.id}
             task={task}
@@ -46,12 +36,8 @@ export function KanbanColumn({
         ))}
       </div>
 
-      {onAddTask && selected_project_id && (
-        <TaskForm
-          status={id}
-          project_id={selected_project_id}
-          onAdd={onAddTask}
-        />
+      {onAddTask && (
+        <TaskForm stageId={stage.id} onAdd={onAddTask} />
       )}
     </div>
   );

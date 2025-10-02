@@ -1,5 +1,5 @@
 import { KanbanBoard } from "../components/KanbanBoard/KanbanBoard";
-import { useTasks } from "../hooks/useTasks";
+import { useAllTasksBoard } from "../hooks/useAllTasksBoard";
 import type { AuthUser, Task } from "@shared/types";
 
 export function AllTasksPage({
@@ -9,21 +9,17 @@ export function AllTasksPage({
   user: AuthUser | null;
   setSelectedTask: (task: Task) => void;
 }) {
-  const { tasks, deleteTask, updatePriority, updateStatus, updateTask } = useTasks();
+  const { stages, deleteTask, moveTask, loading } = useAllTasksBoard();
+
+  if (loading) {
+    return <div className="text-white">Loading tasks…</div>;
+  }
 
   return (
     <KanbanBoard
-      tasks={tasks}
-      onDelete={(id: Task["id"]) => deleteTask({ variables: { id } })}
-      onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
-        updatePriority({ variables: { id, priority } })
-      }
-      onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
-        updateStatus({ variables: { id, status } })
-      }
-      onUpdateTask={(updatedTask: Partial<Task>) =>
-        updateTask({ variables: { id: updatedTask.id, ...updatedTask } })
-      }
+      stages={stages}
+      onDelete={user ? (id: Task["id"]) => deleteTask(id) : undefined}
+      onMoveTask={moveTask}
       user={user}
       setSelectedTask={setSelectedTask}
     />

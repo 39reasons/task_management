@@ -1,193 +1,217 @@
 import { query } from "../db/index.js";
 import type { Task } from "@shared/types";
 
-const TASK_FIELDS_SELECT = `
-  t.id,
-  t.project_id,
-  t.title,
-  t.description,
-  to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
-  t.priority,
-  t.status,
-  t.assigned_to
+const TASK_BASE_SELECT = `
+  SELECT
+    t.id,
+    t.stage_id,
+    t.title,
+    t.description,
+    to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
+    t.priority,
+    t.assigned_to,
+    w.project_id
+  FROM tasks t
+  JOIN stages s ON s.id = t.stage_id
+  JOIN workflows w ON w.id = s.workflow_id
+  JOIN projects p ON p.id = w.project_id
 `;
 
-const TASK_FIELDS_RETURNING = `
-  id,
-  project_id,
-  title,
-  description,
-  to_char(due_date, 'YYYY-MM-DD') AS due_date,
-  priority,
-  status,
-  assigned_to
-`;
+function normalizeDate(input?: string | null): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
 
-export async function getTasks(project_id: string, user_id: string | null): Promise<Task[]> {
-  if (user_id) {
-    const result = await query<Task>(
-      `
-      SELECT ${TASK_FIELDS_SELECT}
-      FROM tasks t
-      WHERE t.project_id = $1
-        AND (
-          EXISTS (
-            SELECT 1 FROM user_projects up
-            WHERE up.project_id = t.project_id AND up.user_id = $2
-          )
-          OR EXISTS (
-            SELECT 1 FROM projects p
-            WHERE p.id = t.project_id AND p.is_public = true
-          )
-        )
-      ORDER BY t.id ASC
-      `,
-      [project_id, user_id]
-    );
-    return result.rows;
-  } else {
-    const result = await query<Task>(
-      `
-      SELECT ${TASK_FIELDS_SELECT}
-      FROM tasks t
-      JOIN projects p ON p.id = t.project_id
-      WHERE t.project_id = $1
-        AND p.is_public = true
-      ORDER BY t.id ASC
-      `,
-      [project_id]
-    );
-    return result.rows;
+function mapTaskRow(row: Task & { project_id: string }): Task {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    due_date: row.due_date,
+    priority: row.priority as Task["priority"],
+    stage_id: row.stage_id,
+    project_id: row.project_id,
+    assigned_to: row.assigned_to,
+  };
+}
+
+export async function getTasks(
+  filter: { stage_id?: string; workflow_id?: string; project_id?: string },
+  user_id: string | null
+): Promise<Task[]> {
+  const params: unknown[] = [];
+  const conditions: string[] = [];
+
+  if (filter.stage_id) {
+    params.push(filter.stage_id);
+    conditions.push(`t.stage_id = $${params.length}`);
   }
+
+  if (filter.workflow_id) {
+    params.push(filter.workflow_id);
+    conditions.push(`s.workflow_id = $${params.length}`);
+  }
+
+  if (filter.project_id) {
+    params.push(filter.project_id);
+    conditions.push(`w.project_id = $${params.length}`);
+  }
+
+  if (user_id) {
+    params.push(user_id);
+    conditions.push(`(
+      p.is_public = true OR EXISTS (
+        SELECT 1 FROM user_projects up
+        WHERE up.project_id = p.id AND up.user_id = $${params.length}
+      )
+    )`);
+  } else {
+    conditions.push(`p.is_public = true`);
+  }
+
+  let sql = TASK_BASE_SELECT;
+  if (conditions.length > 0) {
+    sql += ` WHERE ${conditions.join(" AND ")}`;
+  }
+  sql += ` ORDER BY s.position ASC, t.created_at ASC`;
+
+  const result = await query<Task & { project_id: string }>(sql, params);
+  return result.rows.map(mapTaskRow);
 }
 
 export async function getAllVisibleTasks(user_id: string | null): Promise<Task[]> {
-  if (user_id) {
-    const result = await query<Task>(
-      `
-      SELECT ${TASK_FIELDS_SELECT}
-      FROM tasks t
-      WHERE EXISTS (
-        SELECT 1 FROM user_projects up
-        WHERE up.project_id = t.project_id AND up.user_id = $1
-      )
-      OR EXISTS (
-        SELECT 1 FROM projects p
-        WHERE p.id = t.project_id AND p.is_public = true
-      )
-      ORDER BY t.id ASC
-      `,
-      [user_id]
-    );
-    return result.rows;
-  } else {
-    const result = await query<Task>(
-      `
-      SELECT ${TASK_FIELDS_SELECT}
-      FROM tasks t
-      JOIN projects p ON p.id = t.project_id
-      WHERE p.is_public = true
-      ORDER BY t.id ASC
-      `
-    );
-    return result.rows;
-  }
+  return await getTasks({}, user_id);
 }
 
-export async function addTask({
-  project_id,
+export async function getTaskById(id: string): Promise<Task | null> {
+  const result = await query<Task & { project_id: string }>(
+    `${TASK_BASE_SELECT} WHERE t.id = $1`,
+    [id]
+  );
+
+  if (result.rowCount === 0) return null;
+  return mapTaskRow(result.rows[0]);
+}
+
+export async function createTask({
+  stage_id,
   title,
-  status,
+  description,
+  due_date,
+  priority,
+  assigned_to,
 }: {
-  project_id: string;
+  stage_id: string;
   title: string;
-  status: string;
+  description?: string | null;
+  due_date?: string | null;
+  priority?: string | null;
+  assigned_to?: string | null;
 }): Promise<Task> {
-  const result = await query<Task>(
+  const result = await query<{ id: string }>(
     `
-    INSERT INTO tasks (project_id, title, status)
-    VALUES ($1, $2, $3)
-    RETURNING ${TASK_FIELDS_RETURNING}
+    INSERT INTO tasks (stage_id, title, description, due_date, priority, assigned_to)
+    VALUES ($1, $2, $3, COALESCE($4::DATE, NULL), $5, $6)
+    RETURNING id
     `,
-    [project_id, title, status]
+    [stage_id, title, description ?? null, normalizeDate(due_date), priority ?? null, assigned_to ?? null]
   );
-  return result.rows[0];
-}
 
-export async function deleteTask(id: string): Promise<boolean> {
-  const result = await query("DELETE FROM tasks WHERE id = $1", [id]);
-  return (result.rowCount ?? 0) > 0;
-}
-
-export async function updateTaskPriority(id: string, priority: string): Promise<Task> {
-  const result = await query<Task>(
-    `
-    UPDATE tasks
-    SET priority = $2
-    WHERE id = $1
-    RETURNING ${TASK_FIELDS_RETURNING}
-    `,
-    [id, priority]
-  );
-  return result.rows[0];
-}
-
-export async function updateTaskStatus(id: string, status: string): Promise<Task> {
-  const result = await query<Task>(
-    `
-    UPDATE tasks
-    SET status = $2
-    WHERE id = $1
-    RETURNING ${TASK_FIELDS_RETURNING}
-    `,
-    [id, status]
-  );
-  return result.rows[0];
+  const task = await getTaskById(result.rows[0].id);
+  if (!task) throw new Error("Failed to create task");
+  return task;
 }
 
 export async function updateTask(
   id: string,
-  title?: string,
-  description?: string,
-  due_date?: string,
-  priority?: string,
-  status?: string,
-  assigned_to?: string
+  {
+    title,
+    description,
+    due_date,
+    priority,
+    stage_id,
+    assigned_to,
+  }: {
+    title?: string;
+    description?: string;
+    due_date?: string | null;
+    priority?: string | null;
+    stage_id?: string;
+    assigned_to?: string | null;
+  }
 ): Promise<Task> {
-  const normalized_due_date = !due_date || due_date.trim() === "" ? null : due_date;
-  const result = await query<Task>(
+  const result = await query<{ id: string }>(
     `
     UPDATE tasks
     SET title = COALESCE($2, title),
         description = COALESCE($3, description),
         due_date = COALESCE($4::DATE, due_date),
         priority = COALESCE($5, priority),
-        status = COALESCE($6, status),
-        assigned_to = COALESCE($7, assigned_to)
+        stage_id = COALESCE($6, stage_id),
+        assigned_to = COALESCE($7, assigned_to),
+        updated_at = now()
     WHERE id = $1
-    RETURNING ${TASK_FIELDS_RETURNING}
+    RETURNING id
     `,
-    [id, title ?? null, description ?? null, normalized_due_date, priority ?? null, status ?? null, assigned_to ?? null]
+    [
+      id,
+      title ?? null,
+      description ?? null,
+      normalizeDate(due_date),
+      priority ?? null,
+      stage_id ?? null,
+      assigned_to ?? null,
+    ]
   );
-  return result.rows[0];
+
+  if (result.rowCount === 0) throw new Error("Task not found");
+
+  const task = await getTaskById(result.rows[0].id);
+  if (!task) throw new Error("Task not found after update");
+  return task;
 }
 
-export async function getTaskById(id: string) {
-  const result = await query<Task>(
+export async function moveTask(task_id: string, to_stage_id: string): Promise<Task> {
+  const result = await query<{ id: string }>(
     `
-    SELECT 
-      id,
-      title,
-      description,
-      to_char(due_date, 'YYYY-MM-DD') AS due_date,
-      priority,
-      status,
-      project_id,
-      assigned_to
-    FROM tasks
+    UPDATE tasks
+    SET stage_id = $2,
+        updated_at = now()
     WHERE id = $1
+    RETURNING id
     `,
+    [task_id, to_stage_id]
+  );
+
+  if (result.rowCount === 0) throw new Error("Task not found");
+  const task = await getTaskById(result.rows[0].id);
+  if (!task) throw new Error("Task not found after move");
+  return task;
+}
+
+export async function deleteTask(id: string): Promise<boolean> {
+  const result = await query(
+    `DELETE FROM tasks WHERE id = $1`,
     [id]
   );
-  return result.rows[0] || null;
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function updateTaskPriority(id: string, priority: string): Promise<Task> {
+  const result = await query<{ id: string }>(
+    `
+    UPDATE tasks
+    SET priority = $2,
+        updated_at = now()
+    WHERE id = $1
+    RETURNING id
+    `,
+    [id, priority]
+  );
+
+  if (result.rowCount === 0) throw new Error("Task not found");
+  const task = await getTaskById(result.rows[0].id);
+  if (!task) throw new Error("Task not found after update");
+  return task;
 }

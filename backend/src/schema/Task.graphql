@@ -4,22 +4,26 @@ type Task {
   description: String
   due_date: String
   priority: String
-  status: String
-  project_id: ID!
+  stage_id: ID!
+  project_id: ID
   assigned_to: ID
   tags: [Tag!]!
+  stage: Stage
 }
 
 extend type Query {
-  tasks(project_id: ID): [Task!]!
+  tasks(stage_id: ID, workflow_id: ID, project_id: ID): [Task!]!
   task(id: ID!): Task
 }
 
 extend type Mutation {
-  addTask(
-    project_id: ID!
+  createTask(
+    stage_id: ID!
     title: String!
-    status: String!
+    description: String
+    due_date: String
+    priority: String
+    assigned_to: ID
   ): Task!
 
   updateTask(
@@ -28,12 +32,19 @@ extend type Mutation {
     description: String
     due_date: String
     priority: String
-    status: String
+    stage_id: ID
     assigned_to: ID
   ): Task!
 
   deleteTask(id: ID!): Boolean!
 
-  updateTaskPriority(id: ID!, priority: String!): Task!
-  updateTaskStatus(id: ID!, status: String!): Task!
+  moveTask(
+    task_id: ID!
+    to_stage_id: ID!
+  ): Task!
+
+  updateTaskPriority(
+    id: ID!
+    priority: String!
+  ): Task!
 }

@@ -1,5 +1,6 @@
 import * as ProjectService from "../services/ProjectService.js";
-import type { Project } from "@shared/types";
+import * as WorkflowService from "../services/WorkflowService.js";
+import type { Project, Workflow } from "@shared/types";
 import { GraphQLContext } from "src/types/context";
 
 export const projectResolvers = {
@@ -46,6 +47,12 @@ export const projectResolvers = {
     deleteProject: async (_: unknown, args: { id: string }, ctx: GraphQLContext): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
       return await ProjectService.deleteProject(args.id, ctx.user.id);
+    },
+  },
+
+  Project: {
+    workflows: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<Workflow[]> => {
+      return await WorkflowService.getWorkflowsByProject(parent.id, ctx.user?.id ?? null);
     },
   },
 };

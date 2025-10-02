@@ -4,12 +4,27 @@ export interface Task {
   description?: string | null;
   due_date?: string | null;
   priority?: "low" | "medium" | "high" | null;
-  status?: "todo" | "in-progress" | "done" | null;
+  stage_id: string;
   project_id: string;
   assigned_to?: string | null;
   tags?: Tag[];
+  stage?: Stage;
 }
 
+export interface Stage {
+  id: string;
+  name: string;
+  position: number;
+  workflow_id: string;
+  tasks: Task[];
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  project_id: string;
+  stages: Stage[];
+}
 
 export interface TasksData {
   tasks: Task[];

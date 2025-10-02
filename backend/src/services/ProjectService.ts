@@ -68,17 +68,20 @@ export async function getProjectById(
 
   const taskRes = await query<Task>(
     `
-    SELECT id,
-           title,
-           description,
-           to_char(due_date, 'YYYY-MM-DD') AS due_date,
-           priority,
-           status,
-           project_id,
-           assigned_to
-    FROM tasks
-    WHERE project_id = $1
-    ORDER BY created_at ASC
+    SELECT
+      t.id,
+      t.title,
+      t.description,
+      to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
+      t.priority,
+      t.stage_id,
+      w.project_id,
+      t.assigned_to
+    FROM tasks t
+    JOIN stages s ON s.id = t.stage_id
+    JOIN workflows w ON w.id = s.workflow_id
+    WHERE w.project_id = $1
+    ORDER BY s.position ASC, t.created_at ASC
     `,
     [id]
   );
@@ -110,6 +113,36 @@ export async function addProject(
     `INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)`,
     [user_id, project.id]
   );
+
+  const workflowResult = await query<{ id: string }>(
+    `
+    INSERT INTO workflows (project_id, name)
+    VALUES ($1, $2)
+    RETURNING id
+    `,
+    [project.id, `${project.name} Board`]
+  );
+
+  const workflow_id = workflowResult.rows[0]?.id;
+
+  if (workflow_id) {
+    const defaultStages = [
+      { name: "To Do", position: 1 },
+      { name: "In Progress", position: 2 },
+      { name: "Done", position: 3 },
+    ];
+
+    for (const stage of defaultStages) {
+      await query(
+        `
+        INSERT INTO stages (workflow_id, name, position)
+        VALUES ($1, $2, $3)
+        ON CONFLICT DO NOTHING
+        `,
+        [workflow_id, stage.name, stage.position]
+      );
+    }
+  }
 
   return project;
 }

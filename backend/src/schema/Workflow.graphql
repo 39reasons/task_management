@@ -1,0 +1,26 @@
+type Workflow {
+  id: ID!
+  name: String!
+  project_id: ID!
+  stages: [Stage!]!
+}
+
+type Stage {
+  id: ID!
+  name: String!
+  position: Int!
+  workflow_id: ID!
+  tasks: [Task!]!
+}
+
+extend type Query {
+  workflows(project_id: ID!): [Workflow!]!
+  workflow(id: ID!): Workflow
+  stages(workflow_id: ID!): [Stage!]!
+}
+
+extend type Mutation {
+  addStage(workflow_id: ID!, name: String!, position: Int): Stage!
+  updateStage(id: ID!, name: String, position: Int): Stage!
+  deleteStage(id: ID!): Boolean!
+}

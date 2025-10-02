@@ -51,16 +51,17 @@ export function KanbanTask({
 
       {/* Tags at top */}
       {task.tags?.length ? (
-<div className="flex flex-wrap gap-2 mb-2">
-  {task.tags.map((tag) => (
-    <span
-      key={tag.id}
-      className="px-4 py-1 rounded text-sm font-medium text-white"
-      style={{ backgroundColor: tag.color ?? "#4b5563" }}
-    >
-    </span>
-  ))}
-</div>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {task.tags.map((tag) => (
+            <span
+              key={tag.id}
+              className="px-3 py-1 rounded text-xs font-medium text-white"
+              style={{ backgroundColor: tag.color ?? "#4b5563" }}
+            >
+              {tag.name}
+            </span>
+          ))}
+        </div>
       ) : null}
 
       {/* Title */}

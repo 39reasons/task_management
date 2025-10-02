@@ -1,11 +1,15 @@
+-- Wipe old structures
 DROP TABLE IF EXISTS task_tags CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
 DROP TABLE IF EXISTS user_projects CASCADE;
 DROP TABLE IF EXISTS tasks CASCADE;
+DROP TABLE IF EXISTS stages CASCADE;
+DROP TABLE IF EXISTS workflows CASCADE;
 DROP TABLE IF EXISTS projects CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS tags CASCADE;
 
+-- Users
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -15,6 +19,7 @@ CREATE TABLE users (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Projects (container for workflows)
 CREATE TABLE projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -24,19 +29,39 @@ CREATE TABLE projects (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Workflows (each project can have multiple boards)
+CREATE TABLE workflows (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Stages (columns in a workflow)
+CREATE TABLE stages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workflow_id UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  position INT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Tasks (cards inside a stage)
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stage_id UUID NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   due_date DATE,
   priority TEXT,
-  status TEXT,
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- User <-> Project membership
 CREATE TABLE user_projects (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -44,6 +69,7 @@ CREATE TABLE user_projects (
   PRIMARY KEY (user_id, project_id)
 );
 
+-- Comments on tasks
 CREATE TABLE comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -53,6 +79,7 @@ CREATE TABLE comments (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Tags (per project)
 CREATE TABLE tags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -62,6 +89,8 @@ CREATE TABLE tags (
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (project_id, name)
 );
+
+-- Task <-> Tag mapping
 CREATE TABLE task_tags (
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,

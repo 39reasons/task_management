@@ -1,16 +1,22 @@
 import { gql } from "@apollo/client";
 
 export const GET_TASKS = gql`
-  query GetTasks($project_id: ID) {
-    tasks(project_id: $project_id) {
+  query GetTasks($project_id: ID, $workflow_id: ID, $stage_id: ID) {
+    tasks(project_id: $project_id, workflow_id: $workflow_id, stage_id: $stage_id) {
       id
       title
       description
       due_date
       priority
-      status
+      stage_id
       project_id
       assigned_to
+      stage {
+        id
+        name
+        position
+        workflow_id
+      }
       tags {
         id
         name
@@ -20,17 +26,37 @@ export const GET_TASKS = gql`
   }
 `;
 
-export const ADD_TASK = gql`
-  mutation AddTask($project_id: ID!, $title: String!, $status: String!) {
-    addTask(project_id: $project_id, title: $title, status: $status) {
+export const CREATE_TASK = gql`
+  mutation CreateTask(
+    $stage_id: ID!
+    $title: String!
+    $description: String
+    $due_date: String
+    $priority: String
+    $assigned_to: ID
+  ) {
+    createTask(
+      stage_id: $stage_id
+      title: $title
+      description: $description
+      due_date: $due_date
+      priority: $priority
+      assigned_to: $assigned_to
+    ) {
       id
       title
       description
       due_date
       priority
-      status
+      stage_id
       project_id
       assigned_to
+      stage {
+        id
+        name
+        position
+        workflow_id
+      }
       tags {
         id
         name
@@ -51,15 +77,7 @@ export const UPDATE_TASK_PRIORITY = gql`
     updateTaskPriority(id: $id, priority: $priority) {
       id
       priority
-    }
-  }
-`;
-
-export const UPDATE_TASK_STATUS = gql`
-  mutation UpdateTaskStatus($id: ID!, $status: String!) {
-    updateTaskStatus(id: $id, status: $status) {
-      id
-      status
+      stage_id
     }
   }
 `;
@@ -71,7 +89,7 @@ export const UPDATE_TASK = gql`
     $description: String
     $due_date: String
     $priority: String
-    $status: String
+    $stage_id: ID
     $assigned_to: ID
   ) {
     updateTask(
@@ -80,7 +98,7 @@ export const UPDATE_TASK = gql`
       description: $description
       due_date: $due_date
       priority: $priority
-      status: $status
+      stage_id: $stage_id
       assigned_to: $assigned_to
     ) {
       id
@@ -88,13 +106,34 @@ export const UPDATE_TASK = gql`
       description
       due_date
       priority
-      status
-      assigned_to
+      stage_id
       project_id
+      assigned_to
+      stage {
+        id
+        name
+        position
+        workflow_id
+      }
       tags {
         id
         name
         color
+      }
+    }
+  }
+`;
+
+export const MOVE_TASK = gql`
+  mutation MoveTask($task_id: ID!, $to_stage_id: ID!) {
+    moveTask(task_id: $task_id, to_stage_id: $to_stage_id) {
+      id
+      stage_id
+      stage {
+        id
+        name
+        position
+        workflow_id
       }
     }
   }
