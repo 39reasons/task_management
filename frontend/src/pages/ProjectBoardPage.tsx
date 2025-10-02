@@ -9,7 +9,7 @@ export function ProjectBoardPage({
   user: AuthUser | null;
   setSelectedTask: (task: Task) => void;
 }) {
-  const { stages, createTask, deleteTask, moveTask, addStage, loading } = useProjectBoard();
+  const { stages, createTask, deleteTask, moveTask, addStage, deleteStage, loading } = useProjectBoard();
 
   if (loading) {
     return <div className="text-white">Loading board…</div>;
@@ -22,6 +22,7 @@ export function ProjectBoardPage({
       onMoveTask={moveTask}
       onAddTask={user ? (stageId, title) => createTask(stageId, title) : undefined}
       onAddStage={user ? addStage : undefined}
+      onDeleteStage={user ? (stageId: string) => deleteStage(stageId) : undefined}
       user={user}
       setSelectedTask={setSelectedTask}
     />

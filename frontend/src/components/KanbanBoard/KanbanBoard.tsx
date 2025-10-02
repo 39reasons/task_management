@@ -19,6 +19,7 @@ interface KanbanBoardProps {
   onMoveTask?: (taskId: Task["id"], stageId: Stage["id"]) => void;
   onAddTask?: (stage_id: Stage["id"], title: string) => void;
   onAddStage?: (name: string) => void;
+  onDeleteStage?: (stage_id: Stage["id"]) => void;
   user: { id: string; username: string; name: string } | null;
   setSelectedTask: (task: Task) => void;
 }
@@ -29,6 +30,7 @@ export function KanbanBoard({
   onMoveTask,
   onAddTask,
   onAddStage,
+  onDeleteStage,
   user,
   setSelectedTask,
 }: KanbanBoardProps) {
@@ -104,6 +106,7 @@ export function KanbanBoard({
               openModal("task");
             }}
             onAddTask={user && onAddTask ? onAddTask : undefined}
+            onDeleteStage={user && onDeleteStage ? onDeleteStage : undefined}
           />
         ))}
 
