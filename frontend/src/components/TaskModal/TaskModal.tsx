@@ -7,13 +7,14 @@ import {
   UPDATE_TASK,
   GET_TASK_TAGS,
 } from "../../graphql.js";
-import { SendHorizonal, Plus } from "lucide-react";
+import { SendHorizonal, Plus, Dot } from "lucide-react";
 import { useModal } from "../ModalStack";
 
 interface TaskModalProps {
   task: Task | null;
 }
 
+// ⏱️ Time ago helper
 function timeAgo(timestamp: number) {
   const now = Date.now();
   const diff = Math.floor((now - timestamp) / 1000); // in seconds
@@ -165,30 +166,28 @@ export function TaskModal({ task }: TaskModalProps) {
               />
             )}
 
-          {/* Tags */}
-          <div className="flex flex-wrap gap-2 mb-2 items-center">
-            {tags.length > 0 &&
-              tags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="px-2 py-1 text-xs rounded-full"
-                  style={{ backgroundColor: tag.color, color: "white" }}
-                >
-                  {tag.name}
-                </span>
-              ))}
+            {/* Tags */}
+            <div className="flex flex-wrap gap-2 mb-2 items-center">
+              {tags.length > 0 &&
+                tags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="px-2 py-1 text-xs rounded-full"
+                    style={{ backgroundColor: tag.color, color: "white" }}
+                  >
+                    {tag.name}
+                  </span>
+                ))}
 
-            <button
-              type="button"
-              onClick={() => openModal("tag")}
-              className="flex items-center gap-1 px-2 py-1 rounded bg-gray-700 text-white text-xs hover:bg-gray-600"
-            >
-              <Plus size={14} />
-              Tags
-            </button>
-          </div>
-
-
+              <button
+                type="button"
+                onClick={() => openModal("tag")}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-gray-700 text-white text-xs hover:bg-gray-600"
+              >
+                <Plus size={14} />
+                Tags
+              </button>
+            </div>
           </div>
         </div>
 
@@ -224,10 +223,21 @@ export function TaskModal({ task }: TaskModalProps) {
                   key={c.id}
                   className="bg-gray-900 p-2 rounded border border-gray-700"
                 >
-                  <span className="text-sm text-gray-300">{c.content}</span>
-                  <span className="block text-xs text-gray-500 mt-1">
-                    {timeAgo(Number(c.created_at))}
-                  </span>
+                  {/* Header */}
+                  <div className="flex items-center gap-1 text-xs mb-1">
+                    <span className="font-semibold text-white">
+                      {c.user?.name || "Unknown"}
+                    </span>
+                    <Dot size={14} className="text-gray-500" />
+                    <span className="text-gray-400">
+                      {timeAgo(Number(c.created_at))}
+                    </span>
+                  </div>
+
+                  {/* Content */}
+                  <div className="text-sm text-gray-300 leading-snug">
+                    {c.content}
+                  </div>
                 </div>
               ))
             )}
