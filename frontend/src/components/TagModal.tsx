@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation } from "@apollo/client";
-import { ADD_TAG, ASSIGN_TAG_TO_TASK, GET_TASK_TAGS } from "../graphql/tags";
+import { ADD_TAG, ASSIGN_TAG_TO_TASK, GET_TASK_TAGS } from "../graphql";
 import type { Task } from "@shared/types";
 import { useModal } from "./ModalStack";
 

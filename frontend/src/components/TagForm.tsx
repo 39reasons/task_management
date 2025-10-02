@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@apollo/client";
-import { ADD_TAG } from "../graphql/tags";
+import { ADD_TAG } from "../graphql";
 
 const PRESET_COLORS = [
   "#ef4444", // red

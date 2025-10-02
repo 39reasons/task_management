@@ -4,9 +4,9 @@ import type { Task } from "@shared/types";
 import {
   GET_COMMENTS,
   ADD_COMMENT,
-} from "../../graphql/comments";
-import { GET_TASK_TAGS } from "../../graphql/tags";
-import { UPDATE_TASK } from "../../graphql/tasks";
+  UPDATE_TASK,
+  GET_TASK_TAGS,
+} from "../../graphql";
 import { SendHorizonal, Plus, Dot } from "lucide-react";
 import { useModal } from "../ModalStack";
 
