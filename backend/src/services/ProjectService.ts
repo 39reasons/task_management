@@ -114,35 +114,13 @@ export async function addProject(
     [user_id, project.id]
   );
 
-  const workflowResult = await query<{ id: string }>(
+  await query(
     `
     INSERT INTO workflows (project_id, name)
     VALUES ($1, $2)
-    RETURNING id
     `,
     [project.id, `${project.name} Board`]
   );
-
-  const workflow_id = workflowResult.rows[0]?.id;
-
-  if (workflow_id) {
-    const defaultStages = [
-      { name: "To Do", position: 1 },
-      { name: "In Progress", position: 2 },
-      { name: "Done", position: 3 },
-    ];
-
-    for (const stage of defaultStages) {
-      await query(
-        `
-        INSERT INTO stages (workflow_id, name, position)
-        VALUES ($1, $2, $3)
-        ON CONFLICT DO NOTHING
-        `,
-        [workflow_id, stage.name, stage.position]
-      );
-    }
-  }
 
   return project;
 }
