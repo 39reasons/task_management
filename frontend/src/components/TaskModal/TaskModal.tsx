@@ -133,7 +133,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       },
     });
     const tag_id = res.data.addTag.id;
-    await assignTagToTask({ variables: { task_id: task.id, tagId: tag_id } });
+    await assignTagToTask({ variables: { task_id: task.id, tag_id: tag_id } });
     await refetchTags();
     setNewTagName("");
     setNewTagColor("#3b82f6");
