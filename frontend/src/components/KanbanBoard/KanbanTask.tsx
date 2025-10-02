@@ -43,29 +43,28 @@ export function KanbanTask({
             e.stopPropagation();
             onDelete(task.id);
           }}
-          className="absolute top-2 right-2 text-gray-400 hover:text-red-400 cursor-pointer" // 👈 only pointer here
+          className="absolute top-2 right-2 text-gray-400 hover:text-red-400 cursor-pointer"
         >
           <X size={16} />
         </button>
       )}
 
+      {/* Tags at top */}
+      {task.tags?.length ? (
+<div className="flex flex-wrap gap-2 mb-2">
+  {task.tags.map((tag) => (
+    <span
+      key={tag.id}
+      className="px-4 py-1 rounded text-sm font-medium text-white"
+      style={{ backgroundColor: tag.color ?? "#4b5563" }}
+    >
+    </span>
+  ))}
+</div>
+      ) : null}
+
       {/* Title */}
       <h4 className="text-white font-semibold mb-2 pr-6">{task.title}</h4>
-
-      {/* Tags */}
-      {task.tags?.length ? (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {task.tags.map((tag) => (
-            <span
-              key={tag.id}
-              className="px-2 py-0.5 rounded text-xs font-medium text-white"
-              style={{ backgroundColor: tag.color ?? "#4b5563" }}
-            >
-              {tag.name}
-            </span>
-          ))}
-        </div>
-      ) : null}
 
       {/* Due date */}
       {task.due_date && (

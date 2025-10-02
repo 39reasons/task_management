@@ -6,7 +6,7 @@ import {
   UPDATE_TASK_PRIORITY,
   UPDATE_TASK_STATUS,
   UPDATE_TASK,
-} from "../graphql";
+} from "../graphql/tasks";
 import type { Task } from "@shared/types";
 import { useParams } from "react-router-dom";
 

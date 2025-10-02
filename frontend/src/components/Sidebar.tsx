@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_PROJECTS, ADD_PROJECT } from "../graphql.js";
+import { GET_PROJECTS, ADD_PROJECT } from "../graphql/projects";
 import { useState, useEffect } from "react";
 import { PlusCircle } from "lucide-react";
 import { NavLink } from "react-router-dom";
