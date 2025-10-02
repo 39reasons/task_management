@@ -4,8 +4,8 @@ import type { Task } from "@shared/types";
 
 interface TaskFormProps {
   status: Task["status"];
-  project_id: string;
-  onAdd: (title: string, status: Task["status"], project_id: string) => void;
+  project_id: string | null;
+  onAdd: (title: string, status: Task["status"], project_id: string | null) => void;
 }
 
 export function TaskForm({ status, project_id, onAdd }: TaskFormProps) {

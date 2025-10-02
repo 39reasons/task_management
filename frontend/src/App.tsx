@@ -9,8 +9,17 @@ import { useApolloClient } from "@apollo/client";
 import { jwtDecode } from "jwt-decode";
 import type { DecodedToken } from "@shared/types";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { ModalProvider, useModal } from "./components/ModalStack";
+import { TaskModal } from "./components/TaskModal/TaskModal";
+import { TagModal } from "./components/TagModal";
 
-function AllTasksPage({ user }: { user: AuthUser | null }) {
+function AllTasksPage({
+  user,
+  onTaskClick,
+}: {
+  user: AuthUser | null;
+  onTaskClick: (task: Task) => void;
+}) {
   const { tasks, deleteTask, updatePriority, updateStatus, updateTask } = useTasks();
 
   return (
@@ -24,65 +33,20 @@ function AllTasksPage({ user }: { user: AuthUser | null }) {
         updateStatus({ variables: { id, status } })
       }
       onUpdateTask={(updatedTask: Partial<Task>) =>
-        updateTask({
-          variables: {
-            id: updatedTask.id,
-            title: updatedTask.title,
-            description: updatedTask.description,
-            due_date: updatedTask.due_date,
-            priority: updatedTask.priority,
-            status: updatedTask.status,
-            assigned_to: updatedTask.assigned_to,
-            project_id: updatedTask.project_id,
-          },
-        })
+        updateTask({ variables: { id: updatedTask.id, ...updatedTask } })
       }
       user={user}
+      setSelectedTask={onTaskClick}
     />
   );
 }
 
-function ProjectBoardPage({ user }: { user: AuthUser | null }) {
-  const { tasks, deleteTask, addTask, updatePriority, updateStatus, updateTask, project_id } =
-    useTasks();
-
-  return (
-    <KanbanBoard
-      tasks={tasks}
-      onDelete={(id: Task["id"]) => deleteTask({ variables: { id } })}
-      onUpdatePriority={(id: Task["id"], priority: Task["priority"]) =>
-        updatePriority({ variables: { id, priority } })
-      }
-      onUpdateStatus={(id: Task["id"], status: Task["status"]) =>
-        updateStatus({ variables: { id, status } })
-      }
-      onUpdateTask={(updatedTask: Partial<Task>) =>
-        updateTask({
-          variables: {
-            id: updatedTask.id,
-            title: updatedTask.title,
-            description: updatedTask.description,
-            due_date: updatedTask.due_date,
-            priority: updatedTask.priority,
-            status: updatedTask.status,
-            assigned_to: updatedTask.assigned_to,
-            project_id: updatedTask.project_id,
-          },
-        })
-      }
-      onAddTask={(title, status) => {
-        if (!project_id) return;
-        addTask(project_id, title, status);
-      }}
-      user={user}
-    />
-  );
-}
-
-function App() {
+function AppContent() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const client = useApolloClient();
+  const { modals, openModal } = useModal();
 
   const handleLogout = async () => {
     localStorage.removeItem("token");
@@ -95,17 +59,11 @@ function App() {
     if (token) {
       try {
         const decoded: DecodedToken = jwtDecode(token);
-        setUser({
-          id: decoded.id,
-          username: decoded.username,
-          name: decoded.name,
-        });
+        setUser({ id: decoded.id, username: decoded.username, name: decoded.name });
       } catch {
         localStorage.removeItem("token");
         setUser(null);
       }
-    } else {
-      setUser(null);
     }
   }, []);
 
@@ -125,20 +83,35 @@ function App() {
 
       <div className="flex flex-1">
         <Sidebar user={user} />
-
         <main className="flex-1 p-6">
           <div className="max-w-6xl mx-auto">
-            <section className="mb-10">
-              <Routes>
-                <Route path="/" element={<AllTasksPage user={user} />} />
-                <Route path="/projects/:id" element={<ProjectBoardPage user={user} />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </section>
+            <Routes>
+              <Route
+                path="/"
+                element={<AllTasksPage user={user} onTaskClick={(task) => { setSelectedTask(task); openModal("task"); }} />}
+              />
+              <Route
+                path="/projects/:id"
+                element={<AllTasksPage user={user} onTaskClick={(task) => { setSelectedTask(task); openModal("task"); }} />}
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </div>
         </main>
       </div>
+
+      {/* Stacked Modals */}
+      {modals.includes("task") && <TaskModal task={selectedTask} />}
+      {modals.includes("tag") && <TagModal task={selectedTask} />}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ModalProvider>
+      <AppContent />
+    </ModalProvider>
   );
 }
 

@@ -11,8 +11,8 @@ import {
 import { useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanOverlay } from "./KanbanOverlay";
-import { TaskModal } from "../../components/TaskModal/TaskModal";
 import { useParams } from "react-router-dom";
+import { useModal } from "../ModalStack";
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -20,8 +20,9 @@ interface KanbanBoardProps {
   onUpdatePriority: (id: Task["id"], priority: Task["priority"]) => void;
   onUpdateStatus: (id: Task["id"], status: Task["status"]) => void;
   onUpdateTask: (updatedTask: Partial<Task>) => void;
-  onAddTask?: (title: string, status: Task["status"], project_id: string) => void;
+  onAddTask?: (title: string, status: Task["status"], project_id: string | null) => void;
   user: { id: string; username: string; name: string } | null;
+  setSelectedTask: (task: Task) => void;
 }
 
 type StatusKey = "todo" | "in-progress" | "done";
@@ -29,12 +30,13 @@ type StatusKey = "todo" | "in-progress" | "done";
 export function KanbanBoard({
   tasks,
   onDelete,
-  onUpdatePriority,
   onUpdateStatus,
   onAddTask,
   user,
+  setSelectedTask,
 }: KanbanBoardProps) {
   const { id: selected_project_id } = useParams<{ id: string }>();
+  const { openModal } = useModal();
 
   const STATUSES: StatusKey[] = ["todo", "in-progress", "done"];
   const STATUS_LABELS: Record<StatusKey, string> = {
@@ -50,8 +52,6 @@ export function KanbanBoard({
   );
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [isModalOpen, setModalOpen] = useState(false);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -78,47 +78,37 @@ export function KanbanBoard({
   };
 
   return (
-    <>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={pointerWithin}
-        onDragStart={(event) => {
-          const task = tasks.find((t) => String(t.id) === String(event.active.id));
-          setActiveTask(task || null);
-        }}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveTask(null)}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {STATUSES.map((status) => (
-            <KanbanColumn
-              key={status}
-              id={status}
-              title={STATUS_LABELS[status]}
-              tasks={tasks.filter((t) => (t.status ?? "todo") === status)}
-              onDelete={user ? onDelete : undefined}
-              onUpdatePriority={onUpdatePriority}
-              onUpdateStatus={onUpdateStatus}
-              onTaskClick={(task) => {
-                setSelectedTask(task);
-                setModalOpen(true);
-              }}
-              onAddTask={user && onAddTask ? onAddTask : undefined}
-              selected_project_id={selected_project_id ?? null}
-            />
-          ))}
-        </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragStart={(event) => {
+        const task = tasks.find((t) => String(t.id) === String(event.active.id));
+        setActiveTask(task || null);
+      }}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveTask(null)}
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        {STATUSES.map((status) => (
+          <KanbanColumn
+            key={status}
+            id={status}
+            title={STATUS_LABELS[status]}
+            tasks={tasks.filter((t) => (t.status ?? "todo") === status)}
+            onDelete={user ? onDelete : undefined}
+            onTaskClick={(task) => {
+              setSelectedTask(task);
+              openModal("task");
+            }}
+            onAddTask={user && onAddTask ? onAddTask : undefined}
+            selected_project_id={selected_project_id ?? null}
+          />
+        ))}
+      </div>
 
-        <DragOverlay>
-          <KanbanOverlay task={activeTask} />
-        </DragOverlay>
-      </DndContext>
-
-      <TaskModal
-        task={selectedTask}
-        isOpen={isModalOpen}
-        onClose={() => setModalOpen(false)}
-      />
-    </>
+      <DragOverlay>
+        <KanbanOverlay task={activeTask} />
+      </DragOverlay>
+    </DndContext>
   );
 }
