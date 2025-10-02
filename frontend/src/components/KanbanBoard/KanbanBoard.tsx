@@ -46,9 +46,7 @@ export function KanbanBoard({
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -64,11 +62,9 @@ export function KanbanBoard({
     const task = tasks.find((t) => String(t.id) === activeId);
     if (!task) return;
 
-    if ((STATUSES as string[]).includes(overId)) {
+    if (["todo", "in-progress", "done"].includes(overId)) {
       const newStatus = overId as StatusKey;
-      if (task.status !== newStatus) {
-        onUpdateStatus(task.id, newStatus);
-      }
+      if (task.status !== newStatus) onUpdateStatus(task.id, newStatus);
     } else {
       const targetTask = tasks.find((t) => String(t.id) === overId);
       if (targetTask && task.status !== targetTask.status) {
@@ -81,8 +77,8 @@ export function KanbanBoard({
     <DndContext
       sensors={sensors}
       collisionDetection={pointerWithin}
-      onDragStart={(event) => {
-        const task = tasks.find((t) => String(t.id) === String(event.active.id));
+      onDragStart={(e) => {
+        const task = tasks.find((t) => String(t.id) === String(e.active.id));
         setActiveTask(task || null);
       }}
       onDragEnd={handleDragEnd}

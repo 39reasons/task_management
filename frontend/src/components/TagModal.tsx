@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@apollo/client";
 import { ADD_TAG, ASSIGN_TAG_TO_TASK, GET_TASK_TAGS } from "../graphql.js";
 import type { Task } from "@shared/types";
@@ -10,8 +10,6 @@ interface TagModalProps {
 
 export function TagModal({ task }: TagModalProps) {
   const { modals, closeModal } = useModal();
-  const top = modals[modals.length - 1];
-  const isTop = top === "tag";
   const isOpen = modals.includes("tag");
 
   const [newTagName, setNewTagName] = useState("");
@@ -22,13 +20,13 @@ export function TagModal({ task }: TagModalProps) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isTop) {
+      if (e.key === "Escape" && isOpen) {
         closeModal("tag");
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [isTop]);
+  }, [isOpen]);
 
   if (!isOpen || !task) return null;
 
@@ -56,11 +54,14 @@ export function TagModal({ task }: TagModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 50 }}>
-      {/* Only block backdrop if this modal is on top */}
-      {isTop && <div className="absolute inset-0 bg-black/50" onClick={() => closeModal("tag")} />}
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop only closes if tag modal is top */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={() => closeModal("tag")}
+      />
 
-      <div className="relative bg-gray-800 rounded-xl shadow-lg w-full max-w-sm p-6 space-y-4" style={{ zIndex: 51 }}>
+      <div className="relative bg-gray-800 rounded-xl shadow-lg w-full max-w-sm p-6 space-y-4">
         <h3 className="text-lg font-semibold text-white">Add Tag</h3>
         <form
           onSubmit={(e) => {

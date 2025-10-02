@@ -15,17 +15,17 @@ interface TaskModalProps {
 }
 
 export function TaskModal({ task }: TaskModalProps) {
+  const { modals, closeModal, openModal } = useModal();
+  const isOpen = modals.includes("task");
+
   const [title, setTitle] = useState("");
   const [initialTitle, setInitialTitle] = useState("");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<Task["priority"] | null>(null);
   const [commentText, setCommentText] = useState("");
-
   const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
-  const { modals, closeModal, openModal } = useModal();
 
   const { data, loading } = useQuery(GET_COMMENTS, {
     variables: { task_id: task?.id },
@@ -38,9 +38,7 @@ export function TaskModal({ task }: TaskModalProps) {
   });
 
   const [addComment] = useMutation(ADD_COMMENT, {
-    refetchQueries: task
-      ? [{ query: GET_COMMENTS, variables: { task_id: task.id } }]
-      : [],
+    refetchQueries: task ? [{ query: GET_COMMENTS, variables: { task_id: task.id } }] : [],
   });
 
   const [updateTask] = useMutation(UPDATE_TASK);
@@ -62,23 +60,18 @@ export function TaskModal({ task }: TaskModalProps) {
   }, [tagsData]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && modals.includes("task")) {
-        const active = document.activeElement as HTMLElement | null;
-        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) {
-          active.blur();
-          return;
-        }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
         e.stopPropagation();
         saveAllChanges();
         closeModal("task");
       }
     };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [modals, title, description, dueDate, priority]);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, title, description, dueDate, priority]);
 
-  if (!modals.includes("task") || !task) return null;
+  if (!isOpen || !task) return null;
 
   const saveAllChanges = () => {
     if (!task) return;
@@ -111,10 +104,7 @@ export function TaskModal({ task }: TaskModalProps) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center"
-      style={{ zIndex: 50 }}
-    >
+    <div className="fixed inset-0 z-40 flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50"
@@ -158,9 +148,7 @@ export function TaskModal({ task }: TaskModalProps) {
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                onBlur={() =>
-                  updateTask({ variables: { id: task.id, description } })
-                }
+                onBlur={() => updateTask({ variables: { id: task.id, description } })}
                 className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
               />
             )}
