@@ -11,6 +11,7 @@ export const GET_TASKS = gql`
       stage_id
       project_id
       assigned_to
+      position
       stage {
         id
         name
@@ -51,6 +52,7 @@ export const CREATE_TASK = gql`
       stage_id
       project_id
       assigned_to
+      position
       stage {
         id
         name
@@ -109,6 +111,7 @@ export const UPDATE_TASK = gql`
       stage_id
       project_id
       assigned_to
+      position
       stage {
         id
         name
@@ -135,6 +138,13 @@ export const MOVE_TASK = gql`
         position
         workflow_id
       }
+      position
     }
+  }
+`;
+
+export const REORDER_TASKS = gql`
+  mutation ReorderTasks($stage_id: ID!, $task_ids: [ID!]!) {
+    reorderTasks(stage_id: $stage_id, task_ids: $task_ids)
   }
 `;

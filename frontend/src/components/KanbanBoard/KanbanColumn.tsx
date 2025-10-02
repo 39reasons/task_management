@@ -1,5 +1,6 @@
 import type { Stage, Task } from "@shared/types";
 import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { KanbanTask } from "./KanbanTask";
 import { TaskForm } from "../TaskForm";
 import { X } from "lucide-react";
@@ -20,6 +21,9 @@ export function KanbanColumn({
   onDeleteStage,
 }: KanbanColumnProps) {
   const { setNodeRef } = useDroppable({ id: stage.id });
+  const orderedTasks = [...stage.tasks].sort(
+    (a, b) => (a.position ?? 0) - (b.position ?? 0)
+  );
 
   return (
     <div
@@ -33,31 +37,28 @@ export function KanbanColumn({
             type="button"
             aria-label={`Delete ${stage.name}`}
             className="text-gray-400 hover:text-red-400"
-            onClick={() => {
-              const shouldDelete = stage.tasks.length === 0
-                ? true
-                : window.confirm(
-                    `Delete stage "${stage.name}"? This will remove ${stage.tasks.length} task${stage.tasks.length === 1 ? "" : "s"}.`
-                  );
-              if (!shouldDelete) return;
-              onDeleteStage(stage.id);
-            }}
+            onClick={() => onDeleteStage(stage.id)}
           >
             <X size={16} />
           </button>
         )}
       </div>
 
-      <div>
-        {stage.tasks.map((task) => (
-          <KanbanTask
-            key={task.id}
-            task={task}
-            onDelete={onDelete}
-            onClick={onTaskClick}
-          />
-        ))}
-      </div>
+      <SortableContext
+        items={orderedTasks.map((task) => String(task.id))}
+        strategy={verticalListSortingStrategy}
+      >
+        <div>
+          {orderedTasks.map((task) => (
+            <KanbanTask
+              key={task.id}
+              task={task}
+              onDelete={onDelete}
+              onClick={onTaskClick}
+            />
+          ))}
+        </div>
+      </SortableContext>
 
       {onAddTask && (
         <TaskForm stageId={stage.id} onAdd={onAddTask} />

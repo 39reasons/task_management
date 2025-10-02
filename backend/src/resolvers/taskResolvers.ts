@@ -112,6 +112,16 @@ export const taskResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.updateTaskPriority(id, priority);
     },
+
+    reorderTasks: async (
+      _: unknown,
+      { stage_id, task_ids }: { stage_id: string; task_ids: string[] },
+      ctx: GraphQLContext
+    ): Promise<boolean> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      await TaskService.reorderTasks(stage_id, task_ids);
+      return true;
+    },
   },
 
   Task: {

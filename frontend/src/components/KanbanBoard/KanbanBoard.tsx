@@ -1,7 +1,7 @@
 import type { Stage, Task } from "@shared/types";
 import {
   DndContext,
-  pointerWithin,
+  closestCorners,
   PointerSensor,
   useSensor,
   useSensors,
@@ -12,11 +12,13 @@ import { FormEvent, useMemo, useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanOverlay } from "./KanbanOverlay";
 import { useModal } from "../ModalStack";
+import { Plus, X } from "lucide-react";
 
 interface KanbanBoardProps {
   stages: Array<Stage & { tasks: Task[] }>;
   onDelete?: (id: Task["id"]) => void;
-  onMoveTask?: (taskId: Task["id"], stageId: Stage["id"]) => void;
+  onMoveTask?: (taskId: Task["id"], stageId: Stage["id"]) => Promise<void> | void;
+  onReorderTasks?: (stageId: Stage["id"], orderedIds: string[]) => Promise<void> | void;
   onAddTask?: (stage_id: Stage["id"], title: string) => void;
   onAddStage?: (name: string) => void;
   onDeleteStage?: (stage_id: Stage["id"]) => void;
@@ -28,6 +30,7 @@ export function KanbanBoard({
   stages,
   onDelete,
   onMoveTask,
+  onReorderTasks,
   onAddTask,
   onAddStage,
   onDeleteStage,
@@ -51,11 +54,25 @@ export function KanbanBoard({
     }
     return map;
   }, [stages]);
+  const tasksByStage = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const stage of stages) {
+      map.set(stage.id, [...(stage.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)));
+    }
+    return map;
+  }, [stages]);
+  const taskMap = useMemo(() => {
+    const map = new Map<string, Task>();
+    for (const task of allTasks) {
+      map.set(String(task.id), task);
+    }
+    return map;
+  }, [allTasks]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
-    if (!over || !onMoveTask) return;
+    if (!over) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
@@ -63,14 +80,43 @@ export function KanbanBoard({
     const task = allTasks.find((t) => String(t.id) === activeId);
     if (!task) return;
 
+    let destinationStageId: string | null = null;
+    let insertIndex: number | null = null;
+
     if (stageMap.has(overId)) {
-      if (task.stage_id !== overId) onMoveTask(task.id, overId);
-      return;
+      destinationStageId = overId;
+      insertIndex = (tasksByStage.get(overId)?.length ?? 0);
+    } else if (taskMap.has(overId)) {
+      const targetTask = taskMap.get(overId)!;
+      destinationStageId = targetTask.stage_id;
+      const stageTasks = tasksByStage.get(destinationStageId) ?? [];
+      insertIndex = stageTasks.findIndex((t) => String(t.id) === overId);
     }
 
-    const targetTask = allTasks.find((t) => String(t.id) === overId);
-    if (targetTask && targetTask.stage_id !== task.stage_id) {
-      onMoveTask(task.id, targetTask.stage_id);
+    if (!destinationStageId || insertIndex === null) return;
+
+    const sourceStageId = task.stage_id;
+
+    if (destinationStageId !== sourceStageId) {
+      if (!onMoveTask) return;
+      await Promise.resolve(onMoveTask(task.id, destinationStageId));
+      if (onReorderTasks) {
+        const destinationTasks = tasksByStage.get(destinationStageId) ?? [];
+        const withoutTask = destinationTasks.filter((t) => String(t.id) !== activeId);
+        const reordered = [...withoutTask];
+        reordered.splice(insertIndex, 0, { ...task, stage_id: destinationStageId });
+        await Promise.resolve(onReorderTasks(destinationStageId, reordered.map((t) => String(t.id))));
+        const sourceTasks = tasksByStage.get(sourceStageId) ?? [];
+        const sourceWithout = sourceTasks.filter((t) => String(t.id) !== activeId);
+        if (sourceWithout.length > 0) {
+          await Promise.resolve(onReorderTasks(sourceStageId, sourceWithout.map((t) => String(t.id))));
+        }
+      }
+    } else if (onReorderTasks) {
+      const stageTasks = tasksByStage.get(sourceStageId) ?? [];
+      const filtered = stageTasks.filter((t) => String(t.id) !== activeId);
+      filtered.splice(insertIndex, 0, task);
+      await Promise.resolve(onReorderTasks(sourceStageId, filtered.map((t) => String(t.id))));
     }
   };
 
@@ -87,7 +133,7 @@ export function KanbanBoard({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={closestCorners}
       onDragStart={(e) => {
         const task = allTasks.find((t) => String(t.id) === String(e.active.id));
         setActiveTask(task || null);
@@ -111,16 +157,17 @@ export function KanbanBoard({
         ))}
 
         {user && onAddStage && (
-          <div className="bg-gray-800 rounded-lg p-4 shadow border border-dashed border-gray-600 flex flex-col justify-between">
+          <div className="flex flex-col gap-2">
             {!isAddingStage ? (
               <button
                 onClick={() => setIsAddingStage(true)}
-                className="w-full h-full text-left text-white/80 hover:text-white"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 flex items-center gap-2 text-white/90 hover:text-white hover:border-gray-500 transition"
               >
-                + Add Stage
+                <Plus size={18} />
+                <span className="font-semibold">Add Stage</span>
               </button>
             ) : (
-              <form onSubmit={handleAddStageSubmit} className="flex flex-col gap-2">
+              <form onSubmit={handleAddStageSubmit} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 flex flex-col gap-2">
                 <input
                   value={newStageName}
                   onChange={(e) => setNewStageName(e.target.value)}
@@ -141,9 +188,9 @@ export function KanbanBoard({
                       setIsAddingStage(false);
                       setNewStageName("");
                     }}
-                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md px-3 py-2"
+                    className="px-3 py-2 text-gray-300 hover:text-red-400"
                   >
-                    Cancel
+                    <X size={18} />
                   </button>
                 </div>
               </form>

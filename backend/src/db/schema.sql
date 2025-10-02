@@ -52,6 +52,7 @@ CREATE TABLE stages (
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   stage_id UUID NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  position INT NOT NULL DEFAULT 0,
   title TEXT NOT NULL,
   description TEXT,
   due_date DATE,

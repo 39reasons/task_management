@@ -9,6 +9,7 @@ export interface Task {
   assigned_to?: string | null;
   tags?: Tag[];
   stage?: Stage;
+  position?: number;
 }
 
 export interface Stage {
@@ -24,6 +25,12 @@ export interface Workflow {
   name: string;
   project_id: string;
   stages: Stage[];
+}
+
+export interface TaskReorderInput {
+  task_id: string;
+  stage_id: string;
+  position: number;
 }
 
 export interface TasksData {

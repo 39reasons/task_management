@@ -9,7 +9,16 @@ export function ProjectBoardPage({
   user: AuthUser | null;
   setSelectedTask: (task: Task) => void;
 }) {
-  const { stages, createTask, deleteTask, moveTask, addStage, deleteStage, loading } = useProjectBoard();
+  const {
+    stages,
+    createTask,
+    deleteTask,
+    moveTask,
+    addStage,
+    reorderStage,
+    deleteStage,
+    loading,
+  } = useProjectBoard();
 
   if (loading) {
     return <div className="text-white">Loading board…</div>;
@@ -20,6 +29,7 @@ export function ProjectBoardPage({
       stages={stages}
       onDelete={user ? (id: Task["id"]) => deleteTask(id) : undefined}
       onMoveTask={moveTask}
+      onReorderTasks={reorderStage}
       onAddTask={user ? (stageId, title) => createTask(stageId, title) : undefined}
       onAddStage={user ? addStage : undefined}
       onDeleteStage={user ? (stageId: string) => deleteStage(stageId) : undefined}

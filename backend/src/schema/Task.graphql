@@ -9,6 +9,7 @@ type Task {
   assigned_to: ID
   tags: [Tag!]!
   stage: Stage
+  position: Int
 }
 
 extend type Query {
@@ -47,4 +48,9 @@ extend type Mutation {
     id: ID!
     priority: String!
   ): Task!
+
+  reorderTasks(
+    stage_id: ID!
+    task_ids: [ID!]!
+  ): Boolean!
 }

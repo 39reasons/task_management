@@ -20,6 +20,7 @@ export const GET_WORKFLOWS = gql`
           stage_id
           project_id
           assigned_to
+          position
           tags {
             id
             name
@@ -51,6 +52,7 @@ export const GET_WORKFLOW = gql`
           stage_id
           project_id
           assigned_to
+          position
           tags {
             id
             name

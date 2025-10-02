@@ -1,30 +1,25 @@
 import type { Task } from "@shared/types";
-import { useDraggable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { CSSProperties } from "react";
 import { X } from "lucide-react";
 
 interface KanbanTaskProps {
   task: Task;
   onClick: (task: Task) => void;
   onDelete?: (id: string) => void;
+  disableDrag?: boolean;
 }
 
-export function KanbanTask({
-  task,
-  onClick,
-  onDelete,
-}: KanbanTaskProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
-      id: task.id,
-    });
+export function KanbanTask({ task, onClick, onDelete, disableDrag = false }: KanbanTaskProps) {
+  const sortable = useSortable({ id: task.id, disabled: disableDrag });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = sortable;
 
-  if (isDragging) return null;
-
-  const style = {
-    transform: transform
-      ? `translate(${transform.x}px, ${transform.y}px)`
-      : undefined,
-    cursor: "default",
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    cursor: "grab",
   };
 
   return (

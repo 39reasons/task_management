@@ -6,6 +6,7 @@ import {
   UPDATE_TASK,
   UPDATE_TASK_PRIORITY,
   MOVE_TASK,
+  REORDER_TASKS,
 } from "../graphql";
 import type { Stage, Task } from "@shared/types";
 
@@ -17,6 +18,7 @@ interface UseAllTasksBoardResult {
   moveTask: (task_id: string, stage_id: string) => Promise<void>;
   updateTask: (input: Partial<Task> & { id: string }) => Promise<void>;
   updatePriority: (id: string, priority: Task["priority"]) => Promise<void>;
+  reorderStage: (stage_id: string, task_ids: string[]) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -48,13 +50,19 @@ export function useAllTasksBoard(): UseAllTasksBoardResult {
       map.get(stageInfo.id)!.tasks.push(task);
     }
 
-    return Array.from(map.values()).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+    return Array.from(map.values())
+      .map((stage) => ({
+        ...stage,
+        tasks: [...stage.tasks].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
+      }))
+      .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
   }, [data]);
 
   const [deleteTaskMutation] = useMutation(DELETE_TASK);
   const [moveTaskMutation] = useMutation(MOVE_TASK);
   const [updateTaskMutation] = useMutation(UPDATE_TASK);
   const [updatePriorityMutation] = useMutation(UPDATE_TASK_PRIORITY);
+  const [reorderTasksMutation] = useMutation(REORDER_TASKS);
 
   const deleteTask = async (id: string) => {
     await deleteTaskMutation({
@@ -85,6 +93,14 @@ export function useAllTasksBoard(): UseAllTasksBoardResult {
     });
   };
 
+  const reorderStage = async (stage_id: string, task_ids: string[]) => {
+    if (task_ids.length === 0) return;
+    await reorderTasksMutation({
+      variables: { stage_id, task_ids },
+      refetchQueries: [{ query: GET_TASKS }],
+    });
+  };
+
   return {
     stages: stageBuckets,
     loading,
@@ -93,6 +109,7 @@ export function useAllTasksBoard(): UseAllTasksBoardResult {
     moveTask,
     updateTask,
     updatePriority,
+    reorderStage,
     refetch: async () => {
       await refetch();
     },

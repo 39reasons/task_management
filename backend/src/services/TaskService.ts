@@ -10,7 +10,8 @@ const TASK_BASE_SELECT = `
     to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
     t.priority,
     t.assigned_to,
-    w.project_id
+    w.project_id,
+    t.position
   FROM tasks t
   JOIN stages s ON s.id = t.stage_id
   JOIN workflows w ON w.id = s.workflow_id
@@ -23,7 +24,7 @@ function normalizeDate(input?: string | null): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-function mapTaskRow(row: Task & { project_id: string }): Task {
+function mapTaskRow(row: Task & { project_id: string; position: number }): Task {
   return {
     id: row.id,
     title: row.title,
@@ -33,6 +34,7 @@ function mapTaskRow(row: Task & { project_id: string }): Task {
     stage_id: row.stage_id,
     project_id: row.project_id,
     assigned_to: row.assigned_to,
+    position: row.position,
   };
 }
 
@@ -74,9 +76,9 @@ export async function getTasks(
   if (conditions.length > 0) {
     sql += ` WHERE ${conditions.join(" AND ")}`;
   }
-  sql += ` ORDER BY s.position ASC, t.created_at ASC`;
+  sql += ` ORDER BY s.position ASC, t.position ASC, t.created_at ASC`;
 
-  const result = await query<Task & { project_id: string }>(sql, params);
+  const result = await query<Task & { project_id: string; position: number }>(sql, params);
   return result.rows.map(mapTaskRow);
 }
 
@@ -85,7 +87,7 @@ export async function getAllVisibleTasks(user_id: string | null): Promise<Task[]
 }
 
 export async function getTaskById(id: string): Promise<Task | null> {
-  const result = await query<Task & { project_id: string }>(
+  const result = await query<Task & { project_id: string; position: number }>(
     `${TASK_BASE_SELECT} WHERE t.id = $1`,
     [id]
   );
@@ -111,8 +113,21 @@ export async function createTask({
 }): Promise<Task> {
   const result = await query<{ id: string }>(
     `
-    INSERT INTO tasks (stage_id, title, description, due_date, priority, assigned_to)
-    VALUES ($1, $2, $3, COALESCE($4::DATE, NULL), $5, $6)
+    WITH next_position AS (
+      SELECT COALESCE(MAX(position) + 1, 0) AS pos
+      FROM tasks
+      WHERE stage_id = $1
+    )
+    INSERT INTO tasks (stage_id, title, description, due_date, priority, assigned_to, position)
+    VALUES (
+      $1,
+      $2,
+      $3,
+      COALESCE($4::DATE, NULL),
+      $5,
+      $6,
+      (SELECT pos FROM next_position)
+    )
     RETURNING id
     `,
     [stage_id, title, description ?? null, normalizeDate(due_date), priority ?? null, assigned_to ?? null]
@@ -132,6 +147,7 @@ export async function updateTask(
     priority,
     stage_id,
     assigned_to,
+    position,
   }: {
     title?: string;
     description?: string;
@@ -139,6 +155,7 @@ export async function updateTask(
     priority?: string | null;
     stage_id?: string;
     assigned_to?: string | null;
+    position?: number;
   }
 ): Promise<Task> {
   const result = await query<{ id: string }>(
@@ -150,6 +167,7 @@ export async function updateTask(
         priority = COALESCE($5, priority),
         stage_id = COALESCE($6, stage_id),
         assigned_to = COALESCE($7, assigned_to),
+        position = COALESCE($8, position),
         updated_at = now()
     WHERE id = $1
     RETURNING id
@@ -162,6 +180,7 @@ export async function updateTask(
       priority ?? null,
       stage_id ?? null,
       assigned_to ?? null,
+      position ?? null,
     ]
   );
 
@@ -175,8 +194,14 @@ export async function updateTask(
 export async function moveTask(task_id: string, to_stage_id: string): Promise<Task> {
   const result = await query<{ id: string }>(
     `
+    WITH next_position AS (
+      SELECT COALESCE(MAX(position) + 1, 0) AS pos
+      FROM tasks
+      WHERE stage_id = $2
+    )
     UPDATE tasks
     SET stage_id = $2,
+        position = (SELECT pos FROM next_position),
         updated_at = now()
     WHERE id = $1
     RETURNING id
@@ -214,4 +239,24 @@ export async function updateTaskPriority(id: string, priority: string): Promise<
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after update");
   return task;
+}
+
+export async function reorderTasks(stage_id: string, task_ids: string[]): Promise<void> {
+  if (task_ids.length === 0) return;
+  await query(
+    `
+    WITH ordered AS (
+      SELECT
+        value AS id,
+        ordinality - 1 AS position
+      FROM unnest($2::uuid[]) WITH ORDINALITY AS u(value, ordinality)
+    )
+    UPDATE tasks t
+    SET position = ordered.position,
+        updated_at = now()
+    FROM ordered
+    WHERE t.id = ordered.id AND t.stage_id = $1
+    `,
+    [stage_id, task_ids]
+  );
 }

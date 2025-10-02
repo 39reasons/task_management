@@ -9,7 +9,7 @@ export function AllTasksPage({
   user: AuthUser | null;
   setSelectedTask: (task: Task) => void;
 }) {
-  const { stages, deleteTask, moveTask, loading } = useAllTasksBoard();
+  const { stages, deleteTask, moveTask, reorderStage, loading } = useAllTasksBoard();
 
   if (loading) {
     return <div className="text-white">Loading tasks…</div>;
@@ -20,6 +20,7 @@ export function AllTasksPage({
       stages={stages}
       onDelete={user ? (id: Task["id"]) => deleteTask(id) : undefined}
       onMoveTask={moveTask}
+      onReorderTasks={reorderStage}
       user={user}
       setSelectedTask={setSelectedTask}
     />

@@ -13,6 +13,7 @@ export function KanbanOverlay({ task }: KanbanOverlayProps) {
       task={task}
       onClick={() => {}}
       onDelete={undefined}
+      disableDrag
     />
   );
 }
