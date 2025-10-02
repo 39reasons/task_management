@@ -34,6 +34,7 @@ export function KanbanTask({
       {...attributes}
       {...listeners}
       className="relative bg-gray-900 rounded-lg p-3 mb-3 shadow border border-gray-700 hover:border-gray-500 transition"
+      onClick={() => onClick(task)}
     >
       {/* Delete icon */}
       {onDelete && (
@@ -42,7 +43,7 @@ export function KanbanTask({
             e.stopPropagation();
             onDelete(task.id);
           }}
-          className="absolute top-2 right-2 text-gray-400 hover:text-red-400 cursor-pointer"
+          className="absolute top-2 right-2 text-gray-400 hover:text-red-400 cursor-pointer" // 👈 only pointer here
         >
           <X size={16} />
         </button>
@@ -51,30 +52,25 @@ export function KanbanTask({
       {/* Title */}
       <h4 className="text-white font-semibold mb-2 pr-6">{task.title}</h4>
 
-      {/* Clickable content */}
-      <div onClick={() => onClick(task)} className="cursor-pointer">
-        {/* Tags */}
-        {task.tags?.length ? (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {task.tags.map((tag) => (
-              <span
-                key={tag.id}
-                className="px-2 py-0.5 rounded text-xs font-medium text-white"
-                style={{
-                  backgroundColor: tag.color ?? "#4b5563",
-                }}
-              >
-                {tag.name}
-              </span>
-            ))}
-          </div>
-        ) : null}
+      {/* Tags */}
+      {task.tags?.length ? (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {task.tags.map((tag) => (
+            <span
+              key={tag.id}
+              className="px-2 py-0.5 rounded text-xs font-medium text-white"
+              style={{ backgroundColor: tag.color ?? "#4b5563" }}
+            >
+              {tag.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
-        {/* Optional extra info */}
-        {task.due_date && (
-          <p className="text-xs text-gray-400">Due: {task.due_date}</p>
-        )}
-      </div>
+      {/* Due date */}
+      {task.due_date && (
+        <p className="text-xs text-gray-400">Due: {task.due_date}</p>
+      )}
     </div>
   );
 }
