@@ -7,10 +7,12 @@ type Project {
   is_public: Boolean!
   tasks: [Task!]
   workflows: [Workflow!]
+  members: [User!]
 }
 extend type Query {
   projects: [Project!]!
   project(id: ID!): Project
+  projectMembers(project_id: ID!): [User!]!
 }
 
 extend type Mutation {

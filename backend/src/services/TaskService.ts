@@ -1,5 +1,5 @@
 import { query } from "../db/index.js";
-import type { Task } from "@shared/types";
+import type { Task, User } from "@shared/types";
 
 const TASK_BASE_SELECT = `
   SELECT
@@ -9,7 +9,6 @@ const TASK_BASE_SELECT = `
     t.description,
     to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
     t.priority,
-    t.assigned_to,
     w.project_id,
     t.position
   FROM tasks t
@@ -33,7 +32,6 @@ function mapTaskRow(row: Task & { project_id: string; position: number }): Task 
     priority: row.priority as Task["priority"],
     stage_id: row.stage_id,
     project_id: row.project_id,
-    assigned_to: row.assigned_to,
     position: row.position,
   };
 }
@@ -102,14 +100,12 @@ export async function createTask({
   description,
   due_date,
   priority,
-  assigned_to,
 }: {
   stage_id: string;
   title: string;
   description?: string | null;
   due_date?: string | null;
   priority?: string | null;
-  assigned_to?: string | null;
 }): Promise<Task> {
   const result = await query<{ id: string }>(
     `
@@ -118,19 +114,18 @@ export async function createTask({
       FROM tasks
       WHERE stage_id = $1
     )
-    INSERT INTO tasks (stage_id, title, description, due_date, priority, assigned_to, position)
+    INSERT INTO tasks (stage_id, title, description, due_date, priority, position)
     VALUES (
       $1,
       $2,
       $3,
       COALESCE($4::DATE, NULL),
       $5,
-      $6,
       (SELECT pos FROM next_position)
     )
     RETURNING id
     `,
-    [stage_id, title, description ?? null, normalizeDate(due_date), priority ?? null, assigned_to ?? null]
+    [stage_id, title, description ?? null, normalizeDate(due_date), priority ?? null]
   );
 
   const task = await getTaskById(result.rows[0].id);
@@ -146,7 +141,6 @@ export async function updateTask(
     due_date,
     priority,
     stage_id,
-    assigned_to,
     position,
   }: {
     title?: string;
@@ -154,7 +148,6 @@ export async function updateTask(
     due_date?: string | null;
     priority?: string | null;
     stage_id?: string;
-    assigned_to?: string | null;
     position?: number;
   }
 ): Promise<Task> {
@@ -166,8 +159,7 @@ export async function updateTask(
         due_date = COALESCE($4::DATE, due_date),
         priority = COALESCE($5, priority),
         stage_id = COALESCE($6, stage_id),
-        assigned_to = COALESCE($7, assigned_to),
-        position = COALESCE($8, position),
+        position = COALESCE($7, position),
         updated_at = now()
     WHERE id = $1
     RETURNING id
@@ -179,7 +171,6 @@ export async function updateTask(
       normalizeDate(due_date),
       priority ?? null,
       stage_id ?? null,
-      assigned_to ?? null,
       position ?? null,
     ]
   );
@@ -258,5 +249,35 @@ export async function reorderTasks(stage_id: string, task_ids: string[]): Promis
     WHERE t.id = ordered.id AND t.stage_id = $1
     `,
     [stage_id, task_ids]
+  );
+}
+
+export async function getTaskMembers(task_id: string): Promise<User[]> {
+  const result = await query<User>(
+    `
+    SELECT u.id, u.name, u.username, u.created_at, u.updated_at
+    FROM task_members tm
+    JOIN users u ON u.id = tm.user_id
+    WHERE tm.task_id = $1
+    ORDER BY u.name ASC
+    `,
+    [task_id]
+  );
+
+  return result.rows;
+}
+
+export async function setTaskMembers(task_id: string, member_ids: string[]): Promise<void> {
+  await query("DELETE FROM task_members WHERE task_id = $1", [task_id]);
+
+  if (member_ids.length === 0) return;
+
+  await query(
+    `
+    INSERT INTO task_members (task_id, user_id)
+    SELECT $1, unnest($2::uuid[])
+    ON CONFLICT DO NOTHING
+    `,
+    [task_id, member_ids]
   );
 }

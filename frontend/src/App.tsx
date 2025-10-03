@@ -9,6 +9,7 @@ import AuthModal from "./components/auth/AuthModal";
 import { ModalProvider, useModal } from "./components/ModalStack";
 import { TaskModal } from "./components/TaskModal/TaskModal";
 import { TagModal } from "./components/TagModal";
+import { MemberModal } from "./components/MemberModal";
 import { AllTasksPage } from "./pages/AllTasksPage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 
@@ -101,9 +102,20 @@ function AppContent() {
       </div>
 
       {/* Stacked Modals */}
-      {modals.includes("task") && <TaskModal task={selectedTask} />}
+      {modals.includes("task") && (
+        <TaskModal
+          task={selectedTask}
+          onTaskUpdate={(updated) => setSelectedTask(updated)}
+        />
+      )}
       {modals.includes("tag") && (
         <TagModal task={selectedTask} />
+      )}
+      {modals.includes("member") && (
+        <MemberModal
+          task={selectedTask}
+          onAssign={(updated) => setSelectedTask(updated)}
+        />
       )}
     </div>
   );

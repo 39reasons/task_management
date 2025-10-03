@@ -47,19 +47,6 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Project list */}
       <ul className="space-y-2">
-        {/* All Tasks */}
-        <li>
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              `block p-2 rounded ${isActive ? "bg-gray-700" : "hover:bg-gray-700"}`
-            }
-          >
-            All Tasks
-          </NavLink>
-        </li>
-
         {/* User projects */}
         {data?.projects?.map(
           (project: { id: string; name: string; is_public: boolean }) => (

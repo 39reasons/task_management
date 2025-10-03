@@ -10,8 +10,12 @@ export const GET_TASKS = gql`
       priority
       stage_id
       project_id
-      assigned_to
       position
+      assignees {
+        id
+        name
+        username
+      }
       stage {
         id
         name
@@ -34,7 +38,6 @@ export const CREATE_TASK = gql`
     $description: String
     $due_date: String
     $priority: String
-    $assigned_to: ID
   ) {
     createTask(
       stage_id: $stage_id
@@ -42,7 +45,6 @@ export const CREATE_TASK = gql`
       description: $description
       due_date: $due_date
       priority: $priority
-      assigned_to: $assigned_to
     ) {
       id
       title
@@ -51,8 +53,12 @@ export const CREATE_TASK = gql`
       priority
       stage_id
       project_id
-      assigned_to
       position
+      assignees {
+        id
+        name
+        username
+      }
       stage {
         id
         name
@@ -92,7 +98,6 @@ export const UPDATE_TASK = gql`
     $due_date: String
     $priority: String
     $stage_id: ID
-    $assigned_to: ID
   ) {
     updateTask(
       id: $id
@@ -101,7 +106,6 @@ export const UPDATE_TASK = gql`
       due_date: $due_date
       priority: $priority
       stage_id: $stage_id
-      assigned_to: $assigned_to
     ) {
       id
       title
@@ -110,8 +114,12 @@ export const UPDATE_TASK = gql`
       priority
       stage_id
       project_id
-      assigned_to
       position
+      assignees {
+        id
+        name
+        username
+      }
       stage {
         id
         name
@@ -132,13 +140,18 @@ export const MOVE_TASK = gql`
     moveTask(task_id: $task_id, to_stage_id: $to_stage_id) {
       id
       stage_id
+      position
+      assignees {
+        id
+        name
+        username
+      }
       stage {
         id
         name
         position
         workflow_id
       }
-      position
     }
   }
 `;
@@ -146,5 +159,18 @@ export const MOVE_TASK = gql`
 export const REORDER_TASKS = gql`
   mutation ReorderTasks($stage_id: ID!, $task_ids: [ID!]!) {
     reorderTasks(stage_id: $stage_id, task_ids: $task_ids)
+  }
+`;
+
+export const SET_TASK_MEMBERS = gql`
+  mutation SetTaskMembers($task_id: ID!, $member_ids: [ID!]!) {
+    setTaskMembers(task_id: $task_id, member_ids: $member_ids) {
+      id
+      assignees {
+        id
+        name
+        username
+      }
+    }
   }
 `;

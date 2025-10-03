@@ -6,9 +6,9 @@ type Task {
   priority: String
   stage_id: ID!
   project_id: ID
-  assigned_to: ID
   tags: [Tag!]!
   stage: Stage
+  assignees: [User!]!
   position: Int
 }
 
@@ -24,7 +24,6 @@ extend type Mutation {
     description: String
     due_date: String
     priority: String
-    assigned_to: ID
   ): Task!
 
   updateTask(
@@ -34,7 +33,6 @@ extend type Mutation {
     due_date: String
     priority: String
     stage_id: ID
-    assigned_to: ID
   ): Task!
 
   deleteTask(id: ID!): Boolean!
@@ -53,4 +51,9 @@ extend type Mutation {
     stage_id: ID!
     task_ids: [ID!]!
   ): Boolean!
+
+  setTaskMembers(
+    task_id: ID!
+    member_ids: [ID!]!
+  ): Task!
 }

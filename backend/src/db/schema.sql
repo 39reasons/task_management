@@ -2,6 +2,7 @@
 DROP TABLE IF EXISTS task_tags CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
 DROP TABLE IF EXISTS user_projects CASCADE;
+DROP TABLE IF EXISTS task_members CASCADE;
 DROP TABLE IF EXISTS tasks CASCADE;
 DROP TABLE IF EXISTS stages CASCADE;
 DROP TABLE IF EXISTS workflows CASCADE;
@@ -57,9 +58,14 @@ CREATE TABLE tasks (
   description TEXT,
   due_date DATE,
   priority TEXT,
-  assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE task_members (
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (task_id, user_id)
 );
 
 -- User <-> Project membership

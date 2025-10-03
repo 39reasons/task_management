@@ -32,14 +32,12 @@ export const taskResolvers = {
         description,
         due_date,
         priority,
-        assigned_to,
       }: {
         stage_id: string;
         title: string;
         description?: string;
         due_date?: string;
         priority?: string;
-        assigned_to?: string;
       },
       ctx: GraphQLContext
     ): Promise<Task> => {
@@ -50,7 +48,6 @@ export const taskResolvers = {
         description,
         due_date,
         priority,
-        assigned_to: assigned_to ?? null,
       });
     },
 
@@ -63,7 +60,6 @@ export const taskResolvers = {
         due_date,
         priority,
         stage_id,
-        assigned_to,
       }: {
         id: string;
         title?: string;
@@ -71,7 +67,6 @@ export const taskResolvers = {
         due_date?: string | null;
         priority?: string | null;
         stage_id?: string;
-        assigned_to?: string | null;
       },
       ctx: GraphQLContext
     ): Promise<Task> => {
@@ -82,7 +77,6 @@ export const taskResolvers = {
         due_date,
         priority,
         stage_id,
-        assigned_to: assigned_to ?? null,
       });
     },
 
@@ -122,10 +116,23 @@ export const taskResolvers = {
       await TaskService.reorderTasks(stage_id, task_ids);
       return true;
     },
+
+    setTaskMembers: async (
+      _: unknown,
+      { task_id, member_ids }: { task_id: string; member_ids: string[] },
+      ctx: GraphQLContext
+    ): Promise<Task> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      await TaskService.setTaskMembers(task_id, member_ids);
+      const task = await TaskService.getTaskById(task_id);
+      if (!task) throw new Error("Task not found");
+      return task;
+    },
   },
 
   Task: {
     comments: (parent: Task) => CommentService.getCommentsByTask(parent.id),
     stage: (parent: Task) => StageService.getStageById(parent.stage_id),
+    assignees: (parent: Task) => TaskService.getTaskMembers(parent.id),
   },
 };

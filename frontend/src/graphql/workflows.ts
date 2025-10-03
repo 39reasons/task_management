@@ -19,8 +19,12 @@ export const GET_WORKFLOWS = gql`
           priority
           stage_id
           project_id
-          assigned_to
           position
+          assignees {
+            id
+            name
+            username
+          }
           tags {
             id
             name
@@ -51,8 +55,12 @@ export const GET_WORKFLOW = gql`
           priority
           stage_id
           project_id
-          assigned_to
           position
+          assignees {
+            id
+            name
+            username
+          }
           tags {
             id
             name

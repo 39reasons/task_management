@@ -13,6 +13,7 @@ import { useModal } from "../ModalStack";
 
 interface TaskModalProps {
   task: Task | null;
+  onTaskUpdate?: (task: Task) => void;
 }
 
 // ⏱️ Time ago helper
@@ -28,7 +29,7 @@ function timeAgo(timestamp: number) {
   return `${Math.floor(diff / 31536000)}y ago`;
 }
 
-export function TaskModal({ task }: TaskModalProps) {
+export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
   const { modals, closeModal, openModal } = useModal();
   const isOpen = modals.includes("task");
 
@@ -56,6 +57,7 @@ export function TaskModal({ task }: TaskModalProps) {
     variables: { id: task?.stage?.workflow_id },
     skip: !task?.stage?.workflow_id,
   });
+
 
   const [addComment] = useMutation(ADD_COMMENT, {
     refetchQueries: task ? [{ query: GET_COMMENTS, variables: { task_id: task.id } }] : [],
@@ -97,28 +99,37 @@ export function TaskModal({ task }: TaskModalProps) {
   const saveAllChanges = () => {
     if (!task) return;
 
+    let updatedTask = { ...task };
+
     if (!title.trim()) {
       setTitle(initialTitle);
     } else if (title !== initialTitle) {
       updateTask({ variables: { id: task.id, title } });
       setInitialTitle(title);
+      updatedTask = { ...updatedTask, title };
     }
 
     if (description !== task.description) {
       updateTask({ variables: { id: task.id, description } });
+      updatedTask = { ...updatedTask, description };
     }
 
     if (dueDate !== task.due_date) {
       updateTask({ variables: { id: task.id, due_date: dueDate || null } });
+      updatedTask = { ...updatedTask, due_date: dueDate || null };
     }
 
     if (priority !== task.priority) {
       updateTask({ variables: { id: task.id, priority } });
+      updatedTask = { ...updatedTask, priority };
     }
 
     if (stageId && stageId !== task.stage_id) {
       updateTask({ variables: { id: task.id, stage_id: stageId } });
+      updatedTask = { ...updatedTask, stage_id: stageId };
     }
+
+    onTaskUpdate?.(updatedTask);
   };
 
   const handleAddComment = async (e: React.FormEvent) => {
@@ -197,27 +208,67 @@ export function TaskModal({ task }: TaskModalProps) {
               />
             )}
 
-            {/* Tags */}
-            <div className="flex flex-wrap gap-2 mb-2 items-center">
-              {tags.length > 0 &&
-                tags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="px-2 py-1 text-xs rounded-full"
-                    style={{ backgroundColor: tag.color, color: "white" }}
-                  >
-                    {tag.name}
-                  </span>
-                ))}
+            {/* Task actions */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => openModal("tag")}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
+                >
+                  <Plus size={14} />
+                  Tags
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openModal("member")}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
+                >
+                  <Plus size={14} />
+                  Members
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => openModal("tag")}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-gray-700 text-white text-xs hover:bg-gray-600"
-              >
-                <Plus size={14} />
-                Tags
-              </button>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Tags</p>
+                  <div className="flex flex-wrap gap-2 min-h-[2rem] items-center">
+                    {tags.length > 0 ? (
+                      tags.map((tag) => (
+                        <span
+                          key={tag.id}
+                          className="px-2 py-1 text-xs rounded-full"
+                          style={{ backgroundColor: tag.color, color: "white" }}
+                        >
+                          {tag.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-500">No tags yet</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Assignee</p>
+                  <div className="min-h-[2rem] flex flex-wrap gap-2 items-center text-sm text-white">
+                    {(() => {
+                      const assignees = task.assignees ?? [];
+                      if (assignees.length > 0) {
+                        return assignees.map((member) => (
+                          <span
+                            key={member.id}
+                            className="px-2 py-1 rounded-full bg-gray-700 text-xs"
+                          >
+                            {member.name} <span className="text-gray-400">@{member.username}</span>
+                          </span>
+                        ));
+                      }
+                      return <span className="text-xs text-gray-500">Unassigned</span>;
+                    })()}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

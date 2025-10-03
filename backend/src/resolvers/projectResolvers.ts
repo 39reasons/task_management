@@ -1,6 +1,6 @@
 import * as ProjectService from "../services/ProjectService.js";
 import * as WorkflowService from "../services/WorkflowService.js";
-import type { Project, Workflow } from "@shared/types";
+import type { Project, Workflow, User } from "@shared/types";
 import { GraphQLContext } from "src/types/context";
 
 export const projectResolvers = {
@@ -11,6 +11,16 @@ export const projectResolvers = {
     project: async (_: unknown, args: { id: string }, ctx: GraphQLContext): Promise<Project> => {
       if (!ctx.user) throw new Error("Not authenticated");
       return await ProjectService.getProjectById(args.id, ctx.user.id);
+    },
+    projectMembers: async (
+      _: unknown,
+      { project_id }: { project_id: string },
+      ctx: GraphQLContext
+    ): Promise<User[]> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      const hasAccess = await ProjectService.userHasProjectAccess(project_id, ctx.user.id);
+      if (!hasAccess) throw new Error("Project not found or not accessible");
+      return await ProjectService.getProjectMembers(project_id);
     },
   },
 
@@ -53,6 +63,12 @@ export const projectResolvers = {
   Project: {
     workflows: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<Workflow[]> => {
       return await WorkflowService.getWorkflowsByProject(parent.id, ctx.user?.id ?? null);
+    },
+    members: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<User[]> => {
+      if (!ctx.user) return [];
+      const hasAccess = await ProjectService.userHasProjectAccess(parent.id, ctx.user.id);
+      if (!hasAccess) return [];
+      return await ProjectService.getProjectMembers(parent.id);
     },
   },
 };

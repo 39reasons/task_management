@@ -6,10 +6,10 @@ export interface Task {
   priority?: "low" | "medium" | "high" | null;
   stage_id: string;
   project_id: string;
-  assigned_to?: string | null;
   tags?: Tag[];
   stage?: Stage;
   position?: number;
+  assignees?: User[];
 }
 
 export interface Stage {
@@ -50,6 +50,14 @@ export interface AuthUser {
   id: string;
   username: string;
   name: string;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface DecodedToken {

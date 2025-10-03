@@ -1,4 +1,4 @@
-import type { Project, Task } from "@shared/types";
+import type { Project, Task, User } from "@shared/types";
 import { query } from "../db/index.js";
 
 const PROJECT_FIELDS_SELECT = `
@@ -75,8 +75,7 @@ export async function getProjectById(
       to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
       t.priority,
       t.stage_id,
-      w.project_id,
-      t.assigned_to
+      w.project_id
     FROM tasks t
     JOIN stages s ON s.id = t.stage_id
     JOIN workflows w ON w.id = s.workflow_id
@@ -169,5 +168,40 @@ export async function deleteProject(
     `,
     [id, user_id]
   );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function getProjectMembers(project_id: string): Promise<User[]> {
+  const result = await query<User>(
+    `
+    SELECT u.id, u.name, u.username, u.created_at, u.updated_at
+    FROM user_projects up
+    JOIN users u ON u.id = up.user_id
+    WHERE up.project_id = $1
+    ORDER BY u.name ASC
+    `,
+    [project_id]
+  );
+
+  return result.rows;
+}
+
+export async function userHasProjectAccess(project_id: string, user_id: string): Promise<boolean> {
+  const result = await query(
+    `
+    SELECT 1
+    FROM projects p
+    WHERE p.id = $1
+      AND (
+        p.is_public = true
+        OR EXISTS (
+          SELECT 1 FROM user_projects up
+          WHERE up.project_id = p.id AND up.user_id = $2
+        )
+      )
+    `,
+    [project_id, user_id]
+  );
+
   return (result.rowCount ?? 0) > 0;
 }
