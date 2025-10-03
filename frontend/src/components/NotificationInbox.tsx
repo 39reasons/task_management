@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNotifications } from "../hooks/useNotifications";
 import { useModal } from "./ModalStack";
 import type { Notification } from "@shared/types";
+import { getFullName } from "../utils/user";
 
 export function NotificationInbox() {
   const { modals, closeModal } = useModal();
@@ -102,7 +103,7 @@ function NotificationItem({
       <div className="text-xs text-gray-300">
         {notification.sender && (
           <div>
-            From <span className="font-semibold">{notification.sender.name}</span> (@{notification.sender.username})
+            From <span className="font-semibold">{getFullName(notification.sender)}</span> (@{notification.sender.username})
           </div>
         )}
         {notification.project && (

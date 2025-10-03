@@ -9,7 +9,8 @@ interface SignupFormProps {
 }
 
 export default function SignupForm({ onSignUp }: SignupFormProps) {
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -23,8 +24,19 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
       setError("Passwords do not match!");
       return;
     }
+    if (!firstName.trim() || !lastName.trim()) {
+      setError("Please provide both a first and last name.");
+      return;
+    }
     try {
-      const { data } = await signUp({ variables: { name, username, password } });
+      const { data } = await signUp({
+        variables: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          username,
+          password,
+        },
+      });
       onSignUp(data.signUp.user, data.signUp.token);
     } catch (err: any) {
       setError(err.message || "Failed to sign up");
@@ -35,12 +47,24 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
-      <InputField
-        label="Display Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Your name or nickname"
-      />
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <InputField
+            label="First Name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="Ada"
+          />
+        </div>
+        <div className="flex-1">
+          <InputField
+            label="Last Name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="Lovelace"
+          />
+        </div>
+      </div>
 
       <InputField
         label="Username (unique handle)"

@@ -13,7 +13,8 @@ export const GET_TASKS = gql`
       position
       assignees {
         id
-        name
+        first_name
+        last_name
         username
       }
       stage {
@@ -56,7 +57,8 @@ export const CREATE_TASK = gql`
       position
       assignees {
         id
-        name
+        first_name
+        last_name
         username
       }
       stage {
@@ -117,7 +119,8 @@ export const UPDATE_TASK = gql`
       position
       assignees {
         id
-        name
+        first_name
+        last_name
         username
       }
       stage {
@@ -143,7 +146,8 @@ export const MOVE_TASK = gql`
       position
       assignees {
         id
-        name
+        first_name
+        last_name
         username
       }
       stage {
@@ -168,7 +172,8 @@ export const SET_TASK_MEMBERS = gql`
       id
       assignees {
         id
-        name
+        first_name
+        last_name
         username
       }
     }

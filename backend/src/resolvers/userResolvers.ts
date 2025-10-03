@@ -13,12 +13,13 @@ export const userResolvers = {
     signUp: async (
       _: unknown,
       {
-        name,
+        first_name,
+        last_name,
         username,
         password,
-      }: { name: string; username: string; password: string }
+      }: { first_name: string; last_name: string; username: string; password: string }
     ) => {
-      return await UserService.createUser(name, username, password);
+      return await UserService.createUser(first_name, last_name, username, password);
     },
 
     login: async (

@@ -51,12 +51,14 @@ export interface Project {
 export interface AuthUser {
   id: string;
   username: string;
-  name: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface User {
   id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   username: string;
   created_at?: string;
   updated_at?: string;
@@ -65,7 +67,8 @@ export interface User {
 export interface DecodedToken {
   id: string;
   username: string;
-  name: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface Tag {
@@ -83,7 +86,8 @@ export interface Comment {
   user: {
     id: string;
     username: string;
-    name: string;
+    first_name: string;
+    last_name: string;
   };
 }
 

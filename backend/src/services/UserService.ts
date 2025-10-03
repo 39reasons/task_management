@@ -2,12 +2,13 @@ import { query } from "../db/index.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const USER_FIELDS = `id, name, username, created_at, updated_at`;
+const USER_FIELDS = `id, first_name, last_name, username, created_at, updated_at`;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
 export interface User {
   id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   username: string;
   created_at: string;
   updated_at: string;
@@ -19,9 +20,10 @@ function generateToken(user: User) {
     {
       id: user.id,
       username: user.username,
-      name: user.name,
+      first_name: user.first_name,
+      last_name: user.last_name,
     },
-    process.env.JWT_SECRET!,
+    JWT_SECRET,
     { expiresIn: "7d" }
   );
 }
@@ -50,8 +52,11 @@ export async function searchUsers(term: string, limit: number = 10): Promise<Use
     `
     SELECT ${USER_FIELDS}
     FROM users
-    WHERE username ILIKE $1 OR name ILIKE $1
-    ORDER BY username ASC
+    WHERE username ILIKE $1
+       OR first_name ILIKE $1
+       OR last_name ILIKE $1
+       OR (first_name || ' ' || last_name) ILIKE $1
+    ORDER BY first_name ASC, last_name ASC
     LIMIT $2
     `,
     [`%${sanitized}%`, limit]
@@ -61,17 +66,18 @@ export async function searchUsers(term: string, limit: number = 10): Promise<Use
 }
 
 export async function createUser(
-  name: string,
+  first_name: string,
+  last_name: string,
   username: string,
   password: string
 ): Promise<{ token: string; user: User }> {
   const password_hash = await bcrypt.hash(password, 10);
 
   const result = await query<User>(
-    `INSERT INTO users (name, username, password_hash)
-     VALUES ($1, $2, $3)
+    `INSERT INTO users (first_name, last_name, username, password_hash)
+     VALUES ($1, $2, $3, $4)
      RETURNING ${USER_FIELDS}`,
-    [name, username, password_hash]
+    [first_name, last_name, username, password_hash]
   );
 
   const user = result.rows[0];
@@ -105,7 +111,8 @@ export async function loginUser(
     token,
     user: {
       id: user.id,
-      name: user.name,
+      first_name: user.first_name,
+      last_name: user.last_name,
       username: user.username,
       created_at: user.created_at,
       updated_at: user.updated_at,

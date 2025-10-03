@@ -6,17 +6,15 @@ import {
   SEARCH_USERS,
 } from "../graphql";
 import { useModal } from "./ModalStack";
+import type { User } from "@shared/types";
+import { getFullName, getInitials } from "../utils/user";
 
 interface ProjectInviteModalProps {
   projectId: string | null;
   onClose?: () => void;
 }
 
-interface UserSuggestion {
-  id: string;
-  name: string;
-  username: string;
-}
+type UserSuggestion = Pick<User, "id" | "first_name" | "last_name" | "username">;
 
 export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalProps) {
   const { modals, closeModal } = useModal();
@@ -168,9 +166,14 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
                         isActive ? "bg-gray-700" : "hover:bg-gray-800"
                       } text-white`}
                     >
-                      <div>
-                        <span className="font-medium">{user.name}</span>
-                        <span className="text-gray-400 text-xs ml-2">@{user.username}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold uppercase text-white">
+                          {getInitials(user)}
+                        </span>
+                        <div>
+                          <span className="font-medium">{getFullName(user)}</span>
+                          <span className="text-gray-400 text-xs ml-2">@{user.username}</span>
+                        </div>
                       </div>
                     </button>
                   );
@@ -186,7 +189,10 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
                   key={user.id}
                   className="px-2 py-1 bg-gray-700 text-xs rounded-full flex items-center gap-2"
                 >
-                  <span>{user.name}</span>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[11px] font-semibold uppercase text-white">
+                    {getInitials(user)}
+                  </span>
+                  <span>{getFullName(user)}</span>
                   <button
                     type="button"
                     onClick={() => removeSelected(user.id)}

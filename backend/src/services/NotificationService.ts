@@ -26,7 +26,8 @@ function mapNotificationRow(row: any): Notification {
     sender: row.sender_id
       ? {
           id: row.sender_id,
-          name: row.sender_name,
+          first_name: row.sender_first_name,
+          last_name: row.sender_last_name,
           username: row.sender_username,
         } as User
       : null,
@@ -59,7 +60,8 @@ export async function getNotificationsForUser(user_id: string): Promise<Notifica
       p.updated_at AS project_updated_at,
       p.is_public AS project_is_public,
       n.sender_id,
-      u.name AS sender_name,
+      u.first_name AS sender_first_name,
+      u.last_name AS sender_last_name,
       u.username AS sender_username
     FROM notifications n
     LEFT JOIN projects p ON p.id = n.project_id
@@ -91,7 +93,8 @@ export async function getNotificationById(id: string): Promise<Notification | nu
       p.updated_at AS project_updated_at,
       p.is_public AS project_is_public,
       n.sender_id,
-      u.name AS sender_name,
+      u.first_name AS sender_first_name,
+      u.last_name AS sender_last_name,
       u.username AS sender_username
     FROM notifications n
     LEFT JOIN projects p ON p.id = n.project_id
@@ -110,8 +113,8 @@ export async function sendProjectInvite(
   sender_id: string,
   username: string
 ): Promise<Notification> {
-  const recipientRes = await query<{ id: string; name: string; username: string }>(
-    `SELECT id, name, username FROM users WHERE username = $1`,
+  const recipientRes = await query<{ id: string; first_name: string; last_name: string; username: string }>(
+    `SELECT id, first_name, last_name, username FROM users WHERE username = $1`,
     [username]
   );
 

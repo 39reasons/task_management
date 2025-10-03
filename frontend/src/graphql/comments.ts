@@ -11,7 +11,8 @@ export const GET_COMMENTS = gql`
         user {
           id
           username
-          name
+          first_name
+          last_name
         }
       }
     }
@@ -27,7 +28,8 @@ export const ADD_COMMENT = gql`
       user {
         id
         username
-        name
+        first_name
+        last_name
       }
     }
   }

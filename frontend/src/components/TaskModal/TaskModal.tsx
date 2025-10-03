@@ -10,6 +10,7 @@ import {
 } from "../../graphql";
 import { SendHorizonal, Plus, Dot, X } from "lucide-react";
 import { useModal } from "../ModalStack";
+import { getFullName, getInitials } from "../../utils/user";
 
 interface TaskModalProps {
   task: Task | null;
@@ -263,9 +264,13 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
                         {assignees.map((member) => (
                           <span
                             key={member.id}
-                            className="px-2 py-1 rounded-full bg-gray-700 text-xs"
+                            className="flex items-center gap-2 px-2 py-1 rounded-full bg-gray-700 text-xs"
                           >
-                            {member.name} <span className="text-gray-400">@{member.username}</span>
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[11px] font-semibold uppercase text-white">
+                              {getInitials(member)}
+                            </span>
+                            <span className="font-medium text-white">{getFullName(member)}</span>
+                            <span className="text-gray-400">@{member.username}</span>
                           </span>
                         ))}
                         <button
@@ -322,7 +327,7 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
                   {/* Header */}
                   <div className="flex items-center gap-1 text-xs mb-1">
                     <span className="font-semibold text-white">
-                      {c.user?.name || "Unknown"}
+                      {c.user ? getFullName(c.user) : "Unknown"}
                     </span>
                     <Dot size={14} className="text-gray-500" />
                     <span className="text-gray-400">

@@ -21,7 +21,8 @@ export async function addComment(
         SELECT json_build_object(
           'id', u.id,
           'username', u.username,
-          'name', u.name
+          'first_name', u.first_name,
+          'last_name', u.last_name
         )
         FROM users u
         WHERE u.id = $2
@@ -45,7 +46,8 @@ export async function getCommentsByTask(task_id: string): Promise<Comment[]> {
       json_build_object(
         'id', u.id,
         'username', u.username,
-        'name', u.name
+        'first_name', u.first_name,
+        'last_name', u.last_name
       ) AS user
     FROM comments c
     JOIN users u ON u.id = c.user_id

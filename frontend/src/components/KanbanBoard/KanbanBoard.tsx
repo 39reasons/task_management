@@ -1,4 +1,4 @@
-import type { Stage, Task } from "@shared/types";
+import type { Stage, Task, AuthUser } from "@shared/types";
 import {
   DndContext,
   closestCorners,
@@ -22,7 +22,7 @@ interface KanbanBoardProps {
   onAddTask?: (stage_id: Stage["id"], title: string) => void;
   onAddStage?: (name: string) => void;
   onDeleteStage?: (stage_id: Stage["id"]) => void;
-  user: { id: string; username: string; name: string } | null;
+  user: AuthUser | null;
   setSelectedTask: (task: Task) => void;
 }
 

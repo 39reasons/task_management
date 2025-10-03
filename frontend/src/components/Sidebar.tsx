@@ -3,9 +3,10 @@ import { GET_PROJECTS, ADD_PROJECT, DELETE_PROJECT } from "../graphql";
 import { useState, useEffect } from "react";
 import { PlusCircle, Trash2 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import type { AuthUser } from "@shared/types";
 
 interface SidebarProps {
-  user: { username: string } | null;
+  user: AuthUser | null;
 }
 
 export default function Sidebar({ user }: SidebarProps) {

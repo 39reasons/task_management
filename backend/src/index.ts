@@ -8,6 +8,7 @@ import { Pool } from "pg";
 import type { DecodedToken } from "@shared/types";
 import { GraphQLContext } from "src/types/context";
 
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const pool = new Pool({
@@ -17,10 +18,11 @@ const pool = new Pool({
 function getUserFromToken(token: string | null): DecodedToken | null {
   if (!token) return null;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+    const decoded = jwt.verify(token, JWT_SECRET) as {
       id: string;
       username: string;
-      name: string;
+      first_name: string;
+      last_name: string;
     };
     return decoded;
   } catch {

@@ -15,7 +15,8 @@ export const GET_NOTIFICATIONS = gql`
       }
       sender {
         id
-        name
+        first_name
+        last_name
         username
       }
     }

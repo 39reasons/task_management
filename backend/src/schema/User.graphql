@@ -1,6 +1,7 @@
 type User {
   id: ID!
-  name: String!
+  first_name: String!
+  last_name: String!
   username: String!
   created_at: String!
   updated_at: String!
@@ -16,6 +17,6 @@ extend type Query {
 }
 
 extend type Mutation {
-  signUp(name: String!, username: String!, password: String!): AuthPayload!
+  signUp(first_name: String!, last_name: String!, username: String!, password: String!): AuthPayload!
   login(username: String!, password: String!): AuthPayload!
 }

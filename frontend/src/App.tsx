@@ -40,7 +40,8 @@ function AppContent() {
         setUser({
           id: decoded.id,
           username: decoded.username,
-          name: decoded.name,
+          first_name: decoded.first_name,
+          last_name: decoded.last_name,
         });
       } catch {
         localStorage.removeItem("token");

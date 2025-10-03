@@ -1,19 +1,16 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@apollo/client";
 import { GET_PROJECT_MEMBERS, SET_TASK_MEMBERS, GET_WORKFLOWS, GET_TASKS } from "../graphql";
-import type { Task } from "@shared/types";
+import type { Task, User } from "@shared/types";
 import { useModal } from "./ModalStack";
+import { getFullName, getInitials } from "../utils/user";
 
 interface MemberModalProps {
   task: Task | null;
   onAssign?: (task: Task) => void;
 }
 
-type ProjectMember = {
-  id: string;
-  name: string;
-  username: string;
-};
+type ProjectMember = Pick<User, "id" | "first_name" | "last_name" | "username">;
 
 export function MemberModal({ task, onAssign }: MemberModalProps) {
   const { modals, closeModal } = useModal();
@@ -112,9 +109,14 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
                           : "border-gray-700 bg-gray-900 hover:border-gray-500"
                       }`}
                     >
-                      <div className="flex flex-col">
-                        <span className="font-medium text-white">{member.name}</span>
-                        <span className="text-xs text-gray-300">@{member.username}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold uppercase text-white">
+                          {getInitials(member)}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-white">{getFullName(member)}</span>
+                          <span className="text-xs text-gray-300">@{member.username}</span>
+                        </div>
                       </div>
                       <input
                         type="checkbox"

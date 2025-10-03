@@ -22,7 +22,8 @@ export const GET_WORKFLOWS = gql`
           position
           assignees {
             id
-            name
+            first_name
+            last_name
             username
           }
           tags {
@@ -58,7 +59,8 @@ export const GET_WORKFLOW = gql`
           position
           assignees {
             id
-            name
+            first_name
+            last_name
             username
           }
           tags {
