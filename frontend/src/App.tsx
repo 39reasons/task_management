@@ -13,6 +13,7 @@ import { ProjectInviteModal } from "./components/ProjectInviteModal";
 import { MemberModal } from "./components/MemberModal";
 import { AllTasksPage } from "./pages/AllTasksPage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
+import SettingsPage from "./pages/SettingsPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
 
@@ -35,7 +36,7 @@ function AppContent() {
   };
 
   const handleAuthSuccess = (authUser: AuthUser, _token: string) => {
-    setUser(authUser);
+    setUser({ ...authUser, avatar_color: authUser.avatar_color ?? null });
     client.resetStore().catch(() => {});
   };
 
@@ -49,6 +50,7 @@ function AppContent() {
           username: decoded.username,
           first_name: decoded.first_name,
           last_name: decoded.last_name,
+          avatar_color: decoded.avatar_color ?? null,
         });
       } catch {
         localStorage.removeItem("token");
@@ -103,6 +105,20 @@ function AppContent() {
                       openModal("invite");
                     }}
                   />
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  user ? (
+                    <SettingsPage
+                      onProfileUpdate={(updated) => {
+                        setUser(updated);
+                      }}
+                    />
+                  ) : (
+                    <Navigate to="/signin" replace state={{ from: "/settings" }} />
+                  )
                 }
               />
               <Route path="*" element={<Navigate to="/" replace />} />

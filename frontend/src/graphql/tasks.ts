@@ -16,6 +16,7 @@ export const GET_TASKS = gql`
         first_name
         last_name
         username
+        avatar_color
       }
       stage {
         id
@@ -60,6 +61,7 @@ export const CREATE_TASK = gql`
         first_name
         last_name
         username
+        avatar_color
       }
       stage {
         id
@@ -122,6 +124,7 @@ export const UPDATE_TASK = gql`
         first_name
         last_name
         username
+        avatar_color
       }
       stage {
         id
@@ -149,6 +152,7 @@ export const MOVE_TASK = gql`
         first_name
         last_name
         username
+        avatar_color
       }
       stage {
         id
@@ -175,6 +179,7 @@ export const SET_TASK_MEMBERS = gql`
         first_name
         last_name
         username
+        avatar_color
       }
     }
   }

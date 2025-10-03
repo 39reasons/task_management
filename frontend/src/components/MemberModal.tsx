@@ -4,13 +4,14 @@ import { GET_PROJECT_MEMBERS, SET_TASK_MEMBERS, GET_WORKFLOWS, GET_TASKS } from 
 import type { Task, User } from "@shared/types";
 import { useModal } from "./ModalStack";
 import { getFullName, getInitials } from "../utils/user";
+import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
 
 interface MemberModalProps {
   task: Task | null;
   onAssign?: (task: Task) => void;
 }
 
-type ProjectMember = Pick<User, "id" | "first_name" | "last_name" | "username">;
+type ProjectMember = Pick<User, "id" | "first_name" | "last_name" | "username" | "avatar_color">;
 
 export function MemberModal({ task, onAssign }: MemberModalProps) {
   const { modals, closeModal } = useModal();
@@ -110,7 +111,10 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold uppercase text-white">
+                        <div
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold uppercase text-white"
+                          style={{ backgroundColor: member.avatar_color || DEFAULT_AVATAR_COLOR }}
+                        >
                           {getInitials(member)}
                         </div>
                         <div className="flex flex-col">

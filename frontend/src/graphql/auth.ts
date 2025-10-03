@@ -9,6 +9,7 @@ export const SIGN_UP = gql`
         first_name
         last_name
         username
+        avatar_color
       }
     }
   }
@@ -23,6 +24,7 @@ export const LOGIN = gql`
         first_name
         last_name
         username
+        avatar_color
       }
     }
   }

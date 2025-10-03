@@ -53,6 +53,7 @@ export interface AuthUser {
   username: string;
   first_name: string;
   last_name: string;
+  avatar_color?: string | null;
 }
 
 export interface User {
@@ -62,6 +63,7 @@ export interface User {
   username: string;
   created_at?: string;
   updated_at?: string;
+  avatar_color?: string | null;
 }
 
 export interface DecodedToken {
@@ -69,6 +71,7 @@ export interface DecodedToken {
   username: string;
   first_name: string;
   last_name: string;
+  avatar_color?: string | null;
 }
 
 export interface Tag {
@@ -88,6 +91,7 @@ export interface Comment {
     username: string;
     first_name: string;
     last_name: string;
+    avatar_color?: string | null;
   };
 }
 

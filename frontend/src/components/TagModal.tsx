@@ -10,6 +10,7 @@ import {
 } from "../graphql";
 import { useProjectTags } from "../hooks/useProjectTags";
 import { useModal } from "./ModalStack";
+import { COLOR_WHEEL } from "../constants/colors";
 
 interface TagModalProps {
   task: Task | null;
@@ -17,21 +18,7 @@ interface TagModalProps {
 
 type EditorState = { mode: "create" } | { mode: "edit"; tag: Tag };
 
-const COLOR_CHOICES = [
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#10b981",
-  "#3b82f6",
-  "#6366f1",
-  "#8b5cf6",
-  "#a855f7",
-  "#ec4899",
-  "#808080",
-];
-
-const DEFAULT_COLOR = COLOR_CHOICES[5];
+const DEFAULT_COLOR = COLOR_WHEEL[8];
 
 export function TagModal({ task }: TagModalProps) {
   const { modals, openModal, closeModal } = useModal();
@@ -304,7 +291,7 @@ function TagEditorDialog({ state, projectId, onCancel, onComplete }: TagEditorDi
   const [formError, setFormError] = useState<string | null>(null);
 
   const palette = useMemo(() => {
-    const basePalette = [...COLOR_CHOICES];
+    const basePalette = [...COLOR_WHEEL];
     if (referenceTag?.color && !basePalette.includes(referenceTag.color)) {
       return [referenceTag.color, ...basePalette];
     }

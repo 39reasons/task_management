@@ -1,4 +1,6 @@
 import * as UserService from "../services/UserService.js";
+import type { GraphQLContext } from "../types/context";
+import type { User } from "@shared/types";
 
 export const userResolvers = {
   Query: {
@@ -7,6 +9,11 @@ export const userResolvers = {
       { query }: { query: string }
     ) => {
       return await UserService.searchUsers(query);
+    },
+    currentUser: async (_: unknown, __: unknown, ctx: GraphQLContext) => {
+      if (!ctx.user) return null;
+      const user = await UserService.getUserById(ctx.user.id);
+      return user;
     },
   },
   Mutation: {
@@ -27,6 +34,15 @@ export const userResolvers = {
       { username, password }: { username: string; password: string }
     ) => {
       return await UserService.loginUser(username, password);
+    },
+
+    updateUserProfile: async (
+      _: unknown,
+      args: { first_name?: string; last_name?: string; username?: string; avatar_color?: string },
+      ctx: GraphQLContext
+    ): Promise<User> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      return await UserService.updateUserProfile(ctx.user.id, args);
     },
   },
 };

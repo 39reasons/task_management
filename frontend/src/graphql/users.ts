@@ -7,6 +7,7 @@ export const GET_PROJECT_MEMBERS = gql`
       first_name
       last_name
       username
+      avatar_color
     }
   }
 `;
@@ -18,6 +19,31 @@ export const SEARCH_USERS = gql`
       first_name
       last_name
       username
+      avatar_color
+    }
+  }
+`;
+
+export const CURRENT_USER = gql`
+  query CurrentUser {
+    currentUser {
+      id
+      first_name
+      last_name
+      username
+      avatar_color
+    }
+  }
+`;
+
+export const UPDATE_USER_PROFILE = gql`
+  mutation UpdateUserProfile($first_name: String, $last_name: String, $username: String, $avatar_color: String) {
+    updateUserProfile(first_name: $first_name, last_name: $last_name, username: $username, avatar_color: $avatar_color) {
+      id
+      first_name
+      last_name
+      username
+      avatar_color
     }
   }
 `;

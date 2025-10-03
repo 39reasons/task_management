@@ -2,7 +2,7 @@ import { query } from "../db/index.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const USER_FIELDS = `id, first_name, last_name, username, created_at, updated_at`;
+const USER_FIELDS = `id, first_name, last_name, username, avatar_color, created_at, updated_at`;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
 export interface User {
@@ -10,6 +10,7 @@ export interface User {
   first_name: string;
   last_name: string;
   username: string;
+  avatar_color?: string | null;
   created_at: string;
   updated_at: string;
   password_hash?: string;
@@ -22,6 +23,7 @@ function generateToken(user: User) {
       username: user.username,
       first_name: user.first_name,
       last_name: user.last_name,
+      avatar_color: user.avatar_color,
     },
     JWT_SECRET,
     { expiresIn: "7d" }
@@ -121,9 +123,59 @@ export async function loginUser(
       first_name: user.first_name,
       last_name: user.last_name,
       username: user.username,
+      avatar_color: user.avatar_color,
       created_at: user.created_at,
       updated_at: user.updated_at,
     },
   };
   
+}
+
+export async function updateUserProfile(
+  userId: string,
+  updates: Partial<Pick<User, "first_name" | "last_name" | "username" | "avatar_color">>
+): Promise<User> {
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (updates.first_name !== undefined) {
+    fields.push("first_name = $" + (fields.length + 1));
+    values.push(updates.first_name.trim());
+  }
+  if (updates.last_name !== undefined) {
+    fields.push("last_name = $" + (fields.length + 1));
+    values.push(updates.last_name.trim());
+  }
+  if (updates.username !== undefined) {
+    fields.push("username = $" + (fields.length + 1));
+    values.push(updates.username.trim());
+  }
+  if (updates.avatar_color !== undefined) {
+    fields.push("avatar_color = $" + (fields.length + 1));
+    values.push(updates.avatar_color);
+  }
+
+  if (fields.length === 0) {
+    const result = await query<User>(
+      `SELECT ${USER_FIELDS} FROM users WHERE id = $1`,
+      [userId]
+    );
+    const user = result.rows[0];
+    if (!user) throw new Error("User not found");
+    return user;
+  }
+
+  values.push(userId);
+
+  const result = await query<User>(
+    `UPDATE users
+     SET ${fields.join(", ")}, updated_at = now()
+     WHERE id = $${fields.length + 1}
+     RETURNING ${USER_FIELDS}`,
+    values
+  );
+
+  const user = result.rows[0];
+  if (!user) throw new Error("User not found");
+  return user;
 }

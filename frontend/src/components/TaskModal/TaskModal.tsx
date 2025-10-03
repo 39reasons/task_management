@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import type { Task, AuthUser } from "@shared/types";
 import {
@@ -11,9 +11,11 @@ import {
   REMOVE_TAG_FROM_TASK,
   SET_TASK_MEMBERS,
 } from "../../graphql";
-import { SendHorizonal, Plus, Dot, X, Edit3, AlignLeft, Trash2 } from "lucide-react";
+import { SendHorizonal, Plus, Dot, X, Edit3, AlignLeft, Trash2, Clock, Calendar } from "lucide-react";
 import { useModal } from "../ModalStack";
+import { DueDateModal } from "../DueDateModal";
 import { getFullName, getInitials } from "../../utils/user";
+import { DEFAULT_AVATAR_COLOR } from "../../constants/colors";
 
 interface TaskModalProps {
   task: Task | null;
@@ -75,11 +77,13 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       setInitialTitle(task.title || "");
       setDescription(task.description ?? "");
       setInitialDescription(task.description ?? "");
-      setDueDate(task.due_date || "");
+      const normalizedDueDate = task.due_date ? task.due_date.slice(0, 10) : "";
+      setDueDate(normalizedDueDate);
       setPriority(task.priority ?? null);
       setEditingCommentId(null);
       setEditingCommentText("");
       setCommentText("");
+      setIsEditingDescription(false);
     }
   }, [task]);
 
@@ -127,7 +131,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       setIsEditingDescription(false);
     }
 
-    if (dueDate !== task.due_date) {
+    const currentDue = task.due_date ? task.due_date.slice(0, 10) : "";
+    if (dueDate !== currentDue) {
       updateTask({ variables: { id: task.id, due_date: dueDate || null } });
       updatedTask = { ...updatedTask, due_date: dueDate || null };
     }
@@ -173,6 +178,18 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     setIsEditingDescription(false);
   };
 
+  const handleDueDateSave = async (nextDate: string | null) => {
+    if (!task) return;
+    const normalized = nextDate?.trim() ? nextDate.trim() : null;
+    const current = dueDate.trim() ? dueDate.trim() : null;
+
+    if (normalized === current) return;
+
+    await updateTask({ variables: { id: task.id, due_date: normalized } });
+    setDueDate(normalized ?? "");
+    onTaskUpdate?.({ ...task, due_date: normalized });
+  };
+
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentText.trim()) return;
@@ -211,6 +228,10 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     setIsEditingDescription(false);
   };
 
+  const clearDueDate = async () => {
+    await handleDueDateSave(null);
+  };
+
   const handleDeleteComment = async (commentId: string) => {
     await deleteCommentMutation({ variables: { id: commentId } });
     await refetch();
@@ -239,7 +260,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center pt-16">
+    <Fragment>
+      <div className="fixed inset-0 z-40 flex items-start justify-center pt-16">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50"
@@ -321,6 +343,16 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                   <Plus size={14} />
                   Members
                 </button>
+                {!dueDate && (
+                  <button
+                    type="button"
+                    onClick={() => openModal("due-date")}
+                    className="flex items-center gap-1 rounded-md border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white hover:border-gray-400"
+                  >
+                    <Clock size={14} />
+                    Due date
+                  </button>
+                )}
               </div>
 
               {hasTags && (
@@ -359,7 +391,10 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                         key={member.id}
                         className="flex items-center gap-2 rounded-full bg-gray-700/70 px-3 py-1.5 text-xs text-white"
                       >
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[11px] font-semibold uppercase text-white">
+                        <span
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold uppercase text-white"
+                          style={{ backgroundColor: member.avatar_color || DEFAULT_AVATAR_COLOR }}
+                        >
                           {getInitials(member)}
                         </span>
                         <div className="flex flex-col leading-tight">
@@ -379,6 +414,29 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                   </div>
                 </div>
               )}
+              {dueDate ? (
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">Due Date</p>
+                  <div className="relative inline-flex items-center rounded-full border border-gray-600/70 bg-gray-800/70 pr-6 text-xs text-white">
+                    <button
+                      type="button"
+                      onClick={() => openModal("due-date")}
+                      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-white transition hover:bg-gray-700/70"
+                    >
+                      <Calendar size={14} className="text-gray-300" />
+                      <span>{dueDate}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearDueDate}
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-500 bg-gray-900 text-gray-300 transition hover:border-red-400 hover:text-red-200"
+                      aria-label="Remove due date"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -465,7 +523,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
           </form>
 
           {!loading && data?.task?.comments?.length ? (
-            <>
+            <Fragment>
               <div className="mb-2 text-sm font-semibold text-white">Comments</div>
               <div className="overflow-y-auto min-h-0 pr-2 space-y-2 max-h-[calc(80vh-10rem)]">
                 {data.task.comments.map((c: any) => {
@@ -481,7 +539,10 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                         isEditing ? "border-blue-500/80 bg-gray-900/80" : "hover:border-blue-500/70 hover:bg-gray-900/80"
                       }`}
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600/20 text-sm font-semibold uppercase text-blue-300">
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold uppercase text-white"
+                        style={{ backgroundColor: c.user?.avatar_color || DEFAULT_AVATAR_COLOR }}
+                      >
                         {c.user ? getInitials(c.user) : "?"}
                       </div>
                       <div className="flex-1 space-y-2">
@@ -554,7 +615,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                   );
                 })}
               </div>
-            </>
+            </Fragment>
           ) : !loading && (!data?.task?.comments || data.task.comments.length === 0) ? (
             <p className="text-sm text-gray-500">No comments yet.</p>
           ) : (
@@ -562,6 +623,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
           )}
         </div>
       </div>
-    </div>
+      </div>
+      <DueDateModal task={task} currentDueDate={dueDate} onSave={handleDueDateSave} />
+    </Fragment>
   );
 }

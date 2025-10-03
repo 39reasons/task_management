@@ -255,7 +255,7 @@ export async function reorderTasks(stage_id: string, task_ids: string[]): Promis
 export async function getTaskMembers(task_id: string): Promise<User[]> {
   const result = await query<User>(
     `
-    SELECT u.id, u.first_name, u.last_name, u.username, u.created_at, u.updated_at
+    SELECT u.id, u.first_name, u.last_name, u.username, u.avatar_color, u.created_at, u.updated_at
     FROM task_members tm
     JOIN users u ON u.id = tm.user_id
     WHERE tm.task_id = $1

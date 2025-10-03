@@ -18,6 +18,7 @@ export const GET_NOTIFICATIONS = gql`
         first_name
         last_name
         username
+        avatar_color
       }
     }
   }

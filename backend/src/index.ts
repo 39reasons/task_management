@@ -23,6 +23,7 @@ function getUserFromToken(token: string | null): DecodedToken | null {
       username: string;
       first_name: string;
       last_name: string;
+      avatar_color?: string | null;
     };
     return decoded;
   } catch {

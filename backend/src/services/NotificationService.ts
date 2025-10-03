@@ -29,6 +29,7 @@ function mapNotificationRow(row: any): Notification {
           first_name: row.sender_first_name,
           last_name: row.sender_last_name,
           username: row.sender_username,
+          avatar_color: row.sender_avatar_color,
         } as User
       : null,
   };
@@ -62,7 +63,8 @@ export async function getNotificationsForUser(user_id: string): Promise<Notifica
       n.sender_id,
       u.first_name AS sender_first_name,
       u.last_name AS sender_last_name,
-      u.username AS sender_username
+      u.username AS sender_username,
+      u.avatar_color AS sender_avatar_color
     FROM notifications n
     LEFT JOIN projects p ON p.id = n.project_id
     LEFT JOIN users u ON u.id = n.sender_id
@@ -95,7 +97,8 @@ export async function getNotificationById(id: string): Promise<Notification | nu
       n.sender_id,
       u.first_name AS sender_first_name,
       u.last_name AS sender_last_name,
-      u.username AS sender_username
+      u.username AS sender_username,
+      u.avatar_color AS sender_avatar_color
     FROM notifications n
     LEFT JOIN projects p ON p.id = n.project_id
     LEFT JOIN users u ON u.id = n.sender_id

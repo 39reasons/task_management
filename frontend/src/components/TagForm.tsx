@@ -1,27 +1,16 @@
 import { useState } from "react";
 import { useMutation } from "@apollo/client";
 import { ADD_TAG } from "../graphql";
-
-const PRESET_COLORS = [
-  "#ef4444", // red
-  "#f97316", // orange
-  "#eab308", // yellow
-  "#22c55e", // green
-  "#3b82f6", // blue
-  "#6366f1", // indigo
-  "#a855f7", // purple
-  "#ec4899", // pink
-  "#6b7280", // gray
-];
+import { COLOR_WHEEL } from "../constants/colors";
 
 export function TagForm({ onCreated }: { onCreated?: () => void }) {
   const [name, setName] = useState("");
-  const [color, setColor] = useState<string | null>(null);
+  const [color, setColor] = useState<string | null>(COLOR_WHEEL[0]);
 
   const [addTag, { loading }] = useMutation(ADD_TAG, {
     onCompleted: () => {
       setName("");
-      setColor(null);
+      setColor(COLOR_WHEEL[0]);
       if (onCreated) onCreated();
     },
   });
@@ -58,7 +47,7 @@ export function TagForm({ onCreated }: { onCreated?: () => void }) {
           Color
         </label>
         <div className="flex flex-wrap gap-2">
-          {PRESET_COLORS.map((c) => (
+          {COLOR_WHEEL.map((c) => (
             <button
               key={c}
               type="button"

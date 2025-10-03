@@ -22,7 +22,8 @@ export async function addComment(
           'id', u.id,
           'username', u.username,
           'first_name', u.first_name,
-          'last_name', u.last_name
+          'last_name', u.last_name,
+          'avatar_color', u.avatar_color
         )
         FROM users u
         WHERE u.id = $2
@@ -47,7 +48,8 @@ export async function getCommentsByTask(task_id: string): Promise<Comment[]> {
         'id', u.id,
         'username', u.username,
         'first_name', u.first_name,
-        'last_name', u.last_name
+        'last_name', u.last_name,
+        'avatar_color', u.avatar_color
       ) AS user
     FROM comments c
     JOIN users u ON u.id = c.user_id
@@ -93,7 +95,8 @@ export async function updateComment(
           'id', u.id,
           'username', u.username,
           'first_name', u.first_name,
-          'last_name', u.last_name
+          'last_name', u.last_name,
+          'avatar_color', u.avatar_color
         )
         FROM users u
         WHERE u.id = user_id

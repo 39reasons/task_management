@@ -14,6 +14,7 @@ export const GET_COMMENTS = gql`
           username
           first_name
           last_name
+          avatar_color
         }
       }
     }
@@ -32,6 +33,7 @@ export const ADD_COMMENT = gql`
         username
         first_name
         last_name
+        avatar_color
       }
     }
   }
@@ -55,6 +57,7 @@ export const UPDATE_COMMENT = gql`
         username
         first_name
         last_name
+        avatar_color
       }
     }
   }

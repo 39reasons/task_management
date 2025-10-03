@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, ChevronDown, LogIn, LogOut } from "lucide-react";
+import { Bell, ChevronDown, LogIn, LogOut, Settings } from "lucide-react";
 import { useModal } from "./ModalStack";
 import { useNotifications } from "../hooks/useNotifications";
 import { getFullName, getInitials } from "../utils/user";
 import type { AuthUser } from "@shared/types";
+import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
 
 interface NavbarProps {
   user: AuthUser | null;
@@ -62,7 +63,10 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
               aria-haspopup="menu"
               aria-expanded={menuOpen}
             >
-              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center uppercase text-sm font-semibold">
+              <div
+                className="w-9 h-9 rounded-full text-white flex items-center justify-center uppercase text-sm font-semibold"
+                style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
+              >
                 {getInitials(user)}
               </div>
               <ChevronDown size={16} className="text-gray-300" />
@@ -77,6 +81,15 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
                   <p className="text-sm font-semibold text-white">{getFullName(user)}</p>
                   <p className="text-xs text-gray-400">@{user.username}</p>
                 </div>
+                <Link
+                  to="/settings"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
+                >
+                  <Settings size={16} />
+                  Settings
+                </Link>
                 <button
                   type="button"
                   role="menuitem"

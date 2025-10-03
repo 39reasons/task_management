@@ -5,6 +5,7 @@ type User {
   username: String!
   created_at: String!
   updated_at: String!
+  avatar_color: String
 }
 
 type AuthPayload {
@@ -13,10 +14,12 @@ type AuthPayload {
 }
 
 extend type Query {
+  currentUser: User
   searchUsers(query: String!): [User!]!
 }
 
 extend type Mutation {
   signUp(first_name: String!, last_name: String!, username: String!, password: String!): AuthPayload!
   login(username: String!, password: String!): AuthPayload!
+  updateUserProfile(first_name: String, last_name: String, username: String, avatar_color: String): User!
 }

@@ -8,13 +8,14 @@ import {
 import { useModal } from "./ModalStack";
 import type { User } from "@shared/types";
 import { getFullName, getInitials } from "../utils/user";
+import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
 
 interface ProjectInviteModalProps {
   projectId: string | null;
   onClose?: () => void;
 }
 
-type UserSuggestion = Pick<User, "id" | "first_name" | "last_name" | "username">;
+type UserSuggestion = Pick<User, "id" | "first_name" | "last_name" | "username" | "avatar_color">;
 
 export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalProps) {
   const { modals, closeModal } = useModal();
@@ -167,7 +168,10 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
                       } text-white`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold uppercase text-white">
+                        <span
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold uppercase text-white"
+                          style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
+                        >
                           {getInitials(user)}
                         </span>
                         <div>
@@ -189,7 +193,10 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
                   key={user.id}
                   className="px-2 py-1 bg-gray-700 text-xs rounded-full flex items-center gap-2"
                 >
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[11px] font-semibold uppercase text-white">
+                  <span
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold uppercase text-white"
+                    style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
+                  >
                     {getInitials(user)}
                   </span>
                   <span>{getFullName(user)}</span>
