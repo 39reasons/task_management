@@ -1,0 +1,21 @@
+type Notification {
+  id: ID!
+  message: String!
+  type: String!
+  status: String!
+  is_read: Boolean!
+  project: Project
+  sender: User
+  created_at: String!
+  updated_at: String!
+}
+
+extend type Query {
+  notifications: [Notification!]!
+}
+
+extend type Mutation {
+  sendProjectInvite(project_id: ID!, username: String!): Notification!
+  respondToNotification(id: ID!, accept: Boolean!): Notification!
+  markNotificationRead(id: ID!, read: Boolean): Notification!
+}

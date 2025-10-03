@@ -31,6 +31,11 @@ const workflowSchema = readFileSync(
   "utf8"
 );
 
+const notificationSchema = readFileSync(
+  path.join(process.cwd(), "src/schema/Notification.graphql"),
+  "utf8"
+);
+
 export const typeDefs = `
   type Query
   type Mutation
@@ -40,4 +45,5 @@ export const typeDefs = `
   ${commentsSchema}
   ${tagSchema}
   ${workflowSchema}
+  ${notificationSchema}
 `;

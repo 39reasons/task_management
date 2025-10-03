@@ -1,6 +1,14 @@
 import * as UserService from "../services/UserService.js";
 
 export const userResolvers = {
+  Query: {
+    searchUsers: async (
+      _: unknown,
+      { query }: { query: string }
+    ) => {
+      return await UserService.searchUsers(query);
+    },
+  },
   Mutation: {
     signUp: async (
       _: unknown,

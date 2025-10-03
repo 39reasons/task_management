@@ -4,11 +4,13 @@ import Sidebar from "./components/Sidebar";
 import { useApolloClient } from "@apollo/client";
 import { jwtDecode } from "jwt-decode";
 import type { AuthUser, Task, DecodedToken } from "@shared/types";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import AuthModal from "./components/auth/AuthModal";
 import { ModalProvider, useModal } from "./components/ModalStack";
 import { TaskModal } from "./components/TaskModal/TaskModal";
 import { TagModal } from "./components/TagModal";
+import { NotificationInbox } from "./components/NotificationInbox";
+import { ProjectInviteModal } from "./components/ProjectInviteModal";
 import { MemberModal } from "./components/MemberModal";
 import { AllTasksPage } from "./pages/AllTasksPage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
@@ -17,14 +19,17 @@ function AppContent() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [inviteProjectId, setInviteProjectId] = useState<string | null>(null);
 
   const client = useApolloClient();
+  const navigate = useNavigate();
   const { modals, openModal } = useModal();
 
   const handleLogout = async () => {
     localStorage.removeItem("token");
     setUser(null);
     await client.resetStore();
+    navigate("/");
   };
 
   useEffect(() => {
@@ -92,6 +97,10 @@ function AppContent() {
                       setSelectedTask(task);
                       openModal("task");
                     }}
+                    onInvite={(projectId) => {
+                      setInviteProjectId(projectId);
+                      openModal("invite");
+                    }}
                   />
                 }
               />
@@ -115,6 +124,13 @@ function AppContent() {
         <MemberModal
           task={selectedTask}
           onAssign={(updated) => setSelectedTask(updated)}
+        />
+      )}
+      {modals.includes("notifications") && <NotificationInbox />}
+      {modals.includes("invite") && (
+        <ProjectInviteModal
+          projectId={inviteProjectId}
+          onClose={() => setInviteProjectId(null)}
         />
       )}
     </div>

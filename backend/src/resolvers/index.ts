@@ -4,6 +4,7 @@ import { taskResolvers } from "./taskResolvers.js";
 import { userResolvers } from "./userResolvers.js";
 import { tagResolvers } from "./tagResolvers.js";
 import { workflowResolvers } from "./workflowResolvers.js";
+import { notificationResolvers } from "./notificationResolvers.js";
 
 export const resolvers = [
   taskResolvers,
@@ -12,4 +13,5 @@ export const resolvers = [
   commentResolvers,
   tagResolvers,
   workflowResolvers,
+  notificationResolvers,
 ];

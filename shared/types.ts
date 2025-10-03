@@ -44,6 +44,8 @@ export interface Project {
   created_at?: string;
   updated_at?: string;
   tasks?: Task[];
+  is_public?: boolean;
+  members?: User[];
 }
 
 export interface AuthUser {
@@ -83,4 +85,16 @@ export interface Comment {
     username: string;
     name: string;
   };
+}
+
+export interface Notification {
+  id: string;
+  message: string;
+  type: string;
+  status: "pending" | "accepted" | "declined";
+  is_read: boolean;
+  project?: Project | null;
+  sender?: User | null;
+  created_at: string;
+  updated_at: string;
 }

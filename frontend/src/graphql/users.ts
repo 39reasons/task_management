@@ -9,3 +9,13 @@ export const GET_PROJECT_MEMBERS = gql`
     }
   }
 `;
+
+export const SEARCH_USERS = gql`
+  query SearchUsers($query: String!) {
+    searchUsers(query: $query) {
+      id
+      name
+      username
+    }
+  }
+`;

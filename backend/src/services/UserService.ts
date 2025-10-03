@@ -42,6 +42,24 @@ export async function getUserByUsername(username: string): Promise<User | null> 
   return result.rows[0] ?? null;
 }
 
+export async function searchUsers(term: string, limit: number = 10): Promise<User[]> {
+  const sanitized = term.trim();
+  if (!sanitized) return [];
+
+  const result = await query<User>(
+    `
+    SELECT ${USER_FIELDS}
+    FROM users
+    WHERE username ILIKE $1 OR name ILIKE $1
+    ORDER BY username ASC
+    LIMIT $2
+    `,
+    [`%${sanitized}%`, limit]
+  );
+
+  return result.rows;
+}
+
 export async function createUser(
   name: string,
   username: string,

@@ -11,6 +11,10 @@ type AuthPayload {
   user: User!
 }
 
+extend type Query {
+  searchUsers(query: String!): [User!]!
+}
+
 extend type Mutation {
   signUp(name: String!, username: String!, password: String!): AuthPayload!
   login(username: String!, password: String!): AuthPayload!

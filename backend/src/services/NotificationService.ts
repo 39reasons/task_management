@@ -1,0 +1,234 @@
+import { query } from "../db/index.js";
+import type { Notification, User, Project } from "@shared/types";
+
+function mapNotificationRow(row: any): Notification {
+  return {
+    id: row.id,
+    message: row.message,
+    type: row.type,
+    status: row.status,
+    is_read: row.is_read,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    project: row.project_id
+      ? {
+          id: row.project_id,
+          name: row.project_name,
+          description: row.project_description,
+          created_at: row.project_created_at,
+          updated_at: row.project_updated_at,
+          is_public: row.project_is_public,
+        } as Project
+      : null,
+    sender: row.sender_id
+      ? {
+          id: row.sender_id,
+          name: row.sender_name,
+          username: row.sender_username,
+        } as User
+      : null,
+  };
+}
+
+export async function getNotificationsForUser(user_id: string): Promise<Notification[]> {
+  const result = await query(
+    `
+    SELECT
+      n.id,
+      n.message,
+      n.type,
+      n.status,
+      n.is_read,
+      n.created_at,
+      n.updated_at,
+      n.project_id,
+      p.name AS project_name,
+      p.description AS project_description,
+      p.created_at AS project_created_at,
+      p.updated_at AS project_updated_at,
+      p.is_public AS project_is_public,
+      n.sender_id,
+      u.name AS sender_name,
+      u.username AS sender_username
+    FROM notifications n
+    LEFT JOIN projects p ON p.id = n.project_id
+    LEFT JOIN users u ON u.id = n.sender_id
+    WHERE n.recipient_id = $1
+    ORDER BY n.created_at DESC
+    `,
+    [user_id]
+  );
+
+  return result.rows.map(mapNotificationRow);
+}
+
+export async function getNotificationById(id: string): Promise<Notification | null> {
+  const result = await query(
+    `
+    SELECT
+      n.id,
+      n.message,
+      n.type,
+      n.status,
+      n.is_read,
+      n.created_at,
+      n.updated_at,
+      n.project_id,
+      p.name AS project_name,
+      p.description AS project_description,
+      p.created_at AS project_created_at,
+      p.updated_at AS project_updated_at,
+      p.is_public AS project_is_public,
+      n.sender_id,
+      u.name AS sender_name,
+      u.username AS sender_username
+    FROM notifications n
+    LEFT JOIN projects p ON p.id = n.project_id
+    LEFT JOIN users u ON u.id = n.sender_id
+    WHERE n.id = $1
+    `,
+    [id]
+  );
+
+  if (result.rowCount === 0) return null;
+  return mapNotificationRow(result.rows[0]);
+}
+
+export async function sendProjectInvite(
+  project_id: string,
+  sender_id: string,
+  username: string
+): Promise<Notification> {
+  const recipientRes = await query<{ id: string; name: string; username: string }>(
+    `SELECT id, name, username FROM users WHERE username = $1`,
+    [username]
+  );
+
+  if (recipientRes.rowCount === 0) {
+    throw new Error("User not found");
+  }
+
+  const recipient = recipientRes.rows[0];
+
+  // Prevent inviting if already member
+  const membershipRes = await query(
+    `SELECT 1 FROM user_projects WHERE project_id = $1 AND user_id = $2`,
+    [project_id, recipient.id]
+  );
+  if (membershipRes.rowCount && membershipRes.rowCount > 0) {
+    throw new Error("User is already a project member");
+  }
+
+  // Prevent duplicate pending invite
+  const pendingRes = await query(
+    `
+    SELECT 1
+    FROM notifications
+    WHERE recipient_id = $1
+      AND project_id = $2
+      AND type = 'PROJECT_INVITE'
+      AND status = 'pending'
+    `,
+    [recipient.id, project_id]
+  );
+  if (pendingRes.rowCount && pendingRes.rowCount > 0) {
+    throw new Error("An invite is already pending for this user");
+  }
+
+  const projectRes = await query<{ name: string }>(
+    `SELECT name FROM projects WHERE id = $1`,
+    [project_id]
+  );
+  if (projectRes.rowCount === 0) {
+    throw new Error("Project not found");
+  }
+
+  const message = `You have been invited to join ${projectRes.rows[0].name}.`;
+
+  const insertRes = await query<{ id: string }>(
+    `
+    INSERT INTO notifications (recipient_id, sender_id, project_id, type, message)
+    VALUES ($1, $2, $3, 'PROJECT_INVITE', $4)
+    RETURNING id
+    `,
+    [recipient.id, sender_id, project_id, message]
+  );
+
+  const notification = await getNotificationById(insertRes.rows[0].id);
+  if (!notification) throw new Error("Failed to create notification");
+  return notification;
+}
+
+export async function respondToNotification(
+  id: string,
+  user_id: string,
+  accept: boolean
+): Promise<Notification> {
+  const notification = await getNotificationById(id);
+  if (!notification) throw new Error("Notification not found");
+
+  const notifRes = await query(
+    `SELECT recipient_id, project_id, type FROM notifications WHERE id = $1`,
+    [id]
+  );
+
+  if (notifRes.rowCount === 0) throw new Error("Notification not found");
+
+  const { recipient_id, project_id, type } = notifRes.rows[0] as {
+    recipient_id: string;
+    project_id: string | null;
+    type: string;
+  };
+
+  if (recipient_id !== user_id) {
+    throw new Error("Not authorized to respond to this notification");
+  }
+
+  const status = accept ? "accepted" : "declined";
+
+  await query(
+    `
+    UPDATE notifications
+    SET status = $2,
+        is_read = true,
+        updated_at = now()
+    WHERE id = $1
+    `,
+    [id, status]
+  );
+
+  if (accept && type === "PROJECT_INVITE" && project_id) {
+    await query(
+      `
+      INSERT INTO user_projects (user_id, project_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+      `,
+      [user_id, project_id]
+    );
+  }
+
+  const updated = await getNotificationById(id);
+  if (!updated) throw new Error("Notification not found after update");
+  return updated;
+}
+
+export async function markNotificationRead(
+  id: string,
+  user_id: string,
+  read: boolean = true
+): Promise<Notification> {
+  await query(
+    `
+    UPDATE notifications
+    SET is_read = $3,
+        updated_at = now()
+    WHERE id = $1 AND recipient_id = $2
+    `,
+    [id, user_id, read]
+  );
+
+  const updated = await getNotificationById(id);
+  if (!updated) throw new Error("Notification not found");
+  return updated;
+}
