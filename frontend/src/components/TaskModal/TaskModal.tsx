@@ -1,8 +1,14 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import type { Task } from "@shared/types";
-import { GET_COMMENTS, ADD_COMMENT, UPDATE_TASK, GET_TASK_TAGS } from "../../graphql";
-import { SendHorizonal, Plus, Dot } from "lucide-react";
+import {
+  GET_COMMENTS,
+  ADD_COMMENT,
+  UPDATE_TASK,
+  GET_TASK_TAGS,
+  REMOVE_TAG_FROM_TASK,
+} from "../../graphql";
+import { SendHorizonal, Plus, Dot, X } from "lucide-react";
 import { useModal } from "../ModalStack";
 
 interface TaskModalProps {
@@ -10,7 +16,6 @@ interface TaskModalProps {
   onTaskUpdate?: (task: Task) => void;
 }
 
-// ⏱️ Time ago helper
 function timeAgo(timestamp: number) {
   const now = Date.now();
   const diff = Math.floor((now - timestamp) / 1000); // in seconds
@@ -51,6 +56,7 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
   });
 
   const [updateTask] = useMutation(UPDATE_TASK);
+  const [removeTagFromTask] = useMutation(REMOVE_TAG_FROM_TASK);
 
   useEffect(() => {
     if (task) {
@@ -118,6 +124,18 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
     if (!commentText.trim()) return;
     await addComment({ variables: { task_id: task.id, content: commentText } });
     setCommentText("");
+  };
+
+  const handleRemoveTag = async (tagId: string) => {
+    if (!task) return;
+
+    const { data: removeData } = await removeTagFromTask({
+      variables: { task_id: task.id, tag_id: tagId },
+    });
+
+    const updatedTags = removeData?.removeTagFromTask?.tags ?? tags.filter((tag) => tag.id !== tagId);
+    setTags(updatedTags);
+    onTaskUpdate?.({ ...task, tags: updatedTags });
   };
 
   const assignees = task.assignees ?? [];
@@ -208,10 +226,18 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
                         {tags.map((tag) => (
                           <span
                             key={tag.id}
-                            className="px-2 py-1 text-xs rounded-full"
+                            className="flex items-center gap-1 px-2 py-1 text-xs rounded-full"
                             style={{ backgroundColor: tag.color, color: "white" }}
                           >
                             {tag.name}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTag(tag.id)}
+                              className="flex items-center justify-center rounded-full p-0.5 text-white/80 hover:text-white hover:bg-white/20 focus:outline-none"
+                              aria-label={`Remove ${tag.name}`}
+                            >
+                              <X size={12} strokeWidth={2} />
+                            </button>
                           </span>
                         ))}
                         <button

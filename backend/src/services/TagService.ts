@@ -101,3 +101,19 @@ export async function removeTagFromTask(task_id: string, tag_id: string) {
   );
   return true;
 }
+
+export async function updateTag(id: string, name: string, color?: string) {
+  const result = await query(
+    `
+    UPDATE tags
+    SET name = $2,
+        color = $3,
+        updated_at = now()
+    WHERE id = $1
+    RETURNING id, name, color, project_id
+    `,
+    [id, name, color ?? null]
+  );
+
+  return result.rows[0] ?? null;
+}

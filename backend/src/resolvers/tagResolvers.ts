@@ -64,5 +64,16 @@ export const tagResolvers = {
       await TagService.removeTagFromTask(task_id, tag_id);
       return await TaskService.getTaskById(task_id);
     },
+
+    updateTag: async (
+      _: unknown,
+      { id, name, color }: { id: string; name: string; color?: string },
+      ctx: GraphQLContext
+    ) => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      const tag = await TagService.updateTag(id, name, color);
+      if (!tag) throw new Error("Tag not found");
+      return tag;
+    },
   },
 };

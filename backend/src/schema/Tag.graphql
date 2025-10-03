@@ -21,4 +21,5 @@ extend type Mutation {
   addTagToTask(task_id: ID!, name: String!, color: String): Task!
   assignTagToTask(task_id: ID!, tag_id: ID!): Task!
   removeTagFromTask(task_id: ID!, tag_id: ID!): Task!
+  updateTag(id: ID!, name: String!, color: String): Tag!
 }

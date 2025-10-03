@@ -75,3 +75,13 @@ export const REMOVE_TAG_FROM_TASK = gql`
     }
   }
 `;
+
+export const UPDATE_TAG = gql`
+  mutation UpdateTag($id: ID!, $name: String!, $color: String) {
+    updateTag(id: $id, name: $name, color: $color) {
+      id
+      name
+      color
+    }
+  }
+`;
