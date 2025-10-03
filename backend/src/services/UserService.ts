@@ -73,17 +73,24 @@ export async function createUser(
 ): Promise<{ token: string; user: User }> {
   const password_hash = await bcrypt.hash(password, 10);
 
-  const result = await query<User>(
-    `INSERT INTO users (first_name, last_name, username, password_hash)
-     VALUES ($1, $2, $3, $4)
-     RETURNING ${USER_FIELDS}`,
-    [first_name, last_name, username, password_hash]
-  );
+  try {
+    const result = await query<User>(
+      `INSERT INTO users (first_name, last_name, username, password_hash)
+       VALUES ($1, $2, $3, $4)
+       RETURNING ${USER_FIELDS}`,
+      [first_name, last_name, username, password_hash]
+    );
 
-  const user = result.rows[0];
-  const token = generateToken(user);
+    const user = result.rows[0];
+    const token = generateToken(user);
 
-  return { token, user };
+    return { token, user };
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      throw new Error("That username is already taken. Please choose another.");
+    }
+    throw error;
+  }
 }
 
 export async function loginUser(

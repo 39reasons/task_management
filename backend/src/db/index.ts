@@ -17,6 +17,6 @@ export async function query<T extends QueryResultRow>(
     return await pool.query<T>(text, params);
   } catch (err) {
     console.error("Database query error:", { text, params, err });
-    throw new Error("Database operation failed");
+    throw err;
   }
 }

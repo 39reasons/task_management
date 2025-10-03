@@ -15,8 +15,15 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
-
+  
   const [signUp, { loading }] = useMutation(SIGN_UP);
+
+  const normalizeName = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const [firstChar, ...rest] = trimmed;
+    return `${firstChar.toUpperCase()}${rest.join("")}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,17 +36,24 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
       return;
     }
     try {
+      const normalizedFirst = normalizeName(firstName);
+      const normalizedLast = normalizeName(lastName);
       const { data } = await signUp({
         variables: {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
+          first_name: normalizedFirst,
+          last_name: normalizedLast,
           username,
           password,
         },
       });
       onSignUp(data.signUp.user, data.signUp.token);
     } catch (err: any) {
-      setError(err.message || "Failed to sign up");
+      const rawMessage = err?.message ?? "";
+      if (rawMessage.toLowerCase().includes("username is already taken")) {
+        setError("That username is already taken. Please choose another.");
+      } else {
+        setError(rawMessage || "We couldn't complete your sign up right now. Please try again in a moment.");
+      }
     }
   };
 
@@ -53,7 +67,8 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
             label="First Name"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            placeholder="Ada"
+            onBlur={() => setFirstName(normalizeName(firstName))}
+            autoComplete="given-name"
           />
         </div>
         <div className="flex-1">
@@ -61,16 +76,17 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
             label="Last Name"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            placeholder="Lovelace"
+            onBlur={() => setLastName(normalizeName(lastName))}
+            autoComplete="family-name"
           />
         </div>
       </div>
 
       <InputField
-        label="Username (unique handle)"
+        label="Username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
-        placeholder="Choose a unique username"
+        autoComplete="username"
       />
 
       <InputField
@@ -78,7 +94,7 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="********"
+        autoComplete="new-password"
       />
 
       <InputField
@@ -86,7 +102,7 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
         type="password"
         value={confirm}
         onChange={(e) => setConfirm(e.target.value)}
-        placeholder="********"
+        autoComplete="new-password"
       />
 
       <button

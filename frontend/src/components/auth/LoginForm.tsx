@@ -33,7 +33,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
         label="Username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
-        placeholder="Enter your username"
+        autoComplete="username"
       />
 
       <InputField
@@ -41,7 +41,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="********"
+        autoComplete="current-password"
       />
 
       <button
