@@ -1,13 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import type { Task } from "@shared/types";
-import {
-  GET_COMMENTS,
-  ADD_COMMENT,
-  UPDATE_TASK,
-  GET_TASK_TAGS,
-  GET_WORKFLOW,
-} from "../../graphql";
+import { GET_COMMENTS, ADD_COMMENT, UPDATE_TASK, GET_TASK_TAGS } from "../../graphql";
 import { SendHorizonal, Plus, Dot } from "lucide-react";
 import { useModal } from "../ModalStack";
 
@@ -39,7 +33,6 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<Task["priority"] | null>(null);
-  const [stageId, setStageId] = useState<string>("");
   const [commentText, setCommentText] = useState("");
   const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
 
@@ -52,12 +45,6 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
     variables: { task_id: task?.id },
     skip: !task,
   });
-
-  const { data: workflowData } = useQuery(GET_WORKFLOW, {
-    variables: { id: task?.stage?.workflow_id },
-    skip: !task?.stage?.workflow_id,
-  });
-
 
   const [addComment] = useMutation(ADD_COMMENT, {
     refetchQueries: task ? [{ query: GET_COMMENTS, variables: { task_id: task.id } }] : [],
@@ -72,7 +59,6 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
       setDescription(task.description || "");
       setDueDate(task.due_date || "");
       setPriority(task.priority ?? null);
-      setStageId(task.stage_id);
     }
   }, [task]);
 
@@ -92,7 +78,7 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, title, description, dueDate, priority, stageId]);
+  }, [isOpen, title, description, dueDate, priority]);
 
   if (!isOpen || !task) return null;
 
@@ -124,11 +110,6 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
       updatedTask = { ...updatedTask, priority };
     }
 
-    if (stageId && stageId !== task.stage_id) {
-      updateTask({ variables: { id: task.id, stage_id: stageId } });
-      updatedTask = { ...updatedTask, stage_id: stageId };
-    }
-
     onTaskUpdate?.(updatedTask);
   };
 
@@ -138,6 +119,10 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
     await addComment({ variables: { task_id: task.id, content: commentText } });
     setCommentText("");
   };
+
+  const assignees = task.assignees ?? [];
+  const hasTags = tags.length > 0;
+  const hasAssignees = assignees.length > 0;
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center pt-16">
@@ -180,25 +165,6 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
           )}
 
           <div className="flex-1 overflow-y-auto min-h-0 space-y-3">
-            {workflowData?.workflow?.stages && workflowData.workflow.stages.length > 0 && (
-              <div className="space-y-1">
-                <label className="text-xs uppercase tracking-wide text-gray-400">
-                  Stage
-                </label>
-                <select
-                  value={stageId}
-                  onChange={(e) => setStageId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
-                >
-                  {workflowData.workflow.stages.map((stage: any) => (
-                    <option key={stage.id} value={stage.id}>
-                      {stage.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {description && (
               <textarea
                 value={description}
@@ -211,38 +177,52 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
             {/* Task actions */}
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => openModal("tag")}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
-                >
-                  <Plus size={14} />
-                  Tags
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openModal("member")}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
-                >
-                  <Plus size={14} />
-                  Members
-                </button>
+                {!hasTags && (
+                  <button
+                    type="button"
+                    onClick={() => openModal("tag")}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
+                  >
+                    <Plus size={14} />
+                    Tags
+                  </button>
+                )}
+                {!hasAssignees && (
+                  <button
+                    type="button"
+                    onClick={() => openModal("member")}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
+                  >
+                    <Plus size={14} />
+                    Members
+                  </button>
+                )}
               </div>
 
               <div className="space-y-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Tags</p>
                   <div className="flex flex-wrap gap-2 min-h-[2rem] items-center">
-                    {tags.length > 0 ? (
-                      tags.map((tag) => (
-                        <span
-                          key={tag.id}
-                          className="px-2 py-1 text-xs rounded-full"
-                          style={{ backgroundColor: tag.color, color: "white" }}
+                    {hasTags ? (
+                      <>
+                        {tags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="px-2 py-1 text-xs rounded-full"
+                            style={{ backgroundColor: tag.color, color: "white" }}
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => openModal("tag")}
+                          className="flex items-center justify-center w-6 h-6 rounded-full border border-gray-600 text-gray-200 hover:border-gray-400"
+                          aria-label="Add tag"
                         >
-                          {tag.name}
-                        </span>
-                      ))
+                          <Plus size={14} />
+                        </button>
+                      </>
                     ) : (
                       <span className="text-xs text-gray-500">No tags yet</span>
                     )}
@@ -252,20 +232,28 @@ export function TaskModal({ task, onTaskUpdate }: TaskModalProps) {
                 <div>
                   <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Assignee</p>
                   <div className="min-h-[2rem] flex flex-wrap gap-2 items-center text-sm text-white">
-                    {(() => {
-                      const assignees = task.assignees ?? [];
-                      if (assignees.length > 0) {
-                        return assignees.map((member) => (
+                    {hasAssignees ? (
+                      <>
+                        {assignees.map((member) => (
                           <span
                             key={member.id}
                             className="px-2 py-1 rounded-full bg-gray-700 text-xs"
                           >
                             {member.name} <span className="text-gray-400">@{member.username}</span>
                           </span>
-                        ));
-                      }
-                      return <span className="text-xs text-gray-500">Unassigned</span>;
-                    })()}
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => openModal("member")}
+                          className="flex items-center justify-center w-6 h-6 rounded-full border border-gray-600 text-gray-200 hover:border-gray-400"
+                          aria-label="Add member"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-500">Unassigned</span>
+                    )}
                   </div>
                 </div>
               </div>

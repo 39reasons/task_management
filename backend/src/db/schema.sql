@@ -82,7 +82,7 @@ CREATE TABLE notifications (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- User <-> Project membership
+-- User <-> Project   ship
 CREATE TABLE user_projects (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
