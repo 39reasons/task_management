@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignUpForm";
 import type { AuthUser } from "@shared/types";
@@ -11,6 +11,10 @@ interface AuthModalProps {
 
 export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
   const [mode, setMode] = useState<"login" | "signup">("login");
+
+  useEffect(() => {
+    if (isOpen) setMode("login");
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
