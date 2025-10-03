@@ -327,22 +327,26 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
             {/* Task actions */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openModal("tag")}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
-                >
-                  <Plus size={14} />
-                  Tags
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openModal("member")}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
-                >
-                  <Plus size={14} />
-                  Members
-                </button>
+                {!hasTags && (
+                  <button
+                    type="button"
+                    onClick={() => openModal("tag")}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
+                  >
+                    <Plus size={14} />
+                    Tags
+                  </button>
+                )}
+                {!hasAssignees && (
+                  <button
+                    type="button"
+                    onClick={() => openModal("member")}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
+                  >
+                    <Plus size={14} />
+                    Members
+                  </button>
+                )}
                 {!dueDate && (
                   <button
                     type="button"
@@ -378,6 +382,14 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                         </button>
                       </div>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => openModal("tag")}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-gray-500 text-gray-200 transition hover:border-blue-400 hover:text-blue-200"
+                      aria-label="Add tag"
+                    >
+                      <Plus size={12} />
+                    </button>
                   </div>
                 </div>
               )}
@@ -411,6 +423,14 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                         </button>
                       </div>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => openModal("member")}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-gray-500 text-gray-200 transition hover:border-blue-400 hover:text-blue-200"
+                      aria-label="Add member"
+                    >
+                      <Plus size={12} />
+                    </button>
                   </div>
                 </div>
               )}

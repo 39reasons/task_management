@@ -11,7 +11,7 @@ import { TagModal } from "./components/TagModal";
 import { NotificationInbox } from "./components/NotificationInbox";
 import { ProjectInviteModal } from "./components/ProjectInviteModal";
 import { MemberModal } from "./components/MemberModal";
-import { AllTasksPage } from "./pages/AllTasksPage";
+import { HomePage } from "./pages/HomePage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import SettingsPage from "./pages/SettingsPage";
 import SignInPage from "./pages/SignInPage";
@@ -82,7 +82,7 @@ function AppContent() {
               <Route
                 path="/"
                 element={
-                  <AllTasksPage
+                  <HomePage
                     user={user}
                     setSelectedTask={(task) => {
                       setSelectedTask(task);
