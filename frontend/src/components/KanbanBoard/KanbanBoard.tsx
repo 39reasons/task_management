@@ -157,30 +157,50 @@ export function KanbanBoard({
         ))}
 
         {user && onAddStage && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {!isAddingStage ? (
               <button
                 onClick={() => setIsAddingStage(true)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 flex items-center gap-2 text-white/90 hover:text-white hover:border-gray-500 transition"
+                className="group flex w-full flex-col items-start gap-1 rounded-xl border border-dashed border-gray-600/60 bg-gray-900/70 px-4 py-3 text-left transition hover:border-blue-500 hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
               >
-                <Plus size={18} />
-                <span className="font-semibold">Add Stage</span>
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-white">
+                  <Plus size={18} />
+                  Add stage
+                </span>
+                <span className="text-xs text-gray-400">Create a new column for this workflow</span>
               </button>
             ) : (
-              <form onSubmit={handleAddStageSubmit} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 flex flex-col gap-2">
+              <form
+                onSubmit={handleAddStageSubmit}
+                className="flex flex-col gap-3 rounded-xl border border-gray-700 bg-gray-900/95 px-4 py-3 shadow"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">New stage</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingStage(false);
+                      setNewStageName("");
+                    }}
+                    className="rounded-md p-1 text-gray-400 transition hover:bg-gray-800 hover:text-gray-100"
+                    aria-label="Cancel"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
                 <input
                   value={newStageName}
                   onChange={(e) => setNewStageName(e.target.value)}
                   placeholder="Stage name"
-                  className="rounded-md bg-gray-900 border border-gray-700 text-white px-3 py-2"
+                  className="rounded-lg border border-gray-700 bg-gray-850 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   autoFocus
                 />
                 <div className="flex gap-2">
                   <button
                     type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-md px-3 py-2"
+                    className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
                   >
-                    Add
+                    Add stage
                   </button>
                   <button
                     type="button"
@@ -188,9 +208,9 @@ export function KanbanBoard({
                       setIsAddingStage(false);
                       setNewStageName("");
                     }}
-                    className="px-3 py-2 text-gray-300 hover:text-red-400"
+                    className="rounded-lg px-3 py-2 text-sm text-gray-300 transition hover:bg-gray-800 hover:text-gray-100"
                   >
-                    <X size={18} />
+                    Cancel
                   </button>
                 </div>
               </form>

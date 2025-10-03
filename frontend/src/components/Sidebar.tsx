@@ -60,19 +60,23 @@ export default function Sidebar({ user }: SidebarProps) {
         {/* User projects */}
         {data?.projects?.map(
           (project: { id: string; name: string; is_public: boolean; viewer_is_owner: boolean }) => (
-            <li key={project.id} className="group">
-              <div className="flex items-center justify-between rounded p-2 hover:bg-gray-700">
-                <NavLink
-                  to={`/projects/${project.id}`}
-                  className={({ isActive }) =>
-                    `flex-1 ${isActive ? "text-white" : "text-gray-200"}`
-                  }
-                >
-                  <span>{project.name}</span>
+            <li key={project.id}>
+              <NavLink
+                to={`/projects/${project.id}`}
+                className={({ isActive }) =>
+                  `group flex items-center justify-between rounded-lg border-l-4 p-2 transition-colors ${
+                    isActive
+                      ? "border-blue-500 bg-gray-700 text-white shadow"
+                      : "border-transparent text-gray-200 hover:border-blue-400 hover:bg-gray-700 hover:text-white"
+                  }`
+                }
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{project.name}</span>
                   {project.is_public && (
-                    <span className="ml-2 text-xs text-green-400">Public</span>
+                    <span className="text-xs text-green-400">Public</span>
                   )}
-                </NavLink>
+                </div>
                 {user && project.viewer_is_owner && (
                   <button
                     type="button"
@@ -85,12 +89,12 @@ export default function Sidebar({ user }: SidebarProps) {
                       }
                     }}
                     aria-label={`Delete ${project.name}`}
-                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition"
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 transition hover:text-red-400"
                   >
                     <Trash2 size={16} />
                   </button>
                 )}
-              </div>
+              </NavLink>
             </li>
           )
         )}

@@ -115,6 +115,7 @@ function AppContent() {
       {modals.includes("task") && (
         <TaskModal
           task={selectedTask}
+          currentUser={user}
           onTaskUpdate={(updated) => setSelectedTask(updated)}
         />
       )}

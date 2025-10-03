@@ -69,3 +69,42 @@ export async function deleteComment(
   ]);
   return (result.rowCount ?? 0) > 0;
 }
+
+export async function updateComment(
+  id: string,
+  userId: string,
+  content: string
+): Promise<Comment> {
+  const result = await query<Comment>(
+    `
+    UPDATE comments
+    SET content = $3,
+        updated_at = now()
+    WHERE id = $1 AND user_id = $2
+    RETURNING 
+      id,
+      task_id,
+      user_id,
+      content,
+      created_at,
+      updated_at,
+      (
+        SELECT json_build_object(
+          'id', u.id,
+          'username', u.username,
+          'first_name', u.first_name,
+          'last_name', u.last_name
+        )
+        FROM users u
+        WHERE u.id = user_id
+      ) AS user
+    `,
+    [id, userId, content]
+  );
+
+  const updated = result.rows[0];
+  if (!updated) {
+    throw new Error("Comment not found or not authorized");
+  }
+  return updated as Comment;
+}

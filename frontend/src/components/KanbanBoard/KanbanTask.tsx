@@ -2,7 +2,7 @@ import type { Task } from "@shared/types";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { CSSProperties } from "react";
-import { X } from "lucide-react";
+import { Calendar, X } from "lucide-react";
 
 interface KanbanTaskProps {
   task: Task;
@@ -28,7 +28,7 @@ export function KanbanTask({ task, onClick, onDelete, disableDrag = false }: Kan
       style={style}
       {...attributes}
       {...listeners}
-      className="relative bg-gray-900 rounded-lg p-3 mb-3 shadow border border-gray-700 hover:border-gray-500 transition"
+      className="group relative mb-3 rounded-xl border border-gray-700/70 bg-gradient-to-br from-gray-900 to-gray-900/90 p-3 shadow-sm transition hover:border-blue-500/80 hover:shadow-lg"
       onClick={() => onClick(task)}
     >
       {/* Delete icon */}
@@ -38,7 +38,8 @@ export function KanbanTask({ task, onClick, onDelete, disableDrag = false }: Kan
             e.stopPropagation();
             onDelete(task.id);
           }}
-          className="absolute top-2 right-2 text-gray-400 hover:text-red-400 cursor-pointer"
+          className="absolute top-2 right-2 hidden rounded-md p-1 text-gray-400 transition hover:bg-gray-800/70 hover:text-red-400 group-hover:block"
+          aria-label="Delete card"
         >
           <X size={16} />
         </button>
@@ -46,11 +47,11 @@ export function KanbanTask({ task, onClick, onDelete, disableDrag = false }: Kan
 
       {/* Tags at top */}
       {task.tags?.length ? (
-        <div className="flex flex-wrap gap-2 mb-2">
+        <div className="mb-2 flex flex-wrap gap-2">
           {task.tags.map((tag) => (
             <span
               key={tag.id}
-              className="px-3 py-1 rounded text-xs font-medium text-white"
+              className="rounded-full px-2.5 py-0.5 text-xs font-medium text-white/90"
               style={{ backgroundColor: tag.color ?? "#4b5563" }}
             >
               {tag.name}
@@ -60,11 +61,16 @@ export function KanbanTask({ task, onClick, onDelete, disableDrag = false }: Kan
       ) : null}
 
       {/* Title */}
-      <h4 className="text-white font-semibold mb-2 pr-6">{task.title}</h4>
+      <h4 className="mb-2 pr-8 text-sm font-semibold text-white">
+        {task.title}
+      </h4>
 
       {/* Due date */}
       {task.due_date && (
-        <p className="text-xs text-gray-400">Due: {task.due_date}</p>
+        <div className="flex items-center gap-1 text-xs text-blue-300">
+          <Calendar size={12} />
+          <span>{task.due_date}</span>
+        </div>
       )}
     </div>
   );

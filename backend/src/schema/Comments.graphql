@@ -14,5 +14,6 @@ extend type Task {
 
 extend type Mutation {
   addComment(task_id: ID!, content: String!): Comment!
+  updateComment(id: ID!, content: String!): Comment!
   deleteComment(id: ID!): Boolean!
 }

@@ -27,5 +27,14 @@ export const commentResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await CommentService.deleteComment(id, ctx.user.id);
     },
+
+    updateComment: async (
+      _: unknown,
+      { id, content }: { id: string; content: string },
+      ctx: GraphQLContext
+    ): Promise<Comment> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      return await CommentService.updateComment(id, ctx.user.id, content);
+    },
   },
 };
