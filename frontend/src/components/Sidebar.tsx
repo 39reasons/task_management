@@ -1,8 +1,8 @@
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_PROJECTS, ADD_PROJECT } from "../graphql";
+import { GET_PROJECTS, ADD_PROJECT, DELETE_PROJECT } from "../graphql";
 import { useState, useEffect } from "react";
-import { PlusCircle } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { PlusCircle, Trash2 } from "lucide-react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 interface SidebarProps {
   user: { username: string } | null;
@@ -13,6 +13,12 @@ export default function Sidebar({ user }: SidebarProps) {
   const [addProject] = useMutation(ADD_PROJECT, {
     refetchQueries: [{ query: GET_PROJECTS }],
   });
+  const [deleteProject] = useMutation(DELETE_PROJECT, {
+    refetchQueries: [{ query: GET_PROJECTS }],
+  });
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [showModal, setShowModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -28,7 +34,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const handleAddProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-    await addProject({
+    const result = await addProject({
       variables: {
         name: newProjectName,
         description: newProjectDesc || null,
@@ -39,6 +45,9 @@ export default function Sidebar({ user }: SidebarProps) {
     setNewProjectDesc("");
     setIsPublic(false);
     setShowModal(false);
+
+    const newProjectId = result.data?.addProject?.id;
+    if (newProjectId) navigate(`/projects/${newProjectId}`);
   };
 
   return (
@@ -49,21 +58,38 @@ export default function Sidebar({ user }: SidebarProps) {
       <ul className="space-y-2">
         {/* User projects */}
         {data?.projects?.map(
-          (project: { id: string; name: string; is_public: boolean }) => (
-            <li key={project.id}>
-              <NavLink
-                to={`/projects/${project.id}`}
-                className={({ isActive }) =>
-                  `flex justify-between p-2 rounded ${
-                    isActive ? "bg-gray-700" : "hover:bg-gray-700"
-                  }`
-                }
-              >
-                <span>{project.name}</span>
-                {project.is_public && (
-                  <span className="text-xs text-green-400">Public</span>
+          (project: { id: string; name: string; is_public: boolean; viewer_is_owner: boolean }) => (
+            <li key={project.id} className="group">
+              <div className="flex items-center justify-between rounded p-2 hover:bg-gray-700">
+                <NavLink
+                  to={`/projects/${project.id}`}
+                  className={({ isActive }) =>
+                    `flex-1 ${isActive ? "text-white" : "text-gray-200"}`
+                  }
+                >
+                  <span>{project.name}</span>
+                  {project.is_public && (
+                    <span className="ml-2 text-xs text-green-400">Public</span>
+                  )}
+                </NavLink>
+                {user && project.viewer_is_owner && (
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      await deleteProject({ variables: { id: project.id } });
+                      if (location.pathname === `/projects/${project.id}`) {
+                        navigate("/");
+                      }
+                    }}
+                    aria-label={`Delete ${project.name}`}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 )}
-              </NavLink>
+              </div>
             </li>
           )
         )}

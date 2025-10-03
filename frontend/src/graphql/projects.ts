@@ -7,6 +7,7 @@ export const GET_PROJECTS = gql`
       name
       description
       is_public
+      viewer_is_owner
     }
   }
 `;
@@ -18,6 +19,7 @@ export const ADD_PROJECT = gql`
       name
       description
       is_public
+      viewer_is_owner
     }
   }
 `;
@@ -29,6 +31,13 @@ export const UPDATE_PROJECT = gql`
       name
       description
       is_public
+      viewer_is_owner
     }
+  }
+`;
+
+export const DELETE_PROJECT = gql`
+  mutation DeleteProject($id: ID!) {
+    deleteProject(id: $id)
   }
 `;

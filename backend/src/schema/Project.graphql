@@ -8,6 +8,7 @@ type Project {
   tasks: [Task!]
   workflows: [Workflow!]
   members: [User!]
+  viewer_is_owner: Boolean!
 }
 extend type Query {
   projects: [Project!]!

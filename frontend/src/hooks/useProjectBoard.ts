@@ -43,6 +43,8 @@ export function useProjectBoard(): UseProjectBoardResult {
   } = useQuery<{ workflows: Workflow[] }>(GET_WORKFLOWS, {
     variables: { project_id: projectId },
     skip: !projectId,
+    fetchPolicy: "network-only",
+    nextFetchPolicy: "cache-first",
   });
 
   const workflow = useMemo(() => data?.workflows?.[0] ?? null, [data]);

@@ -70,5 +70,10 @@ export const projectResolvers = {
       if (!hasAccess) return [];
       return await ProjectService.getProjectMembers(parent.id);
     },
+    viewer_is_owner: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<boolean> => {
+      if (!ctx.user) return false;
+      const membership = await ProjectService.getUserRoleInProject(parent.id, ctx.user.id);
+      return membership === "owner";
+    },
   },
 };

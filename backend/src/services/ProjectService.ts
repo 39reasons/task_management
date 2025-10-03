@@ -109,7 +109,7 @@ export async function addProject(
   const project = result.rows[0];
 
   await query(
-    `INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)`,
+    `INSERT INTO user_projects (user_id, project_id, role) VALUES ($1, $2, 'owner')`,
     [user_id, project.id]
   );
 
@@ -156,18 +156,20 @@ export async function deleteProject(
   id: string,
   user_id: string
 ): Promise<boolean> {
-  const result = await query(
+  const ownerCheck = await query(
     `
-    DELETE FROM projects
-    WHERE id = $1
-      AND EXISTS (
-        SELECT 1
-        FROM user_projects
-        WHERE user_id = $2 AND project_id = $1
-      )
+    SELECT 1
+    FROM user_projects
+    WHERE project_id = $1 AND user_id = $2 AND role = 'owner'
     `,
     [id, user_id]
   );
+
+  if (ownerCheck.rowCount === 0) {
+    return false;
+  }
+
+  const result = await query(`DELETE FROM projects WHERE id = $1`, [id]);
   return (result.rowCount ?? 0) > 0;
 }
 
@@ -204,4 +206,17 @@ export async function userHasProjectAccess(project_id: string, user_id: string):
   );
 
   return (result.rowCount ?? 0) > 0;
+}
+
+export async function getUserRoleInProject(project_id: string, user_id: string): Promise<string | null> {
+  const result = await query<{ role: string }>(
+    `
+    SELECT role
+    FROM user_projects
+    WHERE project_id = $1 AND user_id = $2
+    `,
+    [project_id, user_id]
+  );
+
+  return result.rows[0]?.role ?? null;
 }
