@@ -2,14 +2,17 @@ import { query } from "../db/index.js";
 import type { Notification, User, Project } from "@shared/types";
 
 function mapNotificationRow(row: any): Notification {
+    const created_at = normalizeTimestamp(row.created_at);
+  const updated_at = normalizeTimestamp(row.updated_at);
+
   return {
     id: row.id,
     message: row.message,
     type: row.type,
     status: row.status,
     is_read: row.is_read,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
+    created_at,
+    updated_at,
     project: row.project_id
       ? {
           id: row.project_id,
@@ -28,6 +31,14 @@ function mapNotificationRow(row: any): Notification {
         } as User
       : null,
   };
+}
+
+function normalizeTimestamp(value: unknown): string {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  const date = new Date(value as string);
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 }
 
 export async function getNotificationsForUser(user_id: string): Promise<Notification[]> {
@@ -231,4 +242,12 @@ export async function markNotificationRead(
   const updated = await getNotificationById(id);
   if (!updated) throw new Error("Notification not found");
   return updated;
+}
+
+export async function deleteNotification(id: string, user_id: string): Promise<boolean> {
+  const result = await query(
+    `DELETE FROM notifications WHERE id = $1 AND recipient_id = $2`,
+    [id, user_id]
+  );
+  return (result.rowCount ?? 0) > 0;
 }

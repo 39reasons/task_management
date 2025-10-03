@@ -18,4 +18,5 @@ extend type Mutation {
   sendProjectInvite(project_id: ID!, username: String!): Notification!
   respondToNotification(id: ID!, accept: Boolean!): Notification!
   markNotificationRead(id: ID!, read: Boolean): Notification!
+  deleteNotification(id: ID!): Boolean!
 }

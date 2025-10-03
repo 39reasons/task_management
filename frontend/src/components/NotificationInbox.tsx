@@ -6,14 +6,25 @@ import type { Notification } from "@shared/types";
 export function NotificationInbox() {
   const { modals, closeModal } = useModal();
   const isOpen = modals.includes("notifications");
-  const { notifications, loading, respond, markRead } = useNotifications();
+  const { notifications, loading, respond, markRead, remove } = useNotifications(true);
 
   useEffect(() => {
-    if (isOpen) {
-      notifications.forEach((notif) => {
-        if (!notif.is_read) markRead(notif.id, true).catch(() => {});
-      });
-    }
+    if (!isOpen) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeModal('notifications');
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isOpen, closeModal]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const unread = notifications.filter((notif) => !notif.is_read);
+    if (unread.length === 0) return;
+    Promise.all(unread.map((n) => markRead(n.id, true))).catch(() => {});
   }, [isOpen, notifications, markRead]);
 
   if (!isOpen) return null;
@@ -44,6 +55,7 @@ export function NotificationInbox() {
                 key={notification.id}
                 notification={notification}
                 onRespond={respond}
+                onDelete={remove}
               />
             ))
           )}
@@ -61,19 +73,30 @@ export function NotificationInbox() {
 function NotificationItem({
   notification,
   onRespond,
+  onDelete,
 }: {
   notification: Notification;
   onRespond: (id: string, accept: boolean) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const isPending = notification.status === "pending";
 
   return (
     <div className="border border-gray-700 rounded-lg p-3 bg-gray-900 flex flex-col gap-2">
-      <div className="flex justify-between text-xs text-gray-400">
-        <span>{new Date(notification.created_at).toLocaleString()}</span>
-        <span className={`font-semibold ${isPending ? "text-yellow-400" : notification.status === "accepted" ? "text-green-400" : "text-red-400"}`}>
-          {notification.status.toUpperCase()}
-        </span>
+      <div className="flex justify-between text-xs text-gray-400 items-center gap-2">
+        <span>{formatTimestamp(notification.created_at)}</span>
+        <div className="flex items-center gap-2">
+          <span className={`font-semibold ${isPending ? "text-yellow-400" : notification.status === "accepted" ? "text-green-400" : "text-red-400"}`}>
+            {notification.status.toUpperCase()}
+          </span>
+          <button
+            onClick={() => onDelete(notification.id)}
+            className="text-gray-400 hover:text-red-400 text-sm"
+            aria-label="Delete notification"
+          >
+            ✕
+          </button>
+        </div>
       </div>
       <div className="text-sm text-white whitespace-pre-wrap">{notification.message}</div>
       <div className="text-xs text-gray-300">
@@ -106,4 +129,11 @@ function NotificationItem({
       )}
     </div>
   );
+}
+
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) return date.toLocaleString();
+  const fallback = new Date(Number(value));
+  return Number.isNaN(fallback.getTime()) ? value : fallback.toLocaleString();
 }

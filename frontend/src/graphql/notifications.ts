@@ -49,3 +49,10 @@ export const MARK_NOTIFICATION_READ = gql`
     }
   }
 `;
+
+
+export const DELETE_NOTIFICATION = gql`
+  mutation DeleteNotification($id: ID!) {
+    deleteNotification(id: $id)
+  }
+`;

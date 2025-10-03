@@ -40,5 +40,16 @@ export const notificationResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await NotificationService.markNotificationRead(id, ctx.user.id, read ?? true);
     },
+
+    deleteNotification: async (
+      _: unknown,
+      { id }: { id: string },
+      ctx: GraphQLContext
+    ): Promise<boolean> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      const deleted = await NotificationService.deleteNotification(id, ctx.user.id);
+      if (!deleted) throw new Error("Notification not found");
+      return true;
+    },
   },
 };

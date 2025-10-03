@@ -4,6 +4,7 @@ import {
   RESPOND_NOTIFICATION,
   MARK_NOTIFICATION_READ,
   GET_PROJECTS,
+  DELETE_NOTIFICATION,
 } from "../graphql";
 import type { Notification } from "@shared/types";
 
@@ -18,6 +19,7 @@ export function useNotifications(enabled: boolean = true) {
 
   const [respondMutation] = useMutation(RESPOND_NOTIFICATION);
   const [markReadMutation] = useMutation(MARK_NOTIFICATION_READ);
+  const [deleteNotificationMutation] = useMutation(DELETE_NOTIFICATION);
 
   const respond = async (id: string, accept: boolean) => {
     await respondMutation({
@@ -33,6 +35,13 @@ export function useNotifications(enabled: boolean = true) {
     });
   };
 
+  const remove = async (id: string) => {
+    await deleteNotificationMutation({
+      variables: { id },
+      refetchQueries: [{ query: GET_NOTIFICATIONS }],
+    });
+  };
+
   return {
     notifications: data?.notifications ?? [],
     loading,
@@ -40,5 +49,6 @@ export function useNotifications(enabled: boolean = true) {
     refetch,
     respond,
     markRead,
+    remove,
   };
 }
