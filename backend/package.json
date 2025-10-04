@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node dist/backend/src/index.js",
-    "build": "tsc"
+    "build": "tsc",
+    "migrate": "ts-node src/db/runMigrations.ts"
   },
   "keywords": [],
   "author": "",

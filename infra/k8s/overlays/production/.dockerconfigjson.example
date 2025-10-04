@@ -1,0 +1,7 @@
+{
+  "auths": {
+    "registry.digitalocean.com": {
+      "auth": "base64(username:token)"
+    }
+  }
+}

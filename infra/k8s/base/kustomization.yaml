@@ -4,8 +4,13 @@ namespace: task-management
 resources:
   - namespace.yaml
   - backend-configmap.yaml
-  - backend-secret.yaml
   - backend-deployment.yaml
   - backend-service.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+secretGenerator:
+  - name: backend-secrets
+    envs:
+      - backend-secret.env

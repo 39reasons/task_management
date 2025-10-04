@@ -22,8 +22,9 @@ COPY --from=build /app/backend/package.json ./package.json
 COPY --from=build /app/backend/dist ./dist
 COPY --from=build /app/shared ./shared
 COPY --from=build /app/backend/src/schema ./src/schema
+COPY --from=build /app/backend/migrations ./migrations
 
 ENV PORT=4000
 EXPOSE 4000
 
-CMD ["node", "dist/backend/src/index.js"]
+CMD ["sh", "-c", "node dist/backend/src/db/runMigrations.js && node dist/backend/src/index.js"]

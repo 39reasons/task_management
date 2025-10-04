@@ -7,3 +7,14 @@ resources:
 patches:
   - path: backend-deployment-patch.yaml
   - path: frontend-deployment-patch.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+secretGenerator:
+  - name: registry-credentials
+    type: kubernetes.io/dockerconfigjson
+    files:
+      - .dockerconfigjson
+  - name: backend-secrets
+    behavior: replace
+    envs:
+      - backend-secret.env

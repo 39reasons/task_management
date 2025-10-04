@@ -60,3 +60,6 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+infra/k8s/overlays/production/.dockerconfigjson
+infra/k8s/base/backend-secret.env
+infra/k8s/overlays/production/backend-secret.env
