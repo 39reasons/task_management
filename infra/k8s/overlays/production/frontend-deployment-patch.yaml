@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: task-management
+spec:
+  template:
+    spec:
+      containers:
+        - name: frontend
+          image: registry.digitalocean.com/kkura/task-backend:frontend-latest

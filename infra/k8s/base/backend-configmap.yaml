@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: task-management
+  labels:
+    app.kubernetes.io/name: task-backend
+    app.kubernetes.io/part-of: task-management
+  
+data:
+   PORT: "4000"
+   DB_HOST: "postgres-postgresql.databases.svc.cluster.local"
+   DB_USER: "kkura"
+   DB_NAME: "tasksdb"
+   DB_PORT: "5432"

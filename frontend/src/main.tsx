@@ -12,7 +12,33 @@ import {
 import { setContext } from "@apollo/client/link/context";
 import { BrowserRouter } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const fallbackApiUrl = `${window.location.origin.replace(/\/?$/, "")}/graphql`;
+
+const resolveApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL?.trim();
+  if (!envUrl) {
+    return fallbackApiUrl;
+  }
+
+  try {
+    const candidate = new URL(envUrl, window.location.origin);
+    const isInternalService = candidate.hostname.endsWith(
+      ".svc.cluster.local"
+    );
+    const protocolMismatch =
+      window.location.protocol === "http:" && candidate.protocol === "https:";
+
+    if (isInternalService || protocolMismatch) {
+      return fallbackApiUrl;
+    }
+
+    return candidate.toString().replace(/\/?$/, "");
+  } catch (error) {
+    return fallbackApiUrl;
+  }
+};
+
+const API_URL = resolveApiUrl();
 
 const authLink = setContext((_, { headers }) => {
   const token = localStorage.getItem("token");

@@ -1,13 +1,17 @@
 import { Pool, QueryResult, QueryResultRow } from "pg";
 import "dotenv/config";
 
-export const pool = new Pool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  port: Number(process.env.DB_PORT),
-});
+const connectionString = process.env.DATABASE_URL;
+
+export const pool = connectionString
+  ? new Pool({ connectionString })
+  : new Pool({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASS,
+      database: process.env.DB_NAME,
+      port: process.env.DB_PORT ? Number(process.env.DB_PORT) : undefined,
+    });
 
 export async function query<T extends QueryResultRow>(
   text: string,

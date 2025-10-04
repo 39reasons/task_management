@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: task-management
+  labels:
+    app.kubernetes.io/name: task-frontend
+    app.kubernetes.io/part-of: task-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: task-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: task-frontend
+        app.kubernetes.io/part-of: task-management
+    spec:
+      imagePullSecrets:
+        - name: registry-credentials
+      containers:
+        - name: frontend
+          image: registry.digitalocean.com/kkura/task-backend:frontend-latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 20
+      restartPolicy: Always
+      

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: task-management
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/39reasons/task_management.git
+    targetRevision: main
+    path: infra/k8s/overlays/production
+    kustomize:
+      images:
+        - registry.digitalocean.com/kkura/task-backend:backend-latest
+        - registry.digitalocean.com/kkura/task-backend:frontend-latest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: task-management
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
