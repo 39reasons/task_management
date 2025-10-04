@@ -11,7 +11,7 @@ import {
   REMOVE_TAG_FROM_TASK,
   SET_TASK_MEMBERS,
 } from "../../graphql";
-import { SendHorizonal, Plus, Dot, X, Edit3, AlignLeft, Trash2, Clock, Calendar } from "lucide-react";
+import { Plus, Dot, X, Edit3, AlignLeft, Trash2, Clock, Calendar, CornerDownLeft } from "lucide-react";
 import { useModal } from "../ModalStack";
 import { DueDateModal } from "../DueDateModal";
 import { getFullName, getInitials } from "../../utils/user";
@@ -292,9 +292,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
         <div className="flex flex-col min-h-0 pr-2">
           <div className="mb-4">
             {isEditingTitle ? (
-              <div
-                className="flex items-center gap-3 rounded-xl border border-gray-600/60 bg-gray-900/80 px-4 py-2 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/30"
-              >
+              <div className="flex items-center gap-3 rounded-xl border border-gray-600/60 bg-gray-900/80 px-4 py-2 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/30">
                 <input
                   type="text"
                   value={title}
@@ -315,13 +313,19 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                   className="flex-1 bg-transparent text-xl font-bold leading-tight text-white focus:outline-none"
                   maxLength={TASK_TITLE_MAX_LENGTH}
                 />
-                <Edit3
-                  className={`h-5 w-5 transition ${
+                <button
+                  type="button"
+                  onClick={commitTitle}
+                  disabled={!title.trim()}
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
                     title.trim()
-                      ? "text-blue-300 drop-shadow-[0_0_6px_rgba(59,130,246,0.6)]"
-                      : "text-gray-500"
+                      ? "text-blue-300 hover:bg-blue-500/10 border-transparent"
+                      : "border-transparent text-gray-500"
                   }`}
-                />
+                  aria-label="Save title"
+                >
+                  <CornerDownLeft size={16} />
+                </button>
               </div>
             ) : (
               <button
@@ -532,9 +536,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
         {/* Right side (comments) */}
         <div className="flex flex-col pl-2 border-l border-gray-700/60">
           <form onSubmit={handleAddComment} className="mb-4">
-            <div
-              className="flex items-center gap-3 rounded-xl border border-gray-600/60 bg-gray-900/80 px-4 py-2 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/30"
-            >
+            <div className="flex items-center gap-3 rounded-xl border border-gray-600/60 bg-gray-900/80 px-4 py-2 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/30">
               <input
                 type="text"
                 className="flex-1 bg-transparent text-sm text-white placeholder-gray-400 focus:outline-none"
@@ -542,14 +544,25 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
               />
-              <button
-                type="submit"
-                disabled={!commentText.trim()}
-                className="inline-flex items-center justify-center rounded-full border border-gray-600 p-2 text-white transition hover:border-blue-500 hover:text-blue-300 disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Send comment"
-              >
-                <SendHorizonal size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (commentText.trim()) {
+                      handleAddComment(new Event("submit") as unknown as React.FormEvent);
+                    }
+                  }}
+                  disabled={!commentText.trim()}
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+                    commentText.trim()
+                      ? "text-blue-300 hover:bg-blue-500/10 border-transparent"
+                      : "border-transparent text-gray-500"
+                  }`}
+                  aria-label="Submit comment with keyboard shortcut"
+                >
+                  <CornerDownLeft size={16} />
+                </button>
+              </div>
             </div>
           </form>
 

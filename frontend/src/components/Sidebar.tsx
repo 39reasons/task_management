@@ -210,8 +210,10 @@ export default function Sidebar({ user }: SidebarProps) {
                   } cursor-default`
                 }
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{project.name}</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="font-medium truncate" title={project.name}>
+                    {project.name}
+                  </span>
                   {project.is_public && (
                     <span className="text-xs text-green-400">Public</span>
                   )}
