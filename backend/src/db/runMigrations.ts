@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { pool } from "./index";
+import { pool } from "./index.js";
 
 async function runMigrations() {
   const moduleDir = path.dirname(fileURLToPath(import.meta.url));
