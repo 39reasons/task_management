@@ -144,7 +144,7 @@ function AppContent() {
           onAssign={(updated) => setSelectedTask(updated)}
         />
       )}
-      {modals.includes("notifications") && <NotificationInbox />}
+      {modals.includes("notifications") && <NotificationInbox currentUser={user} />}
       {modals.includes("invite") && (
         <ProjectInviteModal
           projectId={inviteProjectId}

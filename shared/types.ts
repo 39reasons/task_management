@@ -105,4 +105,5 @@ export interface Notification {
   sender?: User | null;
   created_at: string;
   updated_at: string;
+  recipient_id?: string;
 }

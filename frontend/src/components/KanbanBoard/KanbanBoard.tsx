@@ -110,9 +110,7 @@ export function KanbanBoard({
         await Promise.resolve(onReorderTasks(destinationStageId, reordered.map((t) => String(t.id))));
         const sourceTasks = tasksByStage.get(sourceStageId) ?? [];
         const sourceWithout = sourceTasks.filter((t) => String(t.id) !== activeId);
-        if (sourceWithout.length > 0) {
-          await Promise.resolve(onReorderTasks(sourceStageId, sourceWithout.map((t) => String(t.id))));
-        }
+        await Promise.resolve(onReorderTasks(sourceStageId, sourceWithout.map((t) => String(t.id))));
       }
     } else if (onReorderTasks) {
       const stageTasks = tasksByStage.get(sourceStageId) ?? [];

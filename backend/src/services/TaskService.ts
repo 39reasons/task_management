@@ -1,5 +1,12 @@
 import { query } from "../db/index.js";
 import type { Task, User } from "@shared/types";
+import {
+  broadcastTaskCreated,
+  broadcastTaskDeleted,
+  broadcastTaskReorder,
+  broadcastTaskUpdated,
+} from "../realtime/publish.js";
+import * as TagService from "./TagService.js";
 
 const TASK_BASE_SELECT = `
   SELECT
@@ -34,6 +41,36 @@ function mapTaskRow(row: Task & { project_id: string; position: number }): Task 
     project_id: row.project_id,
     position: row.position,
   };
+}
+
+async function ensureTaskHydrated(task: Task): Promise<Task> {
+  const needsTags = !Array.isArray(task.tags);
+  const needsAssignees = !Array.isArray(task.assignees);
+
+  if (!needsTags && !needsAssignees) {
+    return task;
+  }
+
+  const tags = needsTags
+    ? ((await TagService.getTagsForTask(task.id)) as Task["tags"])
+    : task.tags ?? [];
+  const assignees = needsAssignees
+    ? (await getTaskMembers(task.id))
+    : task.assignees ?? [];
+
+  return {
+    ...task,
+    tags: tags ?? [],
+    assignees: assignees ?? [],
+  };
+}
+
+export async function emitTaskUpdated(taskOrId: Task | string, origin?: string | null): Promise<void> {
+  const baseTask =
+    typeof taskOrId === "string" ? await getTaskById(taskOrId) : (taskOrId as Task | null);
+  if (!baseTask) return;
+  const hydrated = await ensureTaskHydrated(baseTask);
+  broadcastTaskUpdated(hydrated, origin ?? null);
 }
 
 export async function getTasks(
@@ -106,7 +143,7 @@ export async function createTask({
   description?: string | null;
   due_date?: string | null;
   priority?: string | null;
-}): Promise<Task> {
+}, options?: { origin?: string | null }): Promise<Task> {
   const result = await query<{ id: string }>(
     `
     WITH next_position AS (
@@ -130,7 +167,9 @@ export async function createTask({
 
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Failed to create task");
-  return task;
+  const hydrated = await ensureTaskHydrated(task);
+  broadcastTaskCreated(hydrated, options?.origin ?? null);
+  return hydrated;
 }
 
 export async function updateTask(
@@ -149,7 +188,8 @@ export async function updateTask(
     priority?: string | null;
     stage_id?: string;
     position?: number;
-  }
+  },
+  options?: { origin?: string | null }
 ): Promise<Task> {
   const result = await query<{ id: string }>(
     `
@@ -179,10 +219,16 @@ export async function updateTask(
 
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after update");
-  return task;
+  const hydrated = await ensureTaskHydrated(task);
+  await emitTaskUpdated(hydrated, options?.origin ?? null);
+  return hydrated;
 }
 
-export async function moveTask(task_id: string, to_stage_id: string): Promise<Task> {
+export async function moveTask(
+  task_id: string,
+  to_stage_id: string,
+  options?: { origin?: string | null }
+): Promise<Task> {
   const result = await query<{ id: string }>(
     `
     WITH next_position AS (
@@ -203,18 +249,29 @@ export async function moveTask(task_id: string, to_stage_id: string): Promise<Ta
   if (result.rowCount === 0) throw new Error("Task not found");
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after move");
-  return task;
+  const hydrated = await ensureTaskHydrated(task);
+  await emitTaskUpdated(hydrated, options?.origin ?? null);
+  return hydrated;
 }
 
-export async function deleteTask(id: string): Promise<boolean> {
+export async function deleteTask(id: string, options?: { origin?: string | null }): Promise<boolean> {
+  const task = await getTaskById(id);
   const result = await query(
     `DELETE FROM tasks WHERE id = $1`,
     [id]
   );
-  return (result.rowCount ?? 0) > 0;
+  const deleted = (result.rowCount ?? 0) > 0;
+  if (deleted && task) {
+    broadcastTaskDeleted(task.project_id, task.stage_id, task.id, options?.origin ?? null);
+  }
+  return deleted;
 }
 
-export async function updateTaskPriority(id: string, priority: string): Promise<Task> {
+export async function updateTaskPriority(
+  id: string,
+  priority: string,
+  options?: { origin?: string | null }
+): Promise<Task> {
   const result = await query<{ id: string }>(
     `
     UPDATE tasks
@@ -229,27 +286,53 @@ export async function updateTaskPriority(id: string, priority: string): Promise<
   if (result.rowCount === 0) throw new Error("Task not found");
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after update");
-  return task;
+  const hydrated = await ensureTaskHydrated(task);
+  await emitTaskUpdated(hydrated, options?.origin ?? null);
+  return hydrated;
 }
 
-export async function reorderTasks(stage_id: string, task_ids: string[]): Promise<void> {
-  if (task_ids.length === 0) return;
-  await query(
+export async function reorderTasks(
+  stage_id: string,
+  task_ids: string[],
+  options?: { origin?: string | null }
+): Promise<void> {
+  if (task_ids.length > 0) {
+    await query(
+      `
+      WITH ordered AS (
+        SELECT
+          value AS id,
+          ordinality - 1 AS position
+        FROM unnest($2::uuid[]) WITH ORDINALITY AS u(value, ordinality)
+      )
+      UPDATE tasks t
+      SET position = ordered.position,
+          updated_at = now()
+      FROM ordered
+      WHERE t.id = ordered.id AND t.stage_id = $1
+      `,
+      [stage_id, task_ids]
+    );
+  }
+
+  const projectId = await getProjectIdForStage(stage_id);
+  if (projectId) {
+    broadcastTaskReorder(projectId, stage_id, task_ids, options?.origin ?? null);
+  }
+}
+
+export async function getProjectIdForStage(stage_id: string): Promise<string | null> {
+  const result = await query<{ project_id: string }>(
     `
-    WITH ordered AS (
-      SELECT
-        value AS id,
-        ordinality - 1 AS position
-      FROM unnest($2::uuid[]) WITH ORDINALITY AS u(value, ordinality)
-    )
-    UPDATE tasks t
-    SET position = ordered.position,
-        updated_at = now()
-    FROM ordered
-    WHERE t.id = ordered.id AND t.stage_id = $1
+    SELECT w.project_id
+    FROM stages s
+    JOIN workflows w ON w.id = s.workflow_id
+    WHERE s.id = $1
     `,
-    [stage_id, task_ids]
+    [stage_id]
   );
+
+  return result.rows[0]?.project_id ?? null;
 }
 
 export async function getTaskMembers(task_id: string): Promise<User[]> {
@@ -267,17 +350,23 @@ export async function getTaskMembers(task_id: string): Promise<User[]> {
   return result.rows;
 }
 
-export async function setTaskMembers(task_id: string, member_ids: string[]): Promise<void> {
+export async function setTaskMembers(
+  task_id: string,
+  member_ids: string[],
+  options?: { origin?: string | null }
+): Promise<void> {
   await query("DELETE FROM task_members WHERE task_id = $1", [task_id]);
 
-  if (member_ids.length === 0) return;
+  if (member_ids.length > 0) {
+    await query(
+      `
+      INSERT INTO task_members (task_id, user_id)
+      SELECT $1, unnest($2::uuid[])
+      ON CONFLICT DO NOTHING
+      `,
+      [task_id, member_ids]
+    );
+  }
 
-  await query(
-    `
-    INSERT INTO task_members (task_id, user_id)
-    SELECT $1, unnest($2::uuid[])
-    ON CONFLICT DO NOTHING
-    `,
-    [task_id, member_ids]
-  );
+  await emitTaskUpdated(task_id, options?.origin ?? null);
 }

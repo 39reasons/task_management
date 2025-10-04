@@ -7,6 +7,7 @@ import "dotenv/config";
 import { Pool } from "pg";
 import type { DecodedToken } from "@shared/types";
 import { GraphQLContext } from "src/types/context";
+import { initRealtimeServer } from "./realtime/server.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
@@ -36,16 +37,23 @@ const server = new ApolloServer({
   resolvers,
 });
 
+initRealtimeServer();
+
 const { url } = await startStandaloneServer<GraphQLContext>(server, {
   listen: { port: PORT },
   context: async ({ req }) => {
     const authHeader = req.headers.authorization || "";
     const token = authHeader.replace("Bearer ", "");
     const user = getUserFromToken(token);
+    const clientIdHeader = req.headers["x-client-id"];
+    const clientId = Array.isArray(clientIdHeader)
+      ? clientIdHeader[0] ?? null
+      : clientIdHeader ?? null;
 
     return {
       db: pool,
       user,
+      clientId,
     };
   },
 });

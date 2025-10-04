@@ -1,6 +1,6 @@
-import { useState, useEffect, Fragment } from "react";
-import { useQuery, useMutation } from "@apollo/client";
-import type { Task, AuthUser } from "@shared/types";
+import { useState, useEffect, Fragment, useCallback } from "react";
+import { useQuery, useMutation, useApolloClient } from "@apollo/client";
+import type { Task, AuthUser, Comment } from "@shared/types";
 import {
   GET_COMMENTS,
   ADD_COMMENT,
@@ -16,6 +16,8 @@ import { useModal } from "../ModalStack";
 import { DueDateModal } from "../DueDateModal";
 import { getFullName, getInitials } from "../../utils/user";
 import { DEFAULT_AVATAR_COLOR } from "../../constants/colors";
+import { useTaskRealtime } from "../../hooks/useTaskRealtime";
+import { useCommentRealtime } from "../../hooks/useCommentRealtime";
 
 interface TaskModalProps {
   task: Task | null;
@@ -35,10 +37,24 @@ function timeAgo(timestamp: number) {
   return `${Math.floor(diff / 31536000)}y ago`;
 }
 
+function normalizeComment(comment: Comment) {
+  return {
+    ...comment,
+    __typename: "Comment" as const,
+    user: comment.user
+      ? {
+          ...comment.user,
+          __typename: "User" as const,
+        }
+      : comment.user,
+  };
+}
+
 export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const { modals, closeModal, openModal } = useModal();
   const isOpen = modals.includes("task");
   const currentUserId = currentUser?.id ?? null;
+  const client = useApolloClient();
 
   const [title, setTitle] = useState("");
   const [initialTitle, setInitialTitle] = useState("");
@@ -54,6 +70,9 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
 
   const TASK_TITLE_MAX_LENGTH = 512;
+
+  const taskId = task?.id ?? null;
+  const projectId = task?.project_id ?? null;
 
   const { data, loading, refetch } = useQuery(GET_COMMENTS, {
     variables: { task_id: task?.id },
@@ -72,6 +91,95 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const [updateTask] = useMutation(UPDATE_TASK);
   const [removeTagFromTask] = useMutation(REMOVE_TAG_FROM_TASK);
   const [updateTaskMembers] = useMutation(SET_TASK_MEMBERS);
+
+  const updateCommentsCache = useCallback(
+    (targetTaskId: string, updater: (comments: Comment[]) => Comment[]) => {
+      let updated = false;
+      client.cache.updateQuery<{ task: { id: string; comments: Comment[] } }>(
+        { query: GET_COMMENTS, variables: { task_id: targetTaskId } },
+        (existing) => {
+          if (!existing?.task) {
+            return existing;
+          }
+
+          const comments = existing.task.comments ?? [];
+          const nextComments = updater(comments);
+          updated = true;
+          return {
+            task: {
+              ...existing.task,
+              comments: nextComments,
+            },
+          };
+        }
+      );
+
+      return updated;
+    },
+    [client]
+  );
+
+  useTaskRealtime(projectId, {
+    onUpdated: (event) => {
+      if (!taskId || event.task.id !== taskId) {
+        return;
+      }
+      onTaskUpdate?.(event.task);
+    },
+  });
+
+  useCommentRealtime(projectId, {
+    onCreated: (event) => {
+      if (!taskId || event.task_id !== taskId) {
+        return;
+      }
+      const normalized = normalizeComment(event.comment);
+      const didUpdate = updateCommentsCache(taskId, (comments) => {
+        if (comments.some((comment) => comment.id === normalized.id)) {
+          return comments.map((comment) =>
+            comment.id === normalized.id ? normalized : comment
+          );
+        }
+        const next = [...comments, normalized];
+        next.sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        return next;
+      });
+
+      if (!didUpdate && taskId) {
+        void refetch({ task_id: taskId });
+      }
+    },
+    onUpdated: (event) => {
+      if (!taskId || event.task_id !== taskId) {
+        return;
+      }
+      const normalized = normalizeComment(event.comment);
+      const didUpdate = updateCommentsCache(taskId, (comments) =>
+        comments.map((comment) =>
+          comment.id === normalized.id ? normalized : comment
+        )
+      );
+
+      if (!didUpdate && taskId) {
+        void refetch({ task_id: taskId });
+      }
+    },
+    onDeleted: (event) => {
+      if (!taskId || event.task_id !== taskId) {
+        return;
+      }
+      const didUpdate = updateCommentsCache(taskId, (comments) =>
+        comments.filter((comment) => comment.id !== event.comment_id)
+      );
+
+      if (!didUpdate && taskId) {
+        void refetch({ task_id: taskId });
+      }
+    },
+  });
 
   useEffect(() => {
     if (task) {

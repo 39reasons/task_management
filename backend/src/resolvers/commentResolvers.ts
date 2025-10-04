@@ -16,7 +16,9 @@ export const commentResolvers = {
       ctx: GraphQLContext
     ): Promise<Comment> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await CommentService.addComment(task_id, ctx.user.id, content);
+      return await CommentService.addComment(task_id, ctx.user.id, content, {
+        origin: ctx.clientId ?? null,
+      });
     },
 
     deleteComment: async (
@@ -25,7 +27,9 @@ export const commentResolvers = {
       ctx: GraphQLContext
     ): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await CommentService.deleteComment(id, ctx.user.id);
+      return await CommentService.deleteComment(id, ctx.user.id, {
+        origin: ctx.clientId ?? null,
+      });
     },
 
     updateComment: async (
@@ -34,7 +38,9 @@ export const commentResolvers = {
       ctx: GraphQLContext
     ): Promise<Comment> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await CommentService.updateComment(id, ctx.user.id, content);
+      return await CommentService.updateComment(id, ctx.user.id, content, {
+        origin: ctx.clientId ?? null,
+      });
     },
   },
 };

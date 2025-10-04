@@ -11,34 +11,11 @@ import {
 } from "@apollo/client";
 import { setContext } from "@apollo/client/link/context";
 import { BrowserRouter } from "react-router-dom";
-
-const fallbackApiUrl = `${window.location.origin.replace(/\/?$/, "")}/graphql`;
-
-const resolveApiUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL?.trim();
-  if (!envUrl) {
-    return fallbackApiUrl;
-  }
-
-  try {
-    const candidate = new URL(envUrl, window.location.origin);
-    const isInternalService = candidate.hostname.endsWith(
-      ".svc.cluster.local"
-    );
-    const protocolMismatch =
-      window.location.protocol === "http:" && candidate.protocol === "https:";
-
-    if (isInternalService || protocolMismatch) {
-      return fallbackApiUrl;
-    }
-
-    return candidate.toString().replace(/\/?$/, "");
-  } catch (error) {
-    return fallbackApiUrl;
-  }
-};
+import { getClientId } from "./utils/clientId";
+import { resolveApiUrl } from "./utils/apiConfig";
 
 const API_URL = resolveApiUrl();
+const CLIENT_ID = getClientId();
 
 const authLink = setContext((_, { headers }) => {
   const token = localStorage.getItem("token");
@@ -46,6 +23,7 @@ const authLink = setContext((_, { headers }) => {
     headers: {
       ...headers,
       authorization: token ? `Bearer ${token}` : "",
+      "x-client-id": CLIENT_ID,
     },
   };
 });

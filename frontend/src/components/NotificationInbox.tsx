@@ -1,13 +1,17 @@
 import { useEffect } from "react";
 import { useNotifications } from "../hooks/useNotifications";
 import { useModal } from "./ModalStack";
-import type { Notification } from "@shared/types";
+import type { AuthUser, Notification } from "@shared/types";
 import { getFullName } from "../utils/user";
 
-export function NotificationInbox() {
+export function NotificationInbox({ currentUser }: { currentUser: AuthUser | null }) {
   const { modals, closeModal } = useModal();
   const isOpen = modals.includes("notifications");
-  const { notifications, loading, respond, markRead, remove } = useNotifications(true);
+  const enableNotifications = !!currentUser;
+  const { notifications, loading, respond, markRead, remove } = useNotifications(
+    enableNotifications,
+    currentUser?.id ?? null
+  );
 
   useEffect(() => {
     if (!isOpen) return;

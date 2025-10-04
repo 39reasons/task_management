@@ -48,6 +48,8 @@ export const taskResolvers = {
         description,
         due_date,
         priority,
+      }, {
+        origin: ctx.clientId ?? null,
       });
     },
 
@@ -77,6 +79,8 @@ export const taskResolvers = {
         due_date,
         priority,
         stage_id,
+      }, {
+        origin: ctx.clientId ?? null,
       });
     },
 
@@ -86,7 +90,9 @@ export const taskResolvers = {
       ctx: GraphQLContext
     ): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await TaskService.deleteTask(id);
+      return await TaskService.deleteTask(id, {
+        origin: ctx.clientId ?? null,
+      });
     },
 
     moveTask: async (
@@ -95,7 +101,9 @@ export const taskResolvers = {
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await TaskService.moveTask(task_id, to_stage_id);
+      return await TaskService.moveTask(task_id, to_stage_id, {
+        origin: ctx.clientId ?? null,
+      });
     },
 
     updateTaskPriority: async (
@@ -104,7 +112,9 @@ export const taskResolvers = {
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await TaskService.updateTaskPriority(id, priority);
+      return await TaskService.updateTaskPriority(id, priority, {
+        origin: ctx.clientId ?? null,
+      });
     },
 
     reorderTasks: async (
@@ -113,7 +123,9 @@ export const taskResolvers = {
       ctx: GraphQLContext
     ): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      await TaskService.reorderTasks(stage_id, task_ids);
+      await TaskService.reorderTasks(stage_id, task_ids, {
+        origin: ctx.clientId ?? null,
+      });
       return true;
     },
 
@@ -123,7 +135,9 @@ export const taskResolvers = {
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      await TaskService.setTaskMembers(task_id, member_ids);
+      await TaskService.setTaskMembers(task_id, member_ids, {
+        origin: ctx.clientId ?? null,
+      });
       const task = await TaskService.getTaskById(task_id);
       if (!task) throw new Error("Task not found");
       return task;

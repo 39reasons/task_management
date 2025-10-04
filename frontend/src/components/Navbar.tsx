@@ -14,7 +14,7 @@ interface NavbarProps {
 
 export default function Navbar({ user, onLogout }: NavbarProps) {
   const { openModal } = useModal();
-  const { notifications } = useNotifications(!!user);
+  const { notifications } = useNotifications(!!user, user?.id ?? null);
   const unreadCount = notifications.filter((n) => !n.is_read && n.status === "pending").length;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
