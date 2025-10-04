@@ -14,6 +14,8 @@ import { KanbanOverlay } from "./KanbanOverlay";
 import { useModal } from "../ModalStack";
 import { Plus, X } from "lucide-react";
 
+const STAGE_NAME_MAX_LENGTH = 512;
+
 interface KanbanBoardProps {
   stages: Array<Stage & { tasks: Task[] }>;
   onDelete?: (id: Task["id"]) => void;
@@ -125,6 +127,7 @@ export function KanbanBoard({
     if (!onAddStage) return;
     const value = newStageName.trim();
     if (!value) return;
+    if (value.length > STAGE_NAME_MAX_LENGTH) return;
     await Promise.resolve(onAddStage(value));
     setNewStageName("");
     setIsAddingStage(false);
@@ -190,10 +193,13 @@ export function KanbanBoard({
                 </div>
                 <input
                   value={newStageName}
-                  onChange={(e) => setNewStageName(e.target.value)}
+                  onChange={(e) =>
+                    setNewStageName(e.target.value.slice(0, STAGE_NAME_MAX_LENGTH))
+                  }
                   placeholder="Stage name"
-                  className="rounded-lg border border-gray-700 bg-gray-850 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-850 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   autoFocus
+                  maxLength={STAGE_NAME_MAX_LENGTH}
                 />
                 <div className="flex gap-2">
                   <button

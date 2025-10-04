@@ -61,7 +61,7 @@ export function KanbanTask({ task, onClick, onDelete, disableDrag = false }: Kan
       ) : null}
 
       {/* Title */}
-      <h4 className="mb-2 pr-8 text-sm font-semibold text-white">
+      <h4 className="mb-2 pr-8 text-sm font-semibold text-white break-all leading-snug">
         {task.title}
       </h4>
 

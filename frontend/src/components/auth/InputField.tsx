@@ -9,6 +9,7 @@ interface InputFieldProps {
   helperText?: string;
   autoComplete?: string;
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
+  maxLength?: number;
 }
 
 export default function InputField({
@@ -20,6 +21,7 @@ export default function InputField({
   helperText,
   autoComplete,
   onBlur,
+  maxLength,
 }: InputFieldProps) {
   const inputId = useId();
   const placeholderText = placeholder ?? label;
@@ -35,6 +37,7 @@ export default function InputField({
           onBlur={onBlur}
           placeholder={placeholderText}
           autoComplete={autoComplete}
+          maxLength={maxLength}
           className="peer w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-3 text-white placeholder-transparent focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <label

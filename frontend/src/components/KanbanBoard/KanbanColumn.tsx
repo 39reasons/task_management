@@ -30,13 +30,15 @@ export function KanbanColumn({
       ref={setNodeRef}
       className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700"
     >
-      <div className="flex items-start justify-between mb-3">
-        <h3 className="font-semibold text-white">{stage.name}</h3>
+      <div className="flex items-start justify-between mb-3 gap-2">
+        <h3 className="font-semibold text-white break-all leading-snug flex-1 min-w-0 overflow-hidden">
+          {stage.name}
+        </h3>
         {onDeleteStage && (
           <button
             type="button"
             aria-label={`Delete ${stage.name}`}
-            className="text-gray-400 hover:text-red-400"
+            className="text-gray-400 hover:text-red-400 flex-shrink-0"
             onClick={() => onDeleteStage(stage.id)}
           >
             <X size={16} />

@@ -1,6 +1,19 @@
 import { query } from "../db/index.js";
 import type { Stage } from "@shared/types";
 
+const STAGE_NAME_MAX_LENGTH = 512;
+
+function sanitizeStageName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error("Stage name is required.");
+  }
+  if (trimmed.length > STAGE_NAME_MAX_LENGTH) {
+    throw new Error(`Stage name cannot exceed ${STAGE_NAME_MAX_LENGTH} characters.`);
+  }
+  return trimmed;
+}
+
 export async function getStagesByWorkflow(workflow_id: string): Promise<Stage[]> {
   const result = await query<Stage>(
     `
@@ -20,6 +33,8 @@ export async function addStage(
   name: string,
   position?: number | null
 ): Promise<Stage> {
+  const sanitizedName = sanitizeStageName(name);
+
   const result = await query<Stage>(
     `
     INSERT INTO stages (workflow_id, name, position)
@@ -37,7 +52,7 @@ export async function addStage(
     )
     RETURNING id, name, position, workflow_id
     `,
-    [workflow_id, name, position ?? null]
+    [workflow_id, sanitizedName, position ?? null]
   );
 
   return { ...result.rows[0], tasks: [] };
@@ -48,6 +63,8 @@ export async function updateStage(
   name?: string,
   position?: number
 ): Promise<Stage> {
+  const sanitizedName = name === undefined ? null : sanitizeStageName(name);
+
   const result = await query<Stage>(
     `
     UPDATE stages
@@ -57,7 +74,7 @@ export async function updateStage(
     WHERE id = $1
     RETURNING id, name, position, workflow_id
     `,
-    [id, name ?? null, position ?? null]
+    [id, sanitizedName, position ?? null]
   );
 
   if (result.rowCount === 0) {

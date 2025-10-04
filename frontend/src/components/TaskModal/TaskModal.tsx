@@ -53,6 +53,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const [editingCommentText, setEditingCommentText] = useState("");
   const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
 
+  const TASK_TITLE_MAX_LENGTH = 512;
+
   const { data, loading, refetch } = useQuery(GET_COMMENTS, {
     variables: { task_id: task?.id },
     skip: !task,
@@ -73,8 +75,9 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
 
   useEffect(() => {
     if (task) {
-      setTitle(task.title || "");
-      setInitialTitle(task.title || "");
+      const titleValue = task.title || "";
+      setTitle(titleValue.slice(0, TASK_TITLE_MAX_LENGTH));
+      setInitialTitle(titleValue.slice(0, TASK_TITLE_MAX_LENGTH));
       setDescription(task.description ?? "");
       setInitialDescription(task.description ?? "");
       const normalizedDueDate = task.due_date ? task.due_date.slice(0, 10) : "";
@@ -149,6 +152,11 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     if (!task) return;
     const trimmed = title.trim();
     if (!trimmed) {
+      setTitle(initialTitle);
+      setIsEditingTitle(false);
+      return;
+    }
+    if (trimmed.length > TASK_TITLE_MAX_LENGTH) {
       setTitle(initialTitle);
       setIsEditingTitle(false);
       return;
@@ -291,7 +299,9 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                   type="text"
                   value={title}
                   autoFocus
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) =>
+                    setTitle(e.target.value.slice(0, TASK_TITLE_MAX_LENGTH))
+                  }
                   onBlur={commitTitle}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -303,6 +313,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     }
                   }}
                   className="flex-1 bg-transparent text-xl font-bold leading-tight text-white focus:outline-none"
+                  maxLength={TASK_TITLE_MAX_LENGTH}
                 />
                 <Edit3
                   className={`h-5 w-5 transition ${
@@ -316,7 +327,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
               <button
                 type="button"
                 onClick={() => setIsEditingTitle(true)}
-                className="w-full rounded-xl border border-transparent px-4 py-2 text-left text-xl font-bold leading-tight text-white transition hover:border-gray-600 hover:bg-gray-900/70"
+                className="w-full rounded-xl border border-transparent px-4 py-2 text-left text-xl font-bold leading-tight text-white transition hover:border-gray-600 hover:bg-gray-900/70 break-all"
               >
                 {title}
               </button>

@@ -5,6 +5,8 @@ interface TaskFormProps {
   onAdd: (stage_id: string, title: string) => void;
 }
 
+const TASK_TITLE_MAX_LENGTH = 512;
+
 export function TaskForm({ stageId, onAdd }: TaskFormProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -15,8 +17,10 @@ export function TaskForm({ stageId, onAdd }: TaskFormProps) {
   }, [open]);
 
   const handle_submit = () => {
-    if (!title.trim()) return;
-    onAdd(stageId, title.trim());
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    if (trimmed.length > TASK_TITLE_MAX_LENGTH) return;
+    onAdd(stageId, trimmed);
     setTitle("");
     setOpen(false);
   };
@@ -61,7 +65,9 @@ export function TaskForm({ stageId, onAdd }: TaskFormProps) {
           <textarea
             ref={textarea_ref}
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) =>
+              setTitle(e.target.value.slice(0, TASK_TITLE_MAX_LENGTH))
+            }
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -74,6 +80,7 @@ export function TaskForm({ stageId, onAdd }: TaskFormProps) {
             placeholder="Describe the task… Press Enter to add, Esc to cancel"
             rows={3}
             className="w-full resize-none rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            maxLength={TASK_TITLE_MAX_LENGTH}
           />
           <div className="mt-4 flex items-center gap-2">
             <button

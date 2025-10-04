@@ -9,6 +9,11 @@ interface SettingsPageProps {
   onProfileUpdate: (user: AuthUser) => void;
 }
 
+const MAX_NAME_LENGTH = 32;
+const MAX_USERNAME_LENGTH = 32;
+const NAME_PATTERN = /^[A-Za-z]+$/;
+const USERNAME_PATTERN = /^(?!.*[-_]{2})[A-Za-z0-9_-]+$/;
+
 export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
   const { data, loading, refetch } = useQuery(CURRENT_USER);
   const [updateProfile, { loading: saving }] = useMutation(UPDATE_USER_PROFILE);
@@ -33,17 +38,61 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
 
   const initials = useMemo(() => getInitials({ first_name: firstName, last_name: lastName }), [firstName, lastName]);
 
+  const normalizeName = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const [firstChar, ...rest] = trimmed;
+    return `${firstChar.toUpperCase()}${rest.join("")}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
     setError(null);
 
+    const trimmedFirst = firstName.trim();
+    const trimmedLast = lastName.trim();
+    const trimmedUsername = username.trim();
+
+    if (!trimmedFirst || !trimmedLast) {
+      setError("Please provide both a first and last name.");
+      return;
+    }
+    if (trimmedFirst.length > MAX_NAME_LENGTH) {
+      setError(`First name cannot exceed ${MAX_NAME_LENGTH} characters.`);
+      return;
+    }
+    if (trimmedLast.length > MAX_NAME_LENGTH) {
+      setError(`Last name cannot exceed ${MAX_NAME_LENGTH} characters.`);
+      return;
+    }
+    if (!NAME_PATTERN.test(trimmedFirst)) {
+      setError("First name can only contain letters.");
+      return;
+    }
+    if (!NAME_PATTERN.test(trimmedLast)) {
+      setError("Last name can only contain letters.");
+      return;
+    }
+    if (!trimmedUsername) {
+      setError("Please choose a username.");
+      return;
+    }
+    if (trimmedUsername.length > MAX_USERNAME_LENGTH) {
+      setError(`Username cannot exceed ${MAX_USERNAME_LENGTH} characters.`);
+      return;
+    }
+    if (!USERNAME_PATTERN.test(trimmedUsername)) {
+      setError("Username can only contain letters, numbers, hyphens, or underscores.");
+      return;
+    }
+
     try {
       const { data: updateData } = await updateProfile({
         variables: {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          username: username.trim(),
+          first_name: normalizeName(trimmedFirst),
+          last_name: normalizeName(trimmedLast),
+          username: trimmedUsername,
           avatar_color: avatarColor,
         },
       });
@@ -96,18 +145,34 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
             <span className="font-semibold text-gray-200">First name</span>
             <input
               value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
+              onChange={(e) =>
+                setFirstName(
+                  e.target.value
+                    .replace(/[^A-Za-z]/g, "")
+                    .slice(0, MAX_NAME_LENGTH)
+                )
+              }
+              onBlur={() => setFirstName(normalizeName(firstName))}
               className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               required
+              maxLength={MAX_NAME_LENGTH}
             />
           </label>
           <label className="space-y-2 text-sm">
             <span className="font-semibold text-gray-200">Last name</span>
             <input
               value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              onChange={(e) =>
+                setLastName(
+                  e.target.value
+                    .replace(/[^A-Za-z]/g, "")
+                    .slice(0, MAX_NAME_LENGTH)
+                )
+              }
+              onBlur={() => setLastName(normalizeName(lastName))}
               className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               required
+              maxLength={MAX_NAME_LENGTH}
             />
           </label>
         </div>
@@ -116,9 +181,17 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
           <span className="font-semibold text-gray-200">Username</span>
           <input
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) =>
+              setUsername(
+                e.target.value
+                  .replace(/[^A-Za-z0-9_-]/g, "")
+                  .replace(/([-_])\1+/g, "$1")
+                  .slice(0, MAX_USERNAME_LENGTH)
+              )
+            }
             className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             required
+            maxLength={MAX_USERNAME_LENGTH}
           />
         </label>
 

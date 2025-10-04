@@ -4,6 +4,22 @@ import jwt from "jsonwebtoken";
 
 const USER_FIELDS = `id, first_name, last_name, username, avatar_color, created_at, updated_at`;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+const NAME_MAX_LENGTH = 32;
+const USERNAME_MAX_LENGTH = 32;
+const PASSWORD_MAX_LENGTH = 64;
+const NAME_PATTERN = /^[A-Za-z]+$/;
+const USERNAME_PATTERN = /^(?!.*[-_]{2})[A-Za-z0-9_-]+$/;
+
+function ensureWithinLength(value: string, fieldName: string, maxLength: number): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error(`${fieldName} is required.`);
+  }
+  if (trimmed.length > maxLength) {
+    throw new Error(`${fieldName} cannot exceed ${maxLength} characters.`);
+  }
+  return trimmed;
+}
 
 export interface User {
   id: string;
@@ -73,6 +89,25 @@ export async function createUser(
   username: string,
   password: string
 ): Promise<{ token: string; user: User }> {
+  const sanitizedFirst = ensureWithinLength(first_name, "First name", NAME_MAX_LENGTH);
+  const sanitizedLast = ensureWithinLength(last_name, "Last name", NAME_MAX_LENGTH);
+  const sanitizedUsername = ensureWithinLength(username, "Username", USERNAME_MAX_LENGTH);
+  if (!NAME_PATTERN.test(sanitizedFirst)) {
+    throw new Error("First name can only contain letters.");
+  }
+  if (!NAME_PATTERN.test(sanitizedLast)) {
+    throw new Error("Last name can only contain letters.");
+  }
+  if (!USERNAME_PATTERN.test(sanitizedUsername)) {
+    throw new Error("Username can only contain letters, numbers, hyphens, or underscores.");
+  }
+  if (!password.trim()) {
+    throw new Error("Password is required.");
+  }
+  if (password.length > PASSWORD_MAX_LENGTH) {
+    throw new Error(`Password cannot exceed ${PASSWORD_MAX_LENGTH} characters.`);
+  }
+
   const password_hash = await bcrypt.hash(password, 10);
 
   try {
@@ -80,7 +115,7 @@ export async function createUser(
       `INSERT INTO users (first_name, last_name, username, password_hash)
        VALUES ($1, $2, $3, $4)
        RETURNING ${USER_FIELDS}`,
-      [first_name, last_name, username, password_hash]
+      [sanitizedFirst, sanitizedLast, sanitizedUsername, password_hash]
     );
 
     const user = result.rows[0];
@@ -139,16 +174,28 @@ export async function updateUserProfile(
   const values: any[] = [];
 
   if (updates.first_name !== undefined) {
+    const sanitizedFirst = ensureWithinLength(updates.first_name, "First name", NAME_MAX_LENGTH);
+    if (!NAME_PATTERN.test(sanitizedFirst)) {
+      throw new Error("First name can only contain letters.");
+    }
     fields.push("first_name = $" + (fields.length + 1));
-    values.push(updates.first_name.trim());
+    values.push(sanitizedFirst);
   }
   if (updates.last_name !== undefined) {
+    const sanitizedLast = ensureWithinLength(updates.last_name, "Last name", NAME_MAX_LENGTH);
+    if (!NAME_PATTERN.test(sanitizedLast)) {
+      throw new Error("Last name can only contain letters.");
+    }
     fields.push("last_name = $" + (fields.length + 1));
-    values.push(updates.last_name.trim());
+    values.push(sanitizedLast);
   }
   if (updates.username !== undefined) {
+    const sanitizedUsername = ensureWithinLength(updates.username, "Username", USERNAME_MAX_LENGTH);
+    if (!USERNAME_PATTERN.test(sanitizedUsername)) {
+      throw new Error("Username can only contain letters, numbers, hyphens, or underscores.");
+    }
     fields.push("username = $" + (fields.length + 1));
-    values.push(updates.username.trim());
+    values.push(sanitizedUsername);
   }
   if (updates.avatar_color !== undefined) {
     fields.push("avatar_color = $" + (fields.length + 1));
@@ -167,15 +214,22 @@ export async function updateUserProfile(
 
   values.push(userId);
 
-  const result = await query<User>(
-    `UPDATE users
-     SET ${fields.join(", ")}, updated_at = now()
-     WHERE id = $${fields.length + 1}
-     RETURNING ${USER_FIELDS}`,
-    values
-  );
+  try {
+    const result = await query<User>(
+      `UPDATE users
+       SET ${fields.join(", ")}, updated_at = now()
+       WHERE id = $${fields.length + 1}
+       RETURNING ${USER_FIELDS}`,
+      values
+    );
 
-  const user = result.rows[0];
-  if (!user) throw new Error("User not found");
-  return user;
+    const user = result.rows[0];
+    if (!user) throw new Error("User not found");
+    return user;
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      throw new Error("That username is already taken. Please choose another.");
+    }
+    throw error;
+  }
 }
