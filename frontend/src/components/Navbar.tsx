@@ -31,7 +31,7 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
   }, [menuOpen]);
 
   return (
-    <nav className="bg-gray-900 border-b border-gray-700 shadow-md p-4 flex justify-between items-center">
+    <nav className="flex items-center justify-between border-b border-white/12 bg-slate-950/85 p-4 shadow-md backdrop-blur-md">
       <h1 className="text-xl font-bold">
         <Link
           to="/"
@@ -59,17 +59,17 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
-              className="flex items-center gap-2 focus:outline-none"
+              className="group flex items-center gap-2 rounded-full border border-transparent bg-white/5 px-1.5 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 hover:border-blue-400/40 hover:bg-blue-500/10"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
             >
               <div
-                className="w-9 h-9 rounded-full text-white flex items-center justify-center uppercase text-sm font-semibold"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold uppercase text-white shadow-inner shadow-black/20 transition group-hover:shadow-[0_0_0_2px_rgba(56,189,248,0.45)]"
                 style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
               >
                 {getInitials(user)}
               </div>
-              <ChevronDown size={16} className="text-gray-300" />
+              <ChevronDown size={16} className="text-gray-300 transition group-hover:text-white" />
             </button>
 
             {menuOpen && (

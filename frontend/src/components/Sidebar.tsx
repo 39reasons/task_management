@@ -141,8 +141,8 @@ export default function Sidebar({ user }: SidebarProps) {
 
   const handleDeleteProject = async () => {
     if (!settingsProject) return;
-    if (deleteConfirmation.trim() !== settingsProject.name) {
-      setDeleteError("Type the project name to confirm deletion.");
+    if (deleteConfirmation.trim().toUpperCase() !== "DELETE") {
+      setDeleteError('Type "DELETE" to confirm deletion.');
       return;
     }
 
@@ -470,8 +470,12 @@ export default function Sidebar({ user }: SidebarProps) {
                 {showDangerZone && (
                   <div className="space-y-3 rounded-xl border border-red-500/40 bg-gray-950/80 p-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-medium text-red-200" htmlFor="delete-confirmation">
-                        Type <span className="font-semibold">{settingsProject.name}</span> to confirm
+                      <p className="text-xs text-red-200/80 break-words">
+                        This action permanently removes <span className="font-semibold">{settingsProject.name}</span> and all of its tasks.
+                      </p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-red-100">Type DELETE to continue.</p>
+                      <label className="sr-only" htmlFor="delete-confirmation">
+                        Type DELETE to confirm project deletion
                       </label>
                       <input
                         id="delete-confirmation"
@@ -483,12 +487,12 @@ export default function Sidebar({ user }: SidebarProps) {
                         }}
                         disabled={settingsSubmitting || deleteSubmitting}
                         className="w-full rounded-xl border border-red-500/40 bg-gray-900/80 px-4 py-2 text-sm text-red-100 placeholder-red-200/40 focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-400/30"
-                        placeholder={settingsProject.name}
+                        placeholder="DELETE"
                       />
                     </div>
 
                     {deleteError && (
-                      <p className="text-xs text-red-200/90">{deleteError}</p>
+                      <p className="text-xs text-red-200/90 break-words">{deleteError}</p>
                     )}
 
                     <button
@@ -497,7 +501,7 @@ export default function Sidebar({ user }: SidebarProps) {
                       disabled={
                         settingsSubmitting ||
                         deleteSubmitting ||
-                        deleteConfirmation.trim() !== settingsProject.name
+                        deleteConfirmation.trim().toUpperCase() !== "DELETE"
                       }
                       className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-40"
                     >

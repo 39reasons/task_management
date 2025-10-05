@@ -522,9 +522,93 @@ export function useProjectBoard(): UseProjectBoardResult {
 
   const createTask = async (stage_id: string, title: string) => {
     if (!projectId) return;
+
+    const stageMeta = stages.find((stage) => stage.id === stage_id);
+    const optimisticId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `temp-${Date.now()}`;
+
+    const optimisticTask = normalizeTaskForCache({
+      id: optimisticId,
+      title,
+      description: null,
+      due_date: null,
+      priority: null,
+      stage_id,
+      project_id: projectId,
+      position: stageMeta?.tasks.length ?? 0,
+      assignees: [],
+      tags: [],
+    } as unknown as Task);
+
     await createTaskMutation({
       variables: { stage_id, title },
-      refetchQueries: [{ query: GET_WORKFLOWS, variables: { project_id: projectId } }],
+      optimisticResponse: {
+        createTask: {
+          ...optimisticTask,
+          stage: stageMeta
+            ? {
+                __typename: "Stage" as const,
+                id: stageMeta.id,
+                name: stageMeta.name,
+                position: stageMeta.position,
+                workflow_id: stageMeta.workflow_id,
+              }
+            : null,
+        },
+      },
+      update: (cache, { data }) => {
+        const created = data?.createTask
+          ? normalizeTaskForCache(data.createTask as Task)
+          : optimisticTask;
+
+        cache.updateQuery<{ workflows: Workflow[] }>(
+          { query: GET_WORKFLOWS, variables: { project_id: projectId } },
+          (existing) => {
+            if (!existing) {
+              return existing;
+            }
+
+            const workflows = existing.workflows.map((workflow) => {
+              if (workflow.project_id !== projectId) {
+                return workflow;
+              }
+
+              const nextStages = workflow.stages.map((stage) => {
+                if (stage.id !== created.stage_id) {
+                  return stage;
+                }
+
+                const withoutDuplicate = stage.tasks.filter(
+                  (task) => task.id !== created.id && task.id !== optimisticId
+                );
+                const nextTasks = [...withoutDuplicate, created]
+                  .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+                  .map((task, index) => ({
+                    ...task,
+                    position: index,
+                  }));
+
+                return {
+                  ...stage,
+                  tasks: nextTasks,
+                };
+              });
+
+              return {
+                ...workflow,
+                stages: nextStages,
+              };
+            });
+
+            return {
+              ...existing,
+              workflows,
+            };
+          }
+        );
+      },
     });
   };
 

@@ -43,6 +43,7 @@ logs/
 Thumbs.db
 *.swp
 *.swo
+*.sh
 
 # -----------------------------------
 # IDE / Editor

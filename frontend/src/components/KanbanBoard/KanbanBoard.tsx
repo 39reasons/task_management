@@ -2,19 +2,77 @@ import type { Stage, Task, AuthUser } from "@shared/types";
 import {
   DndContext,
   closestCorners,
+  pointerWithin,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
   DragOverlay,
+  type CollisionDetection,
 } from "@dnd-kit/core";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanOverlay } from "./KanbanOverlay";
 import { useModal } from "../ModalStack";
-import { Plus, X } from "lucide-react";
+import { Plus, CornerDownLeft } from "lucide-react";
 
 const STAGE_NAME_MAX_LENGTH = 512;
+
+const collisionDetectionStrategy: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) {
+    return pointerCollisions;
+  }
+
+  const rectangleCollisions = rectIntersection(args);
+  if (rectangleCollisions.length > 0) {
+    return rectangleCollisions;
+  }
+
+  return closestCorners(args);
+};
+
+function cloneStages(stages: Array<Stage & { tasks: Task[] }>) {
+  return stages.map((stage) => ({
+    ...stage,
+    tasks: stage.tasks.map((task) => ({ ...task })),
+  }));
+}
+
+function areStagesEquivalent(
+  nextStages: Array<Stage & { tasks: Task[] }>,
+  currentStages: Array<Stage & { tasks: Task[] }>
+) {
+  if (nextStages.length !== currentStages.length) {
+    return false;
+  }
+
+  const byId = new Map(currentStages.map((stage) => [stage.id, stage]));
+  for (const stage of nextStages) {
+    const comparison = byId.get(stage.id);
+    if (!comparison) {
+      return false;
+    }
+
+    const stageTasks = [...stage.tasks].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const comparisonTasks = [...comparison.tasks].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+    if (stageTasks.length !== comparisonTasks.length) {
+      return false;
+    }
+
+    for (let index = 0; index < stageTasks.length; index += 1) {
+      const task = stageTasks[index];
+      const other = comparisonTasks[index];
+      if (!other || task.id !== other.id || (task.position ?? index) !== (other.position ?? index)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
 
 interface KanbanBoardProps {
   stages: Array<Stage & { tasks: Task[] }>;
@@ -47,22 +105,31 @@ export function KanbanBoard({
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isAddingStage, setIsAddingStage] = useState(false);
   const [newStageName, setNewStageName] = useState("");
+  const addStageContainerRef = useRef<HTMLDivElement | null>(null);
+  const addStageInputRef = useRef<HTMLInputElement | null>(null);
+  const [displayStages, setDisplayStages] = useState(() => cloneStages(stages));
 
-  const allTasks = useMemo(() => stages.flatMap((stage) => stage.tasks ?? []), [stages]);
+  useEffect(() => {
+    if (!areStagesEquivalent(stages, displayStages)) {
+      setDisplayStages(cloneStages(stages));
+    }
+  }, [stages, displayStages]);
+
+  const allTasks = useMemo(() => displayStages.flatMap((stage) => stage.tasks ?? []), [displayStages]);
   const stageMap = useMemo(() => {
     const map = new Map<string, Stage>();
-    for (const stage of stages) {
+    for (const stage of displayStages) {
       map.set(stage.id, stage);
     }
     return map;
-  }, [stages]);
+  }, [displayStages]);
   const tasksByStage = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const stage of stages) {
+    for (const stage of displayStages) {
       map.set(stage.id, [...(stage.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)));
     }
     return map;
-  }, [stages]);
+  }, [displayStages]);
   const taskMap = useMemo(() => {
     const map = new Map<string, Task>();
     for (const task of allTasks) {
@@ -71,7 +138,7 @@ export function KanbanBoard({
     return map;
   }, [allTasks]);
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
     if (!over) return;
@@ -99,29 +166,110 @@ export function KanbanBoard({
 
     const sourceStageId = task.stage_id;
 
+    const applyPositions = (tasks: Task[], stageId: string) =>
+      tasks.map((t, index) => ({ ...t, stage_id: stageId, position: index }));
+
     if (destinationStageId !== sourceStageId) {
-      if (!onMoveTask) return;
-      await Promise.resolve(onMoveTask(task.id, destinationStageId));
-      if (onReorderTasks) {
-        const destinationTasks = tasksByStage.get(destinationStageId) ?? [];
-        const withoutTask = destinationTasks.filter((t) => String(t.id) !== activeId);
-        const reordered = [...withoutTask];
-        reordered.splice(insertIndex, 0, { ...task, stage_id: destinationStageId });
-        await Promise.resolve(onReorderTasks(destinationStageId, reordered.map((t) => String(t.id))));
-        const sourceTasks = tasksByStage.get(sourceStageId) ?? [];
-        const sourceWithout = sourceTasks.filter((t) => String(t.id) !== activeId);
-        await Promise.resolve(onReorderTasks(sourceStageId, sourceWithout.map((t) => String(t.id))));
+      const destinationTasks = tasksByStage.get(destinationStageId) ?? [];
+      const destinationWithout = destinationTasks.filter((t) => String(t.id) !== activeId);
+      const movedTask = { ...task, stage_id: destinationStageId };
+      const nextDestination = [...destinationWithout];
+      nextDestination.splice(insertIndex, 0, movedTask);
+
+      const sourceTasks = tasksByStage.get(sourceStageId) ?? [];
+      const sourceWithout = sourceTasks.filter((t) => String(t.id) !== activeId);
+
+      const destinationWithPositions = applyPositions(nextDestination, destinationStageId);
+      const sourceWithPositions = applyPositions(sourceWithout, sourceStageId);
+
+      setDisplayStages((prev) =>
+        prev.map((stage) => {
+          if (stage.id === destinationStageId) {
+            return {
+              ...stage,
+              tasks: destinationWithPositions,
+            };
+          }
+          if (stage.id === sourceStageId) {
+            return {
+              ...stage,
+              tasks: sourceWithPositions,
+            };
+          }
+          return stage;
+        })
+      );
+
+      if (onMoveTask || onReorderTasks) {
+        void (async () => {
+          try {
+            if (onMoveTask) {
+              await onMoveTask(task.id, destinationStageId);
+            }
+            if (onReorderTasks) {
+              await onReorderTasks(destinationStageId, destinationWithPositions.map((t) => String(t.id)));
+              await onReorderTasks(sourceStageId, sourceWithPositions.map((t) => String(t.id)));
+            }
+          } catch (error) {
+            console.error("Failed to persist task move", error);
+            setDisplayStages((prev) =>
+              areStagesEquivalent(stages, prev) ? prev : cloneStages(stages)
+            );
+          }
+        })();
       }
-    } else if (onReorderTasks) {
+    } else {
       const stageTasks = tasksByStage.get(sourceStageId) ?? [];
       const filtered = stageTasks.filter((t) => String(t.id) !== activeId);
       filtered.splice(insertIndex, 0, task);
-      await Promise.resolve(onReorderTasks(sourceStageId, filtered.map((t) => String(t.id))));
+      const reorderedWithPositions = applyPositions(filtered, sourceStageId);
+
+      setDisplayStages((prev) =>
+        prev.map((stage) =>
+          stage.id === sourceStageId
+            ? {
+                ...stage,
+                tasks: reorderedWithPositions,
+              }
+            : stage
+        )
+      );
+
+      if (onReorderTasks) {
+        void (async () => {
+          try {
+            await onReorderTasks(sourceStageId, reorderedWithPositions.map((t) => String(t.id)));
+          } catch (error) {
+            console.error("Failed to persist task reorder", error);
+            setDisplayStages((prev) =>
+              areStagesEquivalent(stages, prev) ? prev : cloneStages(stages)
+            );
+          }
+        })();
+      }
     }
   };
 
-  const handleAddStageSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (!isAddingStage) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!addStageContainerRef.current?.contains(event.target as Node)) {
+        setIsAddingStage(false);
+        setNewStageName("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isAddingStage]);
+
+  useEffect(() => {
+    if (isAddingStage) {
+      addStageInputRef.current?.focus();
+    }
+  }, [isAddingStage]);
+
+  const submitNewStage = async () => {
     if (!onAddStage) return;
     const value = newStageName.trim();
     if (!value) return;
@@ -131,10 +279,15 @@ export function KanbanBoard({
     setIsAddingStage(false);
   };
 
+  const handleAddStageSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    await submitNewStage();
+  };
+
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetectionStrategy}
       onDragStart={(e) => {
         const task = allTasks.find((t) => String(t.id) === String(e.active.id));
         setActiveTask(task || null);
@@ -143,7 +296,7 @@ export function KanbanBoard({
       onDragCancel={() => setActiveTask(null)}
     >
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-        {stages.map((stage) => (
+        {displayStages.map((stage) => (
           <KanbanColumn
             key={stage.id}
             stage={stage}
@@ -162,62 +315,62 @@ export function KanbanBoard({
             {!isAddingStage ? (
               <button
                 onClick={() => setIsAddingStage(true)}
-                className="group flex w-full flex-col items-start gap-1 rounded-xl border border-dashed border-gray-600/60 bg-gray-900/70 px-4 py-3 text-left transition hover:border-blue-500 hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                className="group w-full rounded-2xl border border-dashed border-gray-600/60 bg-slate-900/70 px-4 py-3 text-left transition hover:border-blue-500 hover:bg-slate-900/85 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
               >
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-white">
-                  <Plus size={18} />
-                  Add stage
-                </span>
-                <span className="text-xs text-gray-400">Create a new column for this workflow</span>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15 text-blue-300">
+                    <Plus className="h-4 w-4" />
+                  </span>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-white">Add stage</p>
+                    <p className="text-xs text-slate-400">Create a new column for this workflow</p>
+                  </div>
+                </div>
               </button>
             ) : (
-              <form
-                onSubmit={handleAddStageSubmit}
-                className="flex flex-col gap-3 rounded-xl border border-gray-700 bg-gray-900/95 px-4 py-3 shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-white">New stage</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingStage(false);
-                      setNewStageName("");
-                    }}
-                    className="rounded-md p-1 text-gray-400 transition hover:bg-gray-800 hover:text-gray-100"
-                    aria-label="Cancel"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-                <input
-                  value={newStageName}
-                  onChange={(e) =>
-                    setNewStageName(e.target.value.slice(0, STAGE_NAME_MAX_LENGTH))
-                  }
-                  placeholder="Stage name"
-                  className="w-full rounded-lg border border-gray-700 bg-gray-850 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                  autoFocus
-                  maxLength={STAGE_NAME_MAX_LENGTH}
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-                  >
-                    Add stage
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingStage(false);
-                      setNewStageName("");
-                    }}
-                    className="rounded-lg px-3 py-2 text-sm text-gray-300 transition hover:bg-gray-800 hover:text-gray-100"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+              <div ref={addStageContainerRef} className="w-full">
+                <form
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onSubmit={handleAddStageSubmit}
+                  className="group w-full rounded-2xl border border-dashed border-blue-500/70 bg-slate-900/80 px-4 py-3 text-left shadow focus-within:border-blue-500"
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={addStageInputRef}
+                      value={newStageName}
+                      onChange={(e) =>
+                        setNewStageName(e.target.value.slice(0, STAGE_NAME_MAX_LENGTH))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setIsAddingStage(false);
+                          setNewStageName("");
+                        }
+                      }}
+                      placeholder="Add stage title..."
+                      className="w-full border-0 bg-transparent text-sm text-white placeholder-slate-500 focus:border-0 focus:outline-none"
+                      maxLength={STAGE_NAME_MAX_LENGTH}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newStageName.trim()) {
+                          void submitNewStage();
+                        }
+                      }}
+                      disabled={!newStageName.trim()}
+                      className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
+                        newStageName.trim()
+                          ? "border-transparent text-blue-400 hover:bg-blue-500/10"
+                          : "border-transparent text-slate-600"
+                      }`}
+                      aria-label="Add stage"
+                    >
+                      <CornerDownLeft size={16} />
+                    </button>
+                  </div>
+                </form>
+              </div>
             )}
           </div>
         )}
