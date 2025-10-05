@@ -184,3 +184,16 @@ export const SET_TASK_MEMBERS = gql`
     }
   }
 `;
+
+export const GENERATE_TASK_DRAFT = gql`
+  mutation GenerateTaskDraft($input: TaskDraftInput!) {
+    generateTaskDraft(input: $input) {
+      title
+      description
+      priority
+      due_date
+      tags
+      subtasks
+    }
+  }
+`;

@@ -470,7 +470,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     }
 
     if (normalizedDescription !== currentDescription) {
-      payload.description = normalizedDescription ? normalizedDescription : null;
+      payload.description = normalizedDescription;
       shouldMutate = true;
     }
 
@@ -556,12 +556,11 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     const trimmed = description.trim();
     if (trimmed === initialDescription.trim()) {
       setIsEditingDescription(false);
-      setDescription(initialDescription);
+      setDescription(trimmed);
       return;
     }
 
-    const payload = trimmed ? trimmed : null;
-    const updated = await mutateTask({ description: payload });
+    const updated = await mutateTask({ description: trimmed });
     if (updated) {
       const nextDescription = updated.description ?? "";
       setInitialDescription(nextDescription);
@@ -685,85 +684,85 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
           id="task-modal-root"
           className="
             relative rounded-xl shadow-lg w-full max-w-4xl
-            h-[80vh] max-h-[80vh] overflow-hidden
-            grid grid-cols-1 gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:gap-6 md:items-stretch
+            max-h-[80vh] overflow-auto
+            grid grid-cols-1 gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:gap-0 md:items-stretch
             bg-gray-800
           "
         >
-          <div className="flex h-full min-h-0 flex-col overflow-y-auto pr-0 bg-blue-800/40">
-            <TaskTitleEditor
-              title={title}
-              isEditing={isEditingTitle}
-              canCommit={Boolean(title.trim())}
-              maxLength={TASK_TITLE_MAX_LENGTH}
-              onStartEdit={() => setIsEditingTitle(true)}
-              onChange={(value) => setTitle(value.slice(0, TASK_TITLE_MAX_LENGTH))}
-              onCommit={commitTitle}
-              onCancel={cancelTitleEdit}
-            />
-
-            <div className="mt-4 space-y-4 pb-4 pr-0">
-              <TaskMetaSection
-                hasTags={hasTags}
-                hasAssignees={hasAssignees}
-                tags={tags}
-                assignees={assignees}
-                dueDate={dueDate}
-                onAddTag={() => openModal("tag")}
-                onAddMember={() => openModal("member")}
-                onAddDueDate={() => openModal("due-date")}
-                onRemoveTag={handleRemoveTag}
-                onRemoveMember={handleRemoveMember}
-                onClearDueDate={clearDueDate}
+          <div className="flex h-full min-h-0 flex-col overflow-y-auto border-r border-gray-700/70 bg-[#1f273a]">
+            <div className="flex flex-col px-6 pb-6">
+              <TaskTitleEditor
+                title={title}
+                isEditing={isEditingTitle}
+                canCommit={Boolean(title.trim())}
+                maxLength={TASK_TITLE_MAX_LENGTH}
+                onStartEdit={() => setIsEditingTitle(true)}
+                onChange={(value) => setTitle(value.slice(0, TASK_TITLE_MAX_LENGTH))}
+                onCommit={commitTitle}
+                onCancel={cancelTitleEdit}
               />
 
-              <TaskDescriptionSection
-                description={description}
-                initialDescription={initialDescription}
-                isEditing={isEditingDescription}
-                onChange={setDescription}
-                onStartEdit={(reset) => {
-                  if (reset) setDescription("");
-                  setIsEditingDescription(true);
-                }}
-                onSave={commitDescription}
-                onCancel={cancelDescriptionEdit}
-                isDraftPromptVisible={isDraftPromptVisible}
-                draftPrompt={draftPrompt}
-                draftError={draftError}
-                isGeneratingDraft={isGeneratingDraft}
-                onToggleDraftPrompt={toggleDraftPrompt}
-                onDraftPromptChange={setDraftPrompt}
-                onGenerateDraft={() => void handleGenerateDraft()}
-                onCancelDraftPrompt={cancelDraftPrompt}
-                isExpanded={isDescriptionExpanded}
-                onToggleExpand={() => setIsDescriptionExpanded((prev) => !prev)}
-              />
+              <div className="mt-5 space-y-4">
+                <TaskMetaSection
+                  hasTags={hasTags}
+                  hasAssignees={hasAssignees}
+                  tags={tags}
+                  assignees={assignees}
+                  dueDate={dueDate}
+                  onAddTag={() => openModal("tag")}
+                  onAddMember={() => openModal("member")}
+                  onAddDueDate={() => openModal("due-date")}
+                  onRemoveTag={handleRemoveTag}
+                  onRemoveMember={handleRemoveMember}
+                  onClearDueDate={clearDueDate}
+                />
 
-              {subtaskSuggestions.length > 0 ? (
-                <div className="space-y-2 rounded-xl border border-dashed border-blue-500/40 bg-blue-500/10 p-4 text-sm text-blue-100">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-blue-200/80">
-                    <Sparkles size={14} />
-                    <span>AI suggested subtasks</span>
+                <TaskDescriptionSection
+                  description={description}
+                  initialDescription={initialDescription}
+                  isEditing={isEditingDescription}
+                  onChange={setDescription}
+                  onStartEdit={(reset) => {
+                    if (reset) setDescription("");
+                    setIsEditingDescription(true);
+                  }}
+                  onSave={commitDescription}
+                  onCancel={cancelDescriptionEdit}
+                  isDraftPromptVisible={isDraftPromptVisible}
+                  draftPrompt={draftPrompt}
+                  draftError={draftError}
+                  isGeneratingDraft={isGeneratingDraft}
+                  onToggleDraftPrompt={toggleDraftPrompt}
+                  onDraftPromptChange={setDraftPrompt}
+                  onGenerateDraft={() => void handleGenerateDraft()}
+                  onCancelDraftPrompt={cancelDraftPrompt}
+                  isExpanded={isDescriptionExpanded}
+                  onToggleExpand={() => setIsDescriptionExpanded((prev) => !prev)}
+                />
+
+                {subtaskSuggestions.length > 0 ? (
+                  <div className="space-y-2 rounded-xl border border-dashed border-blue-500/40 bg-blue-500/10 p-4 text-sm text-blue-100">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-blue-200/80">
+                      <Sparkles size={14} />
+                      <span>AI suggested subtasks</span>
+                    </div>
+                    <ul className="list-outside space-y-1 pl-4">
+                      {subtaskSuggestions.map((suggestion) => (
+                        <li key={suggestion} className="list-disc">
+                          {suggestion}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-[11px] text-blue-200/70">
+                      Add the ones you like as separate tasks or checklist items.
+                    </p>
                   </div>
-                  <ul className="list-outside space-y-1 pl-4">
-                    {subtaskSuggestions.map((suggestion) => (
-                      <li key={suggestion} className="list-disc">
-                        {suggestion}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="text-[11px] text-blue-200/70">
-                    Add the ones you like as separate tasks or checklist items.
-                  </p>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
           </div>
 
-          <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-[#161c2a] pl-3">
-            <div className="absolute inset-y-6 left-0 w-px bg-gray-700/60" aria-hidden />
-            <div className="absolute inset-y-0 left-0 w-3 bg-gradient-to-l from-transparent to-[#161c2a] pointer-events-none" aria-hidden />
+          <div className="flex h-full min-h-0 flex-col overflow-hidden px-6 pb-6">
             <TaskCommentsPanel
               comments={comments}
               loading={loading}
@@ -1066,7 +1065,7 @@ function TaskDescriptionSection({
   const trimmedCurrent = description.trim();
   const trimmedInitial = initialDescription.trim();
   const hasContent = Boolean(trimmedInitial);
-  const shouldShowToggle = trimmedInitial.length > 280;
+  const shouldShowToggle = trimmedInitial.length > 200 || trimmedInitial.split(/\n/).length > 4;
 
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -1190,14 +1189,11 @@ function TaskDescriptionSection({
           >
             <div
               className={`whitespace-pre-wrap ${
-                isExpanded ? "" : "max-h-32 overflow-hidden"
+                isExpanded ? "" : "line-clamp-5"
               }`}
             >
               {initialDescription}
             </div>
-            {!isExpanded && shouldShowToggle ? (
-              <div className="pointer-events-none h-8 bg-gradient-to-t from-gray-900 via-gray-900/80 to-transparent" />
-            ) : null}
             {shouldShowToggle ? (
               <button
                 type="button"
@@ -1264,7 +1260,7 @@ function TaskCommentsPanel({
   };
 
   return (
-    <div className="flex flex-col pl-2 border-l border-gray-700/60">
+    <div className="flex flex-col pl-0">
       <form onSubmit={handleSubmit} className="mb-4">
         <div className="flex items-center gap-3 rounded-xl border border-gray-600/60 bg-gray-900/80 px-4 py-2 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/30">
           <input

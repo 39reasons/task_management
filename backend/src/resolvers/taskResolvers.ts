@@ -1,7 +1,8 @@
 import * as TaskService from "../services/TaskService.js";
 import * as CommentService from "../services/CommentService.js";
 import * as StageService from "../services/StageService.js";
-import type { Task } from "@shared/types";
+import * as AIService from "../services/AIService.js";
+import type { Task, TaskDraftSuggestion } from "@shared/types";
 import type { GraphQLContext } from "../types/context";
 
 export const taskResolvers = {
@@ -141,6 +142,28 @@ export const taskResolvers = {
       const task = await TaskService.getTaskById(task_id);
       if (!task) throw new Error("Task not found");
       return task;
+    },
+
+    generateTaskDraft: async (
+      _: unknown,
+      {
+        input,
+      }: {
+        input: { prompt: string; project_id?: string | null; stage_id?: string | null };
+      },
+      ctx: GraphQLContext
+    ): Promise<TaskDraftSuggestion> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      return await AIService.generateTaskDraft(
+        {
+          prompt: input.prompt,
+          project_id: input.project_id ?? null,
+          stage_id: input.stage_id ?? null,
+        },
+        {
+          userId: ctx.user.id,
+        }
+      );
     },
   },
 

@@ -12,6 +12,15 @@ export interface Task {
   assignees?: User[];
 }
 
+export interface TaskDraftSuggestion {
+  title?: string | null;
+  description?: string | null;
+  priority?: Task["priority"] | null;
+  due_date?: string | null;
+  tags?: string[];
+  subtasks?: string[];
+}
+
 export interface Stage {
   id: string;
   name: string;

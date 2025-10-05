@@ -5,3 +5,44 @@
   --color-primary-dark: #4C8CFC;  /* Hover */
   --color-primary-light: #C3D9FF; /* Accent backgrounds */
 }
+
+.styled-scrollbars {
+  scrollbar-width: thin;
+  --scrollbar-background: var(
+    --styled-scrollbar-background,
+    rgba(148, 163, 184, 0.35)
+  );
+  scrollbar-color: var(--scrollbar-background) transparent;
+}
+
+.styled-scrollbars::-webkit-scrollbar {
+  width: 6px;
+}
+
+.styled-scrollbars::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.styled-scrollbars::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-background);
+  border-radius: 999px;
+  -webkit-transition: background 0.2s ease-in-out;
+  transition: background 0.2s ease-in-out;
+}
+
+.styled-scrollbars::-webkit-scrollbar-thumb:hover,
+.styled-scrollbars::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-background);
+}
+
+.styled-scrollbars {
+  -webkit-overflow-scrolling: touch;
+}
+
+.task-modal__main {
+  --styled-scrollbar-background: rgba(148, 163, 184, 0.35);
+}
+
+.task-modal__comments {
+  --styled-scrollbar-background: rgba(148, 163, 184, 0.35);
+}

@@ -12,6 +12,21 @@ type Task {
   position: Int
 }
 
+type TaskDraftSuggestion {
+  title: String
+  description: String
+  priority: String
+  due_date: String
+  tags: [String!]!
+  subtasks: [String!]!
+}
+
+input TaskDraftInput {
+  prompt: String!
+  project_id: ID
+  stage_id: ID
+}
+
 extend type Query {
   tasks(stage_id: ID, workflow_id: ID, project_id: ID): [Task!]!
   task(id: ID!): Task
@@ -56,4 +71,6 @@ extend type Mutation {
     task_id: ID!
     member_ids: [ID!]!
   ): Task!
+
+  generateTaskDraft(input: TaskDraftInput!): TaskDraftSuggestion!
 }
