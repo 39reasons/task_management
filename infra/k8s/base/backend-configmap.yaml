@@ -8,8 +8,11 @@ metadata:
     app.kubernetes.io/part-of: task-management
   
 data:
-   PORT: "4000"
-   DB_HOST: "postgres-postgresql.databases.svc.cluster.local"
-   DB_USER: "kkura"
-   DB_NAME: "tasksdb"
-   DB_PORT: "5432"
+  PORT: "4000"
+  DB_HOST: "postgres-postgresql.databases.svc.cluster.local"
+  DB_USER: "kkura"
+  DB_NAME: "tasksdb"
+  DB_PORT: "5432"
+  OPENAI_BASE_URL: "https://api.openai.com/v1/chat/completions"
+  OPENAI_TASK_DRAFT_MODEL: "gpt-4o-mini"
+  OPENAI_MODEL: "gpt-4o-mini"

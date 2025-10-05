@@ -31,6 +31,21 @@ spec:
                 configMapKeyRef:
                   name: backend-config
                   key: PORT
+            - name: OPENAI_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: OPENAI_BASE_URL
+            - name: OPENAI_TASK_DRAFT_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: OPENAI_TASK_DRAFT_MODEL
+            - name: OPENAI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: OPENAI_MODEL
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -41,6 +56,11 @@ spec:
                 secretKeyRef:
                   name: backend-secrets
                   key: JWT_SECRET
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: OPENAI_API_KEY
           readinessProbe:
             httpGet:
               path: /?query=%7B__typename%7D
