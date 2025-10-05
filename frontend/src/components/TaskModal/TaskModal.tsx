@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useRef,
   Fragment,
   useCallback,
   type FormEvent,
@@ -17,6 +18,8 @@ import {
   GET_TASK_TAGS,
   REMOVE_TAG_FROM_TASK,
   SET_TASK_MEMBERS,
+  GENERATE_TASK_DRAFT,
+  ADD_TAG_TO_TASK,
 } from "../../graphql";
 import {
   Plus,
@@ -28,6 +31,8 @@ import {
   Clock,
   Calendar,
   CornerDownLeft,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { useModal } from "../ModalStack";
 import { DueDateModal } from "../DueDateModal";
@@ -89,6 +94,15 @@ const TASK_FRAGMENT = gql`
   }
 `;
 
+type TaskDraftResponse = {
+  title?: string | null;
+  description?: string | null;
+  priority?: string | null;
+  due_date?: string | null;
+  tags?: string[] | null;
+  subtasks?: string[] | null;
+};
+
 interface TaskModalProps {
   task: Task | null;
   currentUser: AuthUser | null;
@@ -112,7 +126,12 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const [commentText, setCommentText] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
-  const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [tags, setTags] = useState<{ id: string; name: string; color: string | null }[]>([]);
+  const [subtaskSuggestions, setSubtaskSuggestions] = useState<string[]>([]);
+  const [isDraftPromptVisible, setIsDraftPromptVisible] = useState(false);
+  const [draftPrompt, setDraftPrompt] = useState("");
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   const { data, loading, refetch } = useQuery(GET_COMMENTS, {
     variables: { task_id: task?.id },
@@ -131,6 +150,9 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const [updateTask] = useMutation(UPDATE_TASK);
   const [removeTagFromTask] = useMutation(REMOVE_TAG_FROM_TASK);
   const [updateTaskMembers] = useMutation(SET_TASK_MEMBERS);
+  const [addTagToTaskMutation] = useMutation(ADD_TAG_TO_TASK);
+  const [generateTaskDraftMutation, { loading: isGeneratingDraft }] =
+    useMutation(GENERATE_TASK_DRAFT);
 
   const writeTaskToCache = useCallback(
     (next: Task) => {
@@ -181,6 +203,227 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     [task, updateTask, writeTaskToCache]
   );
 
+  const applySuggestedTags = useCallback(
+    async (candidates: string[], baseTask?: Task) => {
+      if ((!task && !baseTask) || candidates.length === 0) {
+        return;
+      }
+
+      const targetTaskId = task?.id ?? baseTask?.id ?? null;
+      if (!targetTaskId) {
+        return;
+      }
+
+      let nextTags = tags;
+
+      for (const candidate of candidates) {
+        const trimmed = candidate.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        if (nextTags.some((tag) => tag.name.toLowerCase() === trimmed.toLowerCase())) {
+          continue;
+        }
+
+        const { data } = await addTagToTaskMutation({
+          variables: { task_id: targetTaskId, name: trimmed, color: null },
+        });
+
+        const updatedTask = data?.addTagToTask as Task | undefined;
+        if (updatedTask?.tags) {
+          nextTags = (updatedTask.tags ?? []).map((tag) => ({
+            ...tag,
+            color: tag.color ?? null,
+          })) as {
+            id: string;
+            name: string;
+            color: string | null;
+          }[];
+        }
+      }
+
+      if (nextTags !== tags) {
+        setTags(nextTags);
+        const sourceTask = baseTask
+          ? baseTask
+          : (task
+              ? {
+                  ...task,
+                  title,
+                  description,
+                  due_date: dueDate ? dueDate : null,
+                  priority,
+                }
+              : null);
+        if (sourceTask) {
+          const nextTask = {
+            ...sourceTask,
+            tags: nextTags,
+            stage: (sourceTask as unknown as { stage?: Task["stage"] | null }).stage ?? null,
+          } as Task;
+          writeTaskToCache(nextTask);
+        }
+      }
+    },
+    [
+      task,
+      tags,
+      addTagToTaskMutation,
+      writeTaskToCache,
+      title,
+      description,
+      dueDate,
+      priority,
+    ]
+  );
+
+  const toggleDraftPrompt = useCallback(() => {
+    setDraftError(null);
+    setIsDraftPromptVisible((prev) => !prev);
+  }, []);
+
+  const cancelDraftPrompt = useCallback(() => {
+    setIsDraftPromptVisible(false);
+    setDraftError(null);
+  }, []);
+
+  const handleGenerateDraft = useCallback(async () => {
+    if (!task) return;
+    const trimmedPrompt = draftPrompt.trim();
+    if (!trimmedPrompt) {
+      setDraftError("Add a short summary so the assistant can help.");
+      return;
+    }
+
+    setDraftError(null);
+
+    try {
+      const { data: draftData } = await generateTaskDraftMutation({
+        variables: {
+          input: {
+            prompt: trimmedPrompt,
+            project_id: task.project_id,
+            stage_id: task.stage_id,
+          },
+        },
+      });
+
+      const suggestion = draftData?.generateTaskDraft as TaskDraftResponse | undefined;
+
+      if (!suggestion) {
+        setDraftError("The assistant didn't return a draft. Try refining the prompt.");
+        return;
+      }
+
+      const nextTitle = suggestion.title?.slice(0, TASK_TITLE_MAX_LENGTH).trim() ?? null;
+      const descriptionCandidate = (() => {
+        if (suggestion.description === undefined) return undefined;
+        if (suggestion.description === null) return null;
+        return suggestion.description.trim();
+      })();
+      const normalizedPriority = (() => {
+        const value = suggestion.priority?.toLowerCase();
+        return value === "low" || value === "medium" || value === "high"
+          ? (value as Task["priority"])
+          : null;
+      })();
+
+      let normalizedDueDate: string | null | undefined = undefined;
+      if ("due_date" in suggestion) {
+        const trimmedDue = suggestion.due_date?.trim() ?? "";
+        normalizedDueDate = trimmedDue ? trimmedDue : null;
+      }
+
+      const updatePayload: Partial<Pick<Task, "title" | "description" | "due_date" | "priority">> = {};
+      if (nextTitle) {
+        updatePayload.title = nextTitle;
+      }
+      if (descriptionCandidate !== undefined) {
+        updatePayload.description = descriptionCandidate ? descriptionCandidate : null;
+      }
+      if (normalizedDueDate !== undefined) {
+        updatePayload.due_date = normalizedDueDate;
+      }
+      if (suggestion.priority !== undefined && normalizedPriority) {
+        updatePayload.priority = normalizedPriority;
+      }
+
+      const updatedTask =
+        Object.keys(updatePayload).length > 0 ? await mutateTask(updatePayload) : null;
+
+      const baseTask = task as Task;
+      const finalTask = (updatedTask ?? {
+        ...baseTask,
+        ...(nextTitle ? { title: nextTitle } : {}),
+        ...(descriptionCandidate !== undefined
+          ? { description: descriptionCandidate ? descriptionCandidate : null }
+          : {}),
+        ...(normalizedDueDate !== undefined ? { due_date: normalizedDueDate } : {}),
+        ...(suggestion.priority !== undefined && normalizedPriority
+          ? { priority: normalizedPriority }
+          : {}),
+      }) as Task;
+
+      const finalTitle = finalTask.title ?? "";
+      setTitle(finalTitle.slice(0, TASK_TITLE_MAX_LENGTH));
+      setInitialTitle(finalTitle.slice(0, TASK_TITLE_MAX_LENGTH));
+
+      const finalDescription = finalTask.description ?? "";
+      setDescription(finalDescription);
+      setInitialDescription(finalDescription);
+      setIsEditingDescription(false);
+
+      const finalDueDate = finalTask.due_date ? finalTask.due_date.slice(0, 10) : "";
+      setDueDate(finalDueDate);
+      setPriority(finalTask.priority ?? null);
+
+      const nextTagState = Array.isArray(finalTask.tags)
+        ? finalTask.tags.map((tag) => ({
+            ...tag,
+            color: tag.color ?? null,
+          }))
+        : tags;
+
+      if (Array.isArray(finalTask.tags)) {
+        setTags(nextTagState);
+      }
+
+      const normalizedTaskForCache = {
+        ...finalTask,
+        tags: nextTagState,
+      } as Task;
+      writeTaskToCache(normalizedTaskForCache);
+
+      const tagCandidates = Array.isArray(suggestion.tags)
+        ? suggestion.tags.map((tag) => tag.trim()).filter(Boolean)
+        : [];
+      const existingTagNames = new Set(nextTagState.map((tag) => tag.name.toLowerCase()));
+      const uniqueCandidates = Array.from(new Set(tagCandidates.map((tag) => tag)))
+        .map((candidate) => candidate.trim())
+        .filter((candidate) => candidate && !existingTagNames.has(candidate.toLowerCase()));
+
+      await applySuggestedTags(uniqueCandidates, normalizedTaskForCache);
+      const subtaskCandidates = Array.isArray(suggestion.subtasks)
+        ? suggestion.subtasks.map((taskTitle) => taskTitle.trim()).filter(Boolean)
+        : [];
+      setSubtaskSuggestions(Array.from(new Set(subtaskCandidates)));
+
+      setDraftPrompt("");
+      setIsDraftPromptVisible(false);
+    } catch (error) {
+      setDraftError(error instanceof Error ? error.message : "Failed to generate a draft.");
+    }
+  }, [
+    task,
+    draftPrompt,
+    generateTaskDraftMutation,
+    tags,
+    applySuggestedTags,
+    mutateTask,
+    writeTaskToCache,
+  ]);
+
   useEffect(() => {
     if (task) {
       const titleValue = task.title || "";
@@ -188,6 +431,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       setInitialTitle(titleValue.slice(0, TASK_TITLE_MAX_LENGTH));
       setDescription(task.description ?? "");
       setInitialDescription(task.description ?? "");
+      setIsDescriptionExpanded(false);
       const normalizedDueDate = task.due_date ? task.due_date.slice(0, 10) : "";
       setDueDate(normalizedDueDate);
       setPriority(task.priority ?? null);
@@ -195,6 +439,10 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       setEditingCommentText("");
       setCommentText("");
       setIsEditingDescription(false);
+      setSubtaskSuggestions([]);
+      setDraftPrompt("");
+      setDraftError(null);
+      setIsDraftPromptVisible(false);
     }
   }, [task]);
 
@@ -436,12 +684,13 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
         <div
           id="task-modal-root"
           className="
-            relative bg-gray-800 rounded-xl shadow-lg w-full max-w-4xl
-            max-h-[80vh] overflow-hidden
-            grid grid-cols-1 md:grid-cols-2 gap-6 p-6
+            relative rounded-xl shadow-lg w-full max-w-4xl
+            h-[80vh] max-h-[80vh] overflow-hidden
+            grid grid-cols-1 gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:gap-6 md:items-stretch
+            bg-gray-800
           "
         >
-          <div className="flex flex-col min-h-0 pr-2">
+          <div className="flex h-full min-h-0 flex-col overflow-y-auto pr-0 bg-blue-800/40">
             <TaskTitleEditor
               title={title}
               isEditing={isEditingTitle}
@@ -453,7 +702,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
               onCancel={cancelTitleEdit}
             />
 
-            <div className="flex-1 overflow-y-auto min-h-0 space-y-4">
+            <div className="mt-4 space-y-4 pb-4 pr-0">
               <TaskMetaSection
                 hasTags={hasTags}
                 hasAssignees={hasAssignees}
@@ -479,25 +728,58 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                 }}
                 onSave={commitDescription}
                 onCancel={cancelDescriptionEdit}
+                isDraftPromptVisible={isDraftPromptVisible}
+                draftPrompt={draftPrompt}
+                draftError={draftError}
+                isGeneratingDraft={isGeneratingDraft}
+                onToggleDraftPrompt={toggleDraftPrompt}
+                onDraftPromptChange={setDraftPrompt}
+                onGenerateDraft={() => void handleGenerateDraft()}
+                onCancelDraftPrompt={cancelDraftPrompt}
+                isExpanded={isDescriptionExpanded}
+                onToggleExpand={() => setIsDescriptionExpanded((prev) => !prev)}
               />
+
+              {subtaskSuggestions.length > 0 ? (
+                <div className="space-y-2 rounded-xl border border-dashed border-blue-500/40 bg-blue-500/10 p-4 text-sm text-blue-100">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-blue-200/80">
+                    <Sparkles size={14} />
+                    <span>AI suggested subtasks</span>
+                  </div>
+                  <ul className="list-outside space-y-1 pl-4">
+                    {subtaskSuggestions.map((suggestion) => (
+                      <li key={suggestion} className="list-disc">
+                        {suggestion}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[11px] text-blue-200/70">
+                    Add the ones you like as separate tasks or checklist items.
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <TaskCommentsPanel
-            comments={comments}
-            loading={loading}
-            commentText={commentText}
-            onCommentTextChange={setCommentText}
-            onSubmitComment={submitComment}
-            editingCommentId={editingCommentId}
-            editingCommentText={editingCommentText}
-            onEditCommentTextChange={setEditingCommentText}
-            onStartEditComment={handleStartEditComment}
-            onCancelEditComment={handleCancelCommentEdit}
-            onSubmitEditComment={handleSubmitCommentEdit}
-            onDeleteComment={handleDeleteComment}
-            currentUserId={currentUserId}
-          />
+          <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-[#161c2a] pl-3">
+            <div className="absolute inset-y-6 left-0 w-px bg-gray-700/60" aria-hidden />
+            <div className="absolute inset-y-0 left-0 w-3 bg-gradient-to-l from-transparent to-[#161c2a] pointer-events-none" aria-hidden />
+            <TaskCommentsPanel
+              comments={comments}
+              loading={loading}
+              commentText={commentText}
+              onCommentTextChange={setCommentText}
+              onSubmitComment={submitComment}
+              editingCommentId={editingCommentId}
+              editingCommentText={editingCommentText}
+              onEditCommentTextChange={setEditingCommentText}
+              onStartEditComment={handleStartEditComment}
+              onCancelEditComment={handleCancelCommentEdit}
+              onSubmitEditComment={handleSubmitCommentEdit}
+              onDeleteComment={handleDeleteComment}
+              currentUserId={currentUserId}
+            />
+          </div>
         </div>
       </div>
       <DueDateModal task={task} currentDueDate={dueDate} onSave={handleDueDateSave} />
@@ -579,7 +861,7 @@ function TaskTitleEditor({
 interface TaskMetaSectionProps {
   hasTags: boolean;
   hasAssignees: boolean;
-  tags: { id: string; name: string; color: string }[];
+  tags: { id: string; name: string; color: string | null }[];
   assignees: AuthUser[];
   dueDate: string;
   onAddTag: () => void;
@@ -737,6 +1019,7 @@ function TaskMetaSection({
           </div>
         </div>
       ) : null}
+
     </div>
   );
 }
@@ -749,6 +1032,16 @@ interface TaskDescriptionSectionProps {
   onStartEdit: (reset?: boolean) => void;
   onSave: () => void;
   onCancel: () => void;
+  isDraftPromptVisible: boolean;
+  draftPrompt: string;
+  draftError: string | null;
+  isGeneratingDraft: boolean;
+  onToggleDraftPrompt: () => void;
+  onDraftPromptChange: (value: string) => void;
+  onGenerateDraft: () => void;
+  onCancelDraftPrompt: () => void;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
 }
 
 function TaskDescriptionSection({
@@ -759,17 +1052,98 @@ function TaskDescriptionSection({
   onStartEdit,
   onSave,
   onCancel,
+  isDraftPromptVisible,
+  draftPrompt,
+  draftError,
+  isGeneratingDraft,
+  onToggleDraftPrompt,
+  onDraftPromptChange,
+  onGenerateDraft,
+  onCancelDraftPrompt,
+  isExpanded,
+  onToggleExpand,
 }: TaskDescriptionSectionProps) {
   const trimmedCurrent = description.trim();
   const trimmedInitial = initialDescription.trim();
   const hasContent = Boolean(trimmedInitial);
+  const shouldShowToggle = trimmedInitial.length > 280;
+
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (isDraftPromptVisible) {
+      const id = window.setTimeout(() => {
+        promptRef.current?.focus();
+      }, 0);
+      return () => window.clearTimeout(id);
+    }
+    return undefined;
+  }, [isDraftPromptVisible]);
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-semibold text-white">
-        <AlignLeft className="h-4 w-4 text-gray-400" />
-        <span>Description</span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+          <AlignLeft className="h-4 w-4 text-gray-400" />
+          <span>Description</span>
+        </div>
+        <button
+          type="button"
+          onClick={onToggleDraftPrompt}
+          className="inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:border-blue-400 hover:bg-blue-500/20"
+        >
+          <Sparkles size={14} className="text-blue-200" />
+          {isDraftPromptVisible ? "Close AI draft" : "Draft with AI"}
+        </button>
       </div>
+
+      {isDraftPromptVisible ? (
+        <div className="space-y-3 rounded-xl border border-blue-500/40 bg-blue-500/10 p-4">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-blue-100">Describe the task</p>
+            <p className="text-xs text-blue-200/80">
+              Share goals, constraints, or expected outcomes. The assistant will draft a title,
+              description, and suggested tags.
+            </p>
+          </div>
+          <textarea
+            ref={promptRef}
+            id="ai-draft-prompt"
+            value={draftPrompt}
+            onChange={(event) => onDraftPromptChange(event.target.value)}
+            className="min-h-[100px] w-full rounded-lg border border-blue-500/40 bg-blue-500/5 px-3 py-2 text-sm text-blue-50 placeholder-blue-200/60 focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+            placeholder="e.g. Plan the QA checklist for the upcoming mobile release"
+          />
+          {draftError ? <p className="text-sm text-red-300">{draftError}</p> : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onGenerateDraft}
+              disabled={isGeneratingDraft}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isGeneratingDraft ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  Generate draft
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelDraftPrompt}
+              className="rounded-lg px-4 py-2 text-sm text-blue-100 transition hover:bg-blue-500/20"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {isEditing ? (
         <div className="space-y-2">
@@ -799,13 +1173,45 @@ function TaskDescriptionSection({
           </div>
         </div>
       ) : hasContent ? (
-        <button
-          type="button"
+        <div
+          className="group w-full text-left"
+          role="button"
+          tabIndex={0}
           onClick={() => onStartEdit(false)}
-          className="w-full rounded-xl border border-gray-600 bg-gray-900/60 px-4 py-3 text-left text-sm text-gray-200 transition hover:border-blue-500 hover:text-blue-200 whitespace-pre-wrap"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onStartEdit(false);
+            }
+          }}
         >
-          {initialDescription}
-        </button>
+          <div
+            className="rounded-xl border border-gray-600 bg-gray-900/60 px-4 py-3 text-sm text-gray-200 transition group-hover:border-blue-500 group-hover:text-blue-200"
+          >
+            <div
+              className={`whitespace-pre-wrap ${
+                isExpanded ? "" : "max-h-32 overflow-hidden"
+              }`}
+            >
+              {initialDescription}
+            </div>
+            {!isExpanded && shouldShowToggle ? (
+              <div className="pointer-events-none h-8 bg-gradient-to-t from-gray-900 via-gray-900/80 to-transparent" />
+            ) : null}
+            {shouldShowToggle ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleExpand();
+                }}
+                className="mt-3 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-300 transition hover:text-blue-200"
+              >
+                {isExpanded ? "Show less" : "Show more"}
+              </button>
+            ) : null}
+          </div>
+        </div>
       ) : (
         <button
           type="button"
