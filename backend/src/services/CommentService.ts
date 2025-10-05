@@ -1,10 +1,5 @@
 import { query } from "../db/index.js";
 import type { Comment } from "@shared/types";
-import {
-  broadcastCommentCreated,
-  broadcastCommentDeleted,
-  broadcastCommentUpdated,
-} from "../realtime/publish.js";
 import { getTaskById } from "./TaskService.js";
 
 export async function addComment(
@@ -38,12 +33,7 @@ export async function addComment(
     `,
     [task_id, userId, content]
   );
-  const comment = result.rows[0] as Comment;
-  const task = await getTaskById(task_id);
-  if (task) {
-    broadcastCommentCreated(task.project_id, task.stage_id, task_id, comment, options?.origin ?? null);
-  }
-  return comment;
+  return result.rows[0] as Comment;
 }
 
 export async function getCommentsByTask(task_id: string): Promise<Comment[]> {
@@ -82,14 +72,7 @@ export async function deleteComment(
     "DELETE FROM comments WHERE id = $1 AND user_id = $2 RETURNING id, task_id",
     [id, userId]
   );
-  const deleted = (result.rowCount ?? 0) > 0;
-  if (deleted) {
-    const task = await getTaskById(result.rows[0].task_id);
-    if (task) {
-      broadcastCommentDeleted(task.project_id, task.stage_id, task.id, result.rows[0].id, options?.origin ?? null);
-    }
-  }
-  return deleted;
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function updateComment(
@@ -130,10 +113,5 @@ export async function updateComment(
   if (!updated) {
     throw new Error("Comment not found or not authorized");
   }
-  const comment = updated as Comment;
-  const task = await getTaskById(comment.task_id);
-  if (task) {
-    broadcastCommentUpdated(task.project_id, task.stage_id, comment.task_id, comment, options?.origin ?? null);
-  }
-  return comment;
+  return updated as Comment;
 }

@@ -67,6 +67,25 @@ export const REMOVE_TAG_FROM_TASK = gql`
     removeTagFromTask(task_id: $task_id, tag_id: $tag_id) {
       id
       title
+      description
+      due_date
+      priority
+      stage_id
+      project_id
+      position
+      assignees {
+        id
+        first_name
+        last_name
+        username
+        avatar_color
+      }
+      stage {
+        id
+        name
+        position
+        workflow_id
+      }
       tags {
         id
         name

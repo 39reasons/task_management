@@ -65,7 +65,31 @@ function areStagesEquivalent(
     for (let index = 0; index < stageTasks.length; index += 1) {
       const task = stageTasks[index];
       const other = comparisonTasks[index];
-      if (!other || task.id !== other.id || (task.position ?? index) !== (other.position ?? index)) {
+      if (!other) {
+        return false;
+      }
+      if (task.id !== other.id) {
+        return false;
+      }
+      if ((task.position ?? index) !== (other.position ?? index)) {
+        return false;
+      }
+      if (
+        task.title !== other.title ||
+        (task.description ?? "") !== (other.description ?? "") ||
+        (task.due_date ?? "") !== (other.due_date ?? "") ||
+        (task.priority ?? "") !== (other.priority ?? "")
+      ) {
+        return false;
+      }
+      const taskAssigneeIds = (task.assignees ?? []).map((member) => member.id).join(",");
+      const otherAssigneeIds = (other.assignees ?? []).map((member) => member.id).join(",");
+      if (taskAssigneeIds !== otherAssigneeIds) {
+        return false;
+      }
+      const taskTagIds = (task.tags ?? []).map((tag) => tag.id).join(",");
+      const otherTagIds = (other.tags ?? []).map((tag) => tag.id).join(",");
+      if (taskTagIds !== otherTagIds) {
         return false;
       }
     }

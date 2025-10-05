@@ -7,7 +7,6 @@ import "dotenv/config";
 import { Pool } from "pg";
 import type { DecodedToken } from "@shared/types";
 import { GraphQLContext } from "src/types/context";
-import { initRealtimeServer } from "./realtime/server.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
@@ -36,8 +35,6 @@ const server = new ApolloServer({
   typeDefs,
   resolvers,
 });
-
-initRealtimeServer();
 
 const { url } = await startStandaloneServer<GraphQLContext>(server, {
   listen: { port: PORT },

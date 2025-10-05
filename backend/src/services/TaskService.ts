@@ -1,12 +1,7 @@
 import { query } from "../db/index.js";
 import type { Task, User } from "@shared/types";
-import {
-  broadcastTaskCreated,
-  broadcastTaskDeleted,
-  broadcastTaskReorder,
-  broadcastTaskUpdated,
-} from "../realtime/publish.js";
 import * as TagService from "./TagService.js";
+import * as StageService from "./StageService.js";
 
 const TASK_BASE_SELECT = `
   SELECT
@@ -46,22 +41,30 @@ function mapTaskRow(row: Task & { project_id: string; position: number }): Task 
 async function ensureTaskHydrated(task: Task): Promise<Task> {
   const needsTags = !Array.isArray(task.tags);
   const needsAssignees = !Array.isArray(task.assignees);
+  const needsStage = !(task as unknown as { stage?: Task["stage"] }).stage;
 
-  if (!needsTags && !needsAssignees) {
+  if (!needsTags && !needsAssignees && !needsStage) {
     return task;
   }
 
-  const tags = needsTags
-    ? ((await TagService.getTagsForTask(task.id)) as Task["tags"])
-    : task.tags ?? [];
-  const assignees = needsAssignees
-    ? (await getTaskMembers(task.id))
-    : task.assignees ?? [];
+  const [tags, assignees, stage] = await Promise.all([
+    needsTags ? TagService.getTagsForTask(task.id) : Promise.resolve(task.tags ?? []),
+    needsAssignees ? getTaskMembers(task.id) : Promise.resolve(task.assignees ?? []),
+    needsStage ? StageService.getStageById(task.stage_id) : Promise.resolve((task as unknown as { stage?: Task["stage"] }).stage ?? null),
+  ]);
 
   return {
     ...task,
-    tags: tags ?? [],
-    assignees: assignees ?? [],
+    tags: (tags ?? []) as Task["tags"],
+    assignees: (assignees ?? []) as Task["assignees"],
+    ...(stage
+      ? {
+          stage: {
+            ...stage,
+            tasks: [],
+          },
+        }
+      : {}),
   };
 }
 
@@ -70,7 +73,6 @@ export async function emitTaskUpdated(taskOrId: Task | string, origin?: string |
     typeof taskOrId === "string" ? await getTaskById(taskOrId) : (taskOrId as Task | null);
   if (!baseTask) return;
   const hydrated = await ensureTaskHydrated(baseTask);
-  broadcastTaskUpdated(hydrated, origin ?? null);
 }
 
 export async function getTasks(
@@ -167,9 +169,7 @@ export async function createTask({
 
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Failed to create task");
-  const hydrated = await ensureTaskHydrated(task);
-  broadcastTaskCreated(hydrated, options?.origin ?? null);
-  return hydrated;
+  return await ensureTaskHydrated(task);
 }
 
 export async function updateTask(
@@ -262,7 +262,7 @@ export async function deleteTask(id: string, options?: { origin?: string | null 
   );
   const deleted = (result.rowCount ?? 0) > 0;
   if (deleted && task) {
-    broadcastTaskDeleted(task.project_id, task.stage_id, task.id, options?.origin ?? null);
+    await emitTaskUpdated(task, options?.origin ?? null);
   }
   return deleted;
 }
@@ -317,7 +317,7 @@ export async function reorderTasks(
 
   const projectId = await getProjectIdForStage(stage_id);
   if (projectId) {
-    broadcastTaskReorder(projectId, stage_id, task_ids, options?.origin ?? null);
+    await emitTaskUpdated(stage_id, options?.origin ?? null);
   }
 }
 

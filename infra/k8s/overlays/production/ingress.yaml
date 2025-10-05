@@ -5,7 +5,6 @@ metadata:
   namespace: task-management
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/websocket-services: backend
 spec:
   rules:
     - host: app.45.55.105.198.nip.io
@@ -18,13 +17,6 @@ spec:
                 name: backend
                 port:
                   number: 4000
-          - path: /realtime
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 4001
           - path: /
             pathType: Prefix
             backend:
@@ -42,13 +34,6 @@ spec:
                 name: backend
                 port:
                   number: 4000
-          - path: /realtime
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 4001
     - host: app.example.com
       http:
         paths:
@@ -69,10 +54,3 @@ spec:
                 name: backend
                 port:
                   number: 4000
-          - path: /realtime
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 4001

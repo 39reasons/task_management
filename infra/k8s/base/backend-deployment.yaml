@@ -25,7 +25,6 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 4000
-            - containerPort: 4001
           env:
             - name: PORT
               valueFrom:

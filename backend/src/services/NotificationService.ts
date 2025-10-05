@@ -1,6 +1,5 @@
 import { query } from "../db/index.js";
 import type { Notification, User, Project } from "@shared/types";
-import { broadcastNotificationCreated } from "../realtime/publish.js";
 
 function mapNotificationRow(row: any): Notification {
     const created_at = normalizeTimestamp(row.created_at);
@@ -177,7 +176,6 @@ export async function sendProjectInvite(
 
   const notification = await getNotificationById(insertRes.rows[0].id);
   if (!notification) throw new Error("Failed to create notification");
-  broadcastNotificationCreated(recipient.id, notification);
   return notification;
 }
 
