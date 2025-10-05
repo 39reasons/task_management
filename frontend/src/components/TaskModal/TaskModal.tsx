@@ -91,8 +91,22 @@ const TASK_FRAGMENT = gql`
       __typename
     }
     __typename
-  }
+}
 `;
+
+const TAG_COLOR_PALETTE = [
+  "#38BDF8",
+  "#22D3EE",
+  "#34D399",
+  "#FBBF24",
+  "#F472B6",
+  "#A855F7",
+  "#60A5FA",
+];
+
+function getColorForTagByIndex(index: number): string {
+  return TAG_COLOR_PALETTE[index % TAG_COLOR_PALETTE.length];
+}
 
 type TaskDraftResponse = {
   title?: string | null;
@@ -216,6 +230,16 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
 
       let nextTags = tags;
 
+      const colorAssignments = new Map<string, string>();
+
+      candidates.forEach((candidate, index) => {
+        const normalized = candidate.trim().toLowerCase();
+        if (!normalized || colorAssignments.has(normalized)) {
+          return;
+        }
+        colorAssignments.set(normalized, getColorForTagByIndex(index));
+      });
+
       for (const candidate of candidates) {
         const trimmed = candidate.trim();
         if (!trimmed) {
@@ -226,8 +250,14 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
           continue;
         }
 
+        const color = colorAssignments.get(trimmed.toLowerCase()) ?? getColorForTagByIndex(0);
+
         const { data } = await addTagToTaskMutation({
-          variables: { task_id: targetTaskId, name: trimmed, color: null },
+          variables: {
+            task_id: targetTaskId,
+            name: trimmed,
+            color,
+          },
         });
 
         const updatedTask = data?.addTagToTask as Task | undefined;
@@ -684,12 +714,12 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
           id="task-modal-root"
           className="
             relative rounded-xl shadow-lg w-full max-w-4xl
-            max-h-[80vh] overflow-auto
+            max-h-[80vh] overflow-hidden
             grid grid-cols-1 gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:gap-0 md:items-stretch
             bg-gray-800
           "
         >
-          <div className="flex h-full min-h-0 flex-col overflow-y-auto border-r border-gray-700/70 bg-[#1f273a]">
+          <div className="task-modal__main styled-scrollbars flex h-full max-h-[80vh] min-h-0 flex-col overflow-y-auto border-r border-gray-700/70">
             <div className="flex flex-col px-6 pb-6">
               <TaskTitleEditor
                 title={title}
@@ -702,7 +732,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                 onCancel={cancelTitleEdit}
               />
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3">
                 <TaskMetaSection
                   hasTags={hasTags}
                   hasAssignees={hasAssignees}
@@ -762,7 +792,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
             </div>
           </div>
 
-          <div className="flex h-full min-h-0 flex-col overflow-hidden px-6 pb-6">
+          <div className="task-modal__comments styled-scrollbars flex h-full max-h-[80vh] min-h-0 flex-col overflow-y-auto px-6 pb-6">
             <TaskCommentsPanel
               comments={comments}
               loading={loading}
