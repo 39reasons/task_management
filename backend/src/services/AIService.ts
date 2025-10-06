@@ -1,9 +1,16 @@
-import type { TaskDraftSuggestion, Task } from "@shared/types";
+import type {
+  TaskDraftSuggestion,
+  Task,
+  WorkflowDraftSuggestion,
+  WorkflowStageSuggestion,
+} from "@shared/types";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1/chat/completions";
 const TASK_DRAFT_MODEL =
   process.env.OPENAI_TASK_DRAFT_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+const WORKFLOW_STAGE_MODEL =
+  process.env.OPENAI_WORKFLOW_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
 interface TaskDraftInput {
   prompt: string;
@@ -26,6 +33,21 @@ Respond only with minified JSON that matches this TypeScript type exactly:
   "subtasks": string[];
 }
 Prefer concise titles, a markdown-friendly description, and at most five tags. If you are unsure of a field, return null or an empty array.`;
+
+const WORKFLOW_STAGE_SYSTEM_PROMPT = `You are an expert workflow architect. Convert short project descriptions into an ordered set of kanban-style workflow stages.
+Respond only with minified JSON that matches this TypeScript type exactly:
+{
+  "stages": Array<{
+    "name": string;
+    "description"?: string | null;
+  }>;
+}
+Provide between 3 and 7 clear, distinct stage names that follow a logical progression. Use concise Title Case names (e.g. "Backlog", "In Progress", "Review", "Done"). Avoid numbering unless explicitly requested.`;
+
+interface WorkflowStageDraftInput {
+  prompt: string;
+  existing_stage_names?: string[];
+}
 
 export async function generateTaskDraft(
   input: TaskDraftInput,
@@ -80,6 +102,72 @@ export async function generateTaskDraft(
   }
 }
 
+export async function generateWorkflowStages(
+  input: WorkflowStageDraftInput,
+  _options?: DraftOptions
+): Promise<WorkflowStageSuggestion[]> {
+  const prompt = input.prompt?.trim();
+  if (!prompt) {
+    throw new Error("Prompt is required");
+  }
+
+  const existing = (input.existing_stage_names ?? [])
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+  if (!OPENAI_API_KEY) {
+    return heuristicWorkflowStages(prompt, existing);
+  }
+
+  try {
+    const response = await fetch(OPENAI_BASE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: WORKFLOW_STAGE_MODEL,
+        temperature: 0.6,
+        messages: buildWorkflowMessages(prompt, existing),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to generate workflow (status ${response.status} ${response.statusText})`
+      );
+    }
+
+    const payload = (await response.json()) as {
+      choices?: Array<{
+        message?: { content?: string | Array<{ type: string; text?: string }> };
+      }>;
+    };
+
+    const rawContent = payload.choices?.[0]?.message?.content;
+    const jsonText = extractTextContent(rawContent);
+    if (!jsonText) {
+      throw new Error("Model response did not include content");
+    }
+
+    const suggestion = parseWorkflowSuggestion(jsonText);
+    const normalized = normalizeWorkflowSuggestion(suggestion, {
+      prompt,
+      existingStageNames: existing,
+    });
+
+    if (normalized.length === 0) {
+      return heuristicWorkflowStages(prompt, existing);
+    }
+
+    return normalized;
+  } catch (error) {
+    console.warn("AI workflow generation failed, falling back to heuristic workflow", error);
+    return heuristicWorkflowStages(prompt, existing);
+  }
+}
+
 function buildMessages(prompt: string, input: TaskDraftInput) {
   const contextChunks = [
     `Task prompt: ${prompt}`,
@@ -89,6 +177,23 @@ function buildMessages(prompt: string, input: TaskDraftInput) {
 
   return [
     { role: "system" as const, content: SYSTEM_PROMPT },
+    {
+      role: "user" as const,
+      content: contextChunks.join("\n"),
+    },
+  ];
+}
+
+function buildWorkflowMessages(prompt: string, existingStageNames: string[]) {
+  const contextChunks = [
+    `Workflow prompt: ${prompt}`,
+    existingStageNames.length > 0
+      ? `Existing stages (avoid duplicates): ${existingStageNames.join(", ")}`
+      : null,
+  ].filter(Boolean);
+
+  return [
+    { role: "system" as const, content: WORKFLOW_STAGE_SYSTEM_PROMPT },
     {
       role: "user" as const,
       content: contextChunks.join("\n"),
@@ -122,6 +227,47 @@ function parseSuggestion(input: string): TaskDraftSuggestion {
 
   const parsed = JSON.parse(jsonCandidate) as TaskDraftSuggestion;
   return parsed;
+}
+
+function parseWorkflowSuggestion(input: string): WorkflowDraftSuggestion {
+  const jsonCandidate = extractJsonBlock(input);
+  if (!jsonCandidate) {
+    throw new Error("Unable to find JSON block in model response");
+  }
+
+  const parsed = JSON.parse(jsonCandidate) as unknown;
+
+  if (Array.isArray(parsed)) {
+    return {
+      stages: parsed
+        .map((value) => ({ name: String(value ?? "") }))
+        .filter((stage) => stage.name.trim().length > 0),
+    };
+  }
+
+  if (parsed && typeof parsed === "object" && Array.isArray((parsed as { stages?: unknown }).stages)) {
+    const stages = ((parsed as { stages: unknown }).stages as unknown[]).map((stage) => {
+      if (typeof stage === "string") {
+        return { name: stage };
+      }
+      if (stage && typeof stage === "object" && "name" in stage) {
+        return {
+          name: String((stage as { name: unknown }).name ?? ""),
+          description:
+            "description" in stage && typeof (stage as { description?: unknown }).description === "string"
+              ? ((stage as { description?: string | null }).description ?? null)
+              : undefined,
+        };
+      }
+      return { name: "" };
+    });
+
+    return {
+      stages: stages.filter((stage) => stage.name.trim().length > 0),
+    };
+  }
+
+  throw new Error("Model response did not include stages");
 }
 
 function extractJsonBlock(text: string): string | null {
@@ -158,6 +304,61 @@ function normalizeSuggestion(
   };
 }
 
+function normalizeWorkflowSuggestion(
+  suggestion: WorkflowDraftSuggestion,
+  context: { prompt: string; existingStageNames: string[] }
+): WorkflowStageSuggestion[] {
+  const result: WorkflowStageSuggestion[] = [];
+  const seen = new Set<string>();
+  const existing = new Set(context.existingStageNames.map((name) => name.toLowerCase()));
+
+  for (const stage of suggestion.stages ?? []) {
+    const trimmedName = stage.name?.trim();
+    if (!trimmedName) {
+      continue;
+    }
+
+    const normalizedName = toTitleCase(trimmedName).slice(0, 512);
+    const key = normalizedName.toLowerCase();
+    if (seen.has(key) || existing.has(key)) {
+      continue;
+    }
+
+    const description = stage.description?.trim();
+    result.push({
+      name: normalizedName,
+      ...(description ? { description } : {}),
+    });
+    seen.add(key);
+
+    if (result.length >= 7) {
+      break;
+    }
+  }
+
+  if (result.length >= 3) {
+    return result;
+  }
+
+  const supplemental = heuristicWorkflowStages(
+    context.prompt,
+    [...context.existingStageNames, ...result.map((stage) => stage.name)]
+  );
+
+  for (const stage of supplemental) {
+    const key = stage.name.toLowerCase();
+    if (!seen.has(key) && !existing.has(key)) {
+      result.push(stage);
+      seen.add(key);
+    }
+    if (result.length >= 4) {
+      break;
+    }
+  }
+
+  return result;
+}
+
 function heuristicDraft(prompt: string): TaskDraftSuggestion {
   const title = deriveTitleFromPrompt(prompt);
   const description = buildFallbackDescription(prompt);
@@ -171,6 +372,71 @@ function heuristicDraft(prompt: string): TaskDraftSuggestion {
     tags: inferTags(prompt),
     subtasks,
   };
+}
+
+function heuristicWorkflowStages(
+  prompt: string,
+  existingStageNames: string[]
+): WorkflowStageSuggestion[] {
+  const lowerPrompt = prompt.toLowerCase();
+
+  const defaultFlow = ["Backlog", "Ready", "In Progress", "Review", "Done"];
+  const bugFlow = ["Intake", "Triage", "Fixing", "QA", "Resolved"];
+  const contentFlow = ["Ideas", "Drafting", "Editing", "Scheduled", "Published"];
+  const productFlow = ["Discovery", "Design", "Build", "Validate", "Launch"];
+  const researchFlow = ["Collect", "Analyze", "Synthesize", "Share"];
+  const salesFlow = ["Prospecting", "Qualified", "Proposal", "Negotiation", "Closed Won"];
+
+  let template = defaultFlow;
+  if (/(bug|issue|incident|support|ticket)/.test(lowerPrompt)) {
+    template = bugFlow;
+  } else if (/(marketing|campaign|content|blog|copy|social)/.test(lowerPrompt)) {
+    template = contentFlow;
+  } else if (/(product|feature|roadmap|design|ux|ui|development)/.test(lowerPrompt)) {
+    template = productFlow;
+  } else if (/(research|analysis|insight|experiment|data)/.test(lowerPrompt)) {
+    template = researchFlow;
+  } else if (/(sales|pipeline|crm|deal|prospect)/.test(lowerPrompt)) {
+    template = salesFlow;
+  }
+
+  const existing = new Set(existingStageNames.map((name) => name.toLowerCase()));
+  const result: WorkflowStageSuggestion[] = [];
+
+  for (const candidate of template) {
+    let finalName = candidate;
+    let suffix = 2;
+    while (existing.has(finalName.toLowerCase()) && suffix < 6) {
+      finalName = `${candidate} ${suffix}`;
+      suffix += 1;
+    }
+
+    if (existing.has(finalName.toLowerCase())) {
+      continue;
+    }
+
+    existing.add(finalName.toLowerCase());
+    result.push({ name: finalName });
+
+    if (result.length >= 5) {
+      break;
+    }
+  }
+
+  if (result.length === 0) {
+    result.push({ name: "New Stage" });
+  }
+
+  return result;
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .split(/\s+/)
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : ""))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function deriveTitleFromPrompt(prompt: string): string {

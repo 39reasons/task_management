@@ -24,4 +24,10 @@ extend type Mutation {
   updateStage(id: ID!, name: String, position: Int): Stage!
   deleteStage(id: ID!): Boolean!
   reorderStages(workflow_id: ID!, stage_ids: [ID!]!): Boolean!
+  generateWorkflowStages(input: GenerateWorkflowStagesInput!): [Stage!]!
+}
+
+input GenerateWorkflowStagesInput {
+  workflow_id: ID!
+  prompt: String!
 }

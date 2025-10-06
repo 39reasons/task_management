@@ -31,7 +31,14 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
   }, [menuOpen]);
 
   return (
-    <nav className="flex items-center justify-between border-b border-white/12 bg-slate-950/85 p-4 shadow-md backdrop-blur-md">
+    <nav className="relative z-40 flex items-center justify-between border-b border-white/12 bg-slate-950/85 p-4 shadow-md backdrop-blur-md">
+      {menuOpen && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-40"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
       <h1 className="text-xl font-bold">
         <Link
           to="/"
@@ -75,7 +82,7 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
             {menuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 mt-2 w-48 rounded-lg bg-gray-800 border border-gray-700 shadow-lg overflow-hidden"
+                className="absolute right-0 mt-2 w-48 rounded-lg bg-gray-800 border border-gray-700 shadow-lg overflow-hidden z-50"
               >
                 <div className="px-4 py-3 border-b border-gray-700">
                   <p className="text-sm font-semibold text-white">{getFullName(user)}</p>

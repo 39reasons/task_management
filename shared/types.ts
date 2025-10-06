@@ -21,6 +21,15 @@ export interface TaskDraftSuggestion {
   subtasks?: string[];
 }
 
+export interface WorkflowStageSuggestion {
+  name: string;
+  description?: string | null;
+}
+
+export interface WorkflowDraftSuggestion {
+  stages: WorkflowStageSuggestion[];
+}
+
 export interface Stage {
   id: string;
   name: string;

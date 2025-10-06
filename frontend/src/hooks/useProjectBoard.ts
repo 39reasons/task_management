@@ -12,6 +12,7 @@ import {
   DELETE_STAGE,
   REORDER_TASKS,
   REORDER_STAGES,
+  GENERATE_WORKFLOW_STAGES,
 } from "../graphql";
 import type { Stage, Task, Workflow } from "@shared/types";
 
@@ -42,6 +43,7 @@ interface UseProjectBoardResult {
   updateTask: (input: Partial<Task> & { id: string }) => Promise<void>;
   updatePriority: (id: string, priority: Task["priority"]) => Promise<void>;
   addStage: (name: string) => Promise<void>;
+  generateWorkflowStages: (prompt: string) => Promise<void>;
   reorderStage: (stage_id: string, task_ids: string[]) => Promise<void>;
   reorderStagesOrder: (stage_ids: string[]) => Promise<void>;
   deleteStage: (id: string) => Promise<void>;
@@ -84,6 +86,7 @@ export function useProjectBoard(): UseProjectBoardResult {
   const [deleteStageMutation] = useMutation(DELETE_STAGE);
   const [reorderTasksMutation] = useMutation(REORDER_TASKS);
   const [reorderStagesMutation] = useMutation(REORDER_STAGES);
+  const [generateWorkflowStagesMutation] = useMutation(GENERATE_WORKFLOW_STAGES);
 
 
   const createTask = async (stage_id: string, title: string) => {
@@ -223,6 +226,19 @@ export function useProjectBoard(): UseProjectBoardResult {
     });
   };
 
+  const generateWorkflowStages = async (prompt: string) => {
+    if (!workflow) return;
+    await generateWorkflowStagesMutation({
+      variables: {
+        input: {
+          workflow_id: workflow.id,
+          prompt,
+        },
+      },
+      refetchQueries: [{ query: GET_WORKFLOWS, variables: { project_id: projectId } }],
+    });
+  };
+
   const reorderStage = async (stage_id: string, task_ids: string[]) => {
     await reorderTasksMutation({
       variables: { stage_id, task_ids },
@@ -267,6 +283,7 @@ export function useProjectBoard(): UseProjectBoardResult {
     updateTask,
     updatePriority,
     addStage,
+    generateWorkflowStages,
     reorderStage,
     reorderStagesOrder,
     deleteStage,

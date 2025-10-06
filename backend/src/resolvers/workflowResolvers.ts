@@ -1,6 +1,7 @@
 import * as WorkflowService from "../services/WorkflowService.js";
 import * as StageService from "../services/StageService.js";
 import * as TaskService from "../services/TaskService.js";
+import * as AIService from "../services/AIService.js";
 import type { GraphQLContext } from "../types/context";
 import type { Stage, Workflow } from "@shared/types";
 import type { Task } from "@shared/types";
@@ -63,6 +64,45 @@ export const workflowResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       await StageService.reorderStages(workflow_id, stage_ids);
       return true;
+    },
+    generateWorkflowStages: async (
+      _: unknown,
+      { input }: { input: { workflow_id: string; prompt: string } },
+      ctx: GraphQLContext
+    ): Promise<Stage[]> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+
+      const { workflow_id, prompt } = input;
+      if (!prompt?.trim()) {
+        throw new Error("Prompt is required");
+      }
+
+      const existingStages = await StageService.getStagesByWorkflow(workflow_id);
+      const suggestions = await AIService.generateWorkflowStages(
+        {
+          prompt,
+          existing_stage_names: existingStages.map((stage) => stage.name),
+        },
+        { userId: ctx.user.id }
+      );
+
+      if (suggestions.length === 0) {
+        throw new Error("The assistant did not return any stage suggestions.");
+      }
+
+      const basePosition = existingStages.length
+        ? Math.max(...existingStages.map((stage) => stage.position ?? 0)) + 1
+        : 0;
+
+      const createdStages: Stage[] = [];
+      let position = basePosition;
+      for (const suggestion of suggestions) {
+        const stage = await StageService.addStage(workflow_id, suggestion.name, position);
+        createdStages.push(stage);
+        position += 1;
+      }
+
+      return createdStages;
     },
   },
 

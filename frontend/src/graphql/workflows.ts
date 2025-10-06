@@ -109,3 +109,14 @@ export const REORDER_STAGES = gql`
     reorderStages(workflow_id: $workflow_id, stage_ids: $stage_ids)
   }
 `;
+
+export const GENERATE_WORKFLOW_STAGES = gql`
+  mutation GenerateWorkflowStages($input: GenerateWorkflowStagesInput!) {
+    generateWorkflowStages(input: $input) {
+      id
+      name
+      position
+      workflow_id
+    }
+  }
+`;
