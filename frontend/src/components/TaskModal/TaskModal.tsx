@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment, useCallback } from "react";
-import { useQuery, useMutation, useApolloClient, gql } from "@apollo/client";
+import { useQuery, useMutation, useApolloClient } from "@apollo/client";
 import type { Task, AuthUser } from "@shared/types";
 import {
   GET_COMMENTS,
