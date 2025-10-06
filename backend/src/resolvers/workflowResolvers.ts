@@ -55,6 +55,15 @@ export const workflowResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await StageService.deleteStage(id);
     },
+    reorderStages: async (
+      _: unknown,
+      { workflow_id, stage_ids }: { workflow_id: string; stage_ids: string[] },
+      ctx: GraphQLContext
+    ): Promise<boolean> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      await StageService.reorderStages(workflow_id, stage_ids);
+      return true;
+    },
   },
 
   Workflow: {

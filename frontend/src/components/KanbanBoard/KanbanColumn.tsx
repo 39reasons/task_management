@@ -1,6 +1,13 @@
 import type { Stage, Task } from "@shared/types";
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import type { DraggableAttributes } from "@dnd-kit/core";
+import type {
+  SyntheticListenerMap,
+} from "@dnd-kit/core/dist/hooks/utilities";
 import { KanbanTask } from "./KanbanTask";
 import { TaskForm } from "../TaskForm";
 import { X } from "lucide-react";
@@ -11,6 +18,11 @@ interface KanbanColumnProps {
   onTaskClick: (task: Task) => void;
   onAddTask?: (stage_id: string, title: string) => void;
   onDeleteStage?: (stage_id: string) => void;
+  dragHandleProps?: {
+    attributes?: DraggableAttributes;
+    listeners?: SyntheticListenerMap;
+    setActivatorNodeRef?: (node: HTMLElement | null) => void;
+  };
 }
 
 export function KanbanColumn({
@@ -19,6 +31,7 @@ export function KanbanColumn({
   onTaskClick,
   onAddTask,
   onDeleteStage,
+  dragHandleProps,
 }: KanbanColumnProps) {
   const { setNodeRef } = useDroppable({ id: stage.id });
   const orderedTasks = [...stage.tasks].sort(
@@ -31,9 +44,16 @@ export function KanbanColumn({
       className="min-w-[280px] w-[280px] flex-shrink-0 bg-gray-800 rounded-lg p-4 shadow border border-gray-700"
     >
       <div className="flex items-start justify-between mb-3 gap-2">
-        <h3 className="font-semibold text-white break-all leading-snug flex-1 min-w-0 overflow-hidden">
+        <button
+          type="button"
+          ref={dragHandleProps?.setActivatorNodeRef}
+          {...(dragHandleProps?.attributes ?? {})}
+          {...(dragHandleProps?.listeners ?? {})}
+          className="flex-1 min-w-0 overflow-hidden break-all text-left text-sm font-semibold text-white leading-snug cursor-grab"
+          aria-label={`Move ${stage.name}`}
+        >
           {stage.name}
-        </h3>
+        </button>
         {onDeleteStage && (
           <button
             type="button"

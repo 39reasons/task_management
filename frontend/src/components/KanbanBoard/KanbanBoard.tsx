@@ -11,6 +11,12 @@ import {
   DragOverlay,
   type CollisionDetection,
 } from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanOverlay } from "./KanbanOverlay";
@@ -98,6 +104,46 @@ function areStagesEquivalent(
   return true;
 }
 
+function SortableStageWrapper({
+  stage,
+  children,
+}: {
+  stage: Stage & { tasks: Task[] };
+  children: (options: {
+    dragHandleProps: Pick<
+      ReturnType<typeof useSortable>,
+      "attributes" | "listeners" | "setActivatorNodeRef"
+    >;
+    isDragging: boolean;
+  }) => React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: stage.id,
+    data: { type: "stage" },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={isDragging ? "opacity-80" : undefined}
+    >
+      {children({
+        dragHandleProps: { attributes, listeners, setActivatorNodeRef },
+        isDragging,
+      })}
+    </div>
+  );
+}
+
 interface KanbanBoardProps {
   stages: Array<Stage & { tasks: Task[] }>;
   onDelete?: (id: Task["id"]) => void;
@@ -106,6 +152,7 @@ interface KanbanBoardProps {
   onAddTask?: (stage_id: Stage["id"], title: string) => void;
   onAddStage?: (name: string) => void;
   onDeleteStage?: (stage_id: Stage["id"]) => void;
+  onReorderStages?: (stageIds: string[]) => Promise<void> | void;
   user: AuthUser | null;
   setSelectedTask: (task: Task) => void;
 }
@@ -118,6 +165,7 @@ export function KanbanBoard({
   onAddTask,
   onAddStage,
   onDeleteStage,
+  onReorderStages,
   user,
   setSelectedTask,
 }: KanbanBoardProps) {
@@ -131,6 +179,11 @@ export function KanbanBoard({
   const [newStageName, setNewStageName] = useState("");
   const addStageContainerRef = useRef<HTMLDivElement | null>(null);
   const addStageInputRef = useRef<HTMLInputElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{ isDragging: boolean; startX: number; scrollLeft: number } | null>(
+    null
+  );
+  const previousStageCountRef = useRef(stages.length);
   const [displayStages, setDisplayStages] = useState(() => cloneStages(stages));
 
   useEffect(() => {
@@ -164,8 +217,30 @@ export function KanbanBoard({
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    const activeType = active.data.current?.type;
     setActiveTask(null);
     if (!over) return;
+
+    // Stage reorder
+    if (activeType === "stage") {
+      const overType = over.data.current?.type;
+      if (overType !== "stage" && overType !== undefined) {
+        return;
+      }
+
+      const activeIndex = displayStages.findIndex((stage) => stage.id === String(active.id));
+      const overIndex = displayStages.findIndex((stage) => stage.id === String(over.id));
+      if (activeIndex === -1 || overIndex === -1 || activeIndex === overIndex) {
+        return;
+      }
+
+      const reordered = [...displayStages];
+      const [moved] = reordered.splice(activeIndex, 1);
+      reordered.splice(overIndex, 0, moved);
+      setDisplayStages(reordered);
+      onReorderStages?.(reordered.map((stage) => stage.id));
+      return;
+    }
 
     const activeId = String(active.id);
     const overId = String(over.id);
@@ -293,6 +368,69 @@ export function KanbanBoard({
     }
   }, [isAddingStage]);
 
+  useEffect(() => {
+    if (displayStages.length > previousStageCountRef.current && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        left: scrollContainerRef.current.scrollWidth,
+        behavior: "smooth",
+      });
+    }
+    previousStageCountRef.current = displayStages.length;
+  }, [displayStages.length]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+      const handlePointerDown = (event: PointerEvent) => {
+        if (event.button !== 0) return;
+        container.classList.add("dragging");
+        dragStateRef.current = {
+          isDragging: true,
+          startX: event.clientX,
+          scrollLeft: container.scrollLeft,
+        };
+      };
+
+      const handlePointerMove = (event: PointerEvent) => {
+        if (!dragStateRef.current?.isDragging) return;
+        const deltaX = event.clientX - dragStateRef.current.startX;
+      container.scrollLeft = dragStateRef.current.scrollLeft - deltaX;
+    };
+
+      const handlePointerUp = () => {
+        if (dragStateRef.current?.isDragging) {
+          container.classList.remove("dragging");
+        }
+        dragStateRef.current = null;
+      };
+
+    container.addEventListener("pointerdown", handlePointerDown);
+    container.addEventListener("pointermove", handlePointerMove);
+    container.addEventListener("pointerup", handlePointerUp);
+    container.addEventListener("pointerleave", handlePointerUp);
+
+    return () => {
+      container.removeEventListener("pointerdown", handlePointerDown);
+      container.removeEventListener("pointermove", handlePointerMove);
+      container.removeEventListener("pointerup", handlePointerUp);
+      container.removeEventListener("pointerleave", handlePointerUp);
+    };
+  }, [scrollContainerRef]);
+
+  useEffect(() => {
+    if (
+      displayStages.length > previousStageCountRef.current &&
+      scrollContainerRef.current
+    ) {
+      scrollContainerRef.current.scrollTo({
+        left: scrollContainerRef.current.scrollWidth,
+        behavior: "smooth",
+      });
+    }
+    previousStageCountRef.current = displayStages.length;
+  }, [displayStages.length]);
+
   const submitNewStage = async () => {
     if (!onAddStage) return;
     const value = newStageName.trim();
@@ -312,30 +450,50 @@ export function KanbanBoard({
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetectionStrategy}
-      onDragStart={(e) => {
-        const task = allTasks.find((t) => String(t.id) === String(e.active.id));
+      onDragStart={(event) => {
+        const activeType = event.active.data.current?.type;
+        if (activeType === "stage") {
+          setActiveTask(null);
+          return;
+        }
+        const task = allTasks.find((t) => String(t.id) === String(event.active.id));
         setActiveTask(task || null);
       }}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveTask(null)}
+      onDragCancel={() => {
+        setActiveTask(null);
+      }}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-        {displayStages.map((stage) => (
-          <KanbanColumn
-            key={stage.id}
-            stage={stage}
-            onDelete={user ? onDelete : undefined}
-            onTaskClick={(task) => {
-              setSelectedTask(task);
-              openModal("task");
-            }}
-            onAddTask={user && onAddTask ? onAddTask : undefined}
-            onDeleteStage={user && onDeleteStage ? onDeleteStage : undefined}
-          />
-        ))}
+      <div
+        ref={scrollContainerRef}
+        className="flex select-none items-start gap-6 overflow-x-auto pb-6"
+        style={{ scrollbarGutter: "stable both-edges" }}
+      >
+        <SortableContext
+          items={displayStages.map((stage) => stage.id)}
+          strategy={horizontalListSortingStrategy}
+        >
+          {displayStages.map((stage) => (
+            <SortableStageWrapper stage={stage} key={stage.id}>
+              {({ dragHandleProps }) => (
+                <KanbanColumn
+                  stage={stage}
+                  onDelete={user ? onDelete : undefined}
+                  onTaskClick={(task) => {
+                    setSelectedTask(task);
+                    openModal("task");
+                  }}
+                  onAddTask={user && onAddTask ? onAddTask : undefined}
+                  onDeleteStage={user && onDeleteStage ? onDeleteStage : undefined}
+                  dragHandleProps={dragHandleProps}
+                />
+              )}
+            </SortableStageWrapper>
+          ))}
+        </SortableContext>
 
         {user && onAddStage && (
-          <div className="flex flex-col gap-3">
+          <div className="flex min-w-[280px] flex-col gap-3">
             {!isAddingStage ? (
               <button
                 onClick={() => setIsAddingStage(true)}

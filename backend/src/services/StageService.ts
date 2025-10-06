@@ -93,6 +93,30 @@ export async function deleteStage(id: string): Promise<boolean> {
   return (result.rowCount ?? 0) > 0;
 }
 
+export async function reorderStages(
+  workflow_id: string,
+  stage_ids: string[]
+): Promise<void> {
+  if (stage_ids.length === 0) {
+    return;
+  }
+
+  await query(
+    `
+    WITH ordered AS (
+      SELECT value AS id, ordinality - 1 AS position
+      FROM unnest($2::uuid[]) WITH ORDINALITY AS u(value, ordinality)
+    )
+    UPDATE stages s
+    SET position = ordered.position,
+        updated_at = now()
+    FROM ordered
+    WHERE s.id = ordered.id AND s.workflow_id = $1
+    `,
+    [workflow_id, stage_ids]
+  );
+}
+
 export async function getStageById(id: string): Promise<Stage | null> {
   const result = await query<Stage>(
     `

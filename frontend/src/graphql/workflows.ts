@@ -103,3 +103,9 @@ export const DELETE_STAGE = gql`
     deleteStage(id: $id)
   }
 `;
+
+export const REORDER_STAGES = gql`
+  mutation ReorderStages($workflow_id: ID!, $stage_ids: [ID!]!) {
+    reorderStages(workflow_id: $workflow_id, stage_ids: $stage_ids)
+  }
+`;
