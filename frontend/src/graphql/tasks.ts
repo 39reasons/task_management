@@ -197,3 +197,38 @@ export const GENERATE_TASK_DRAFT = gql`
     }
   }
 `;
+
+export const TASK_FRAGMENT = gql`
+  fragment TaskModalTaskFields on Task {
+    id
+    title
+    description
+    due_date
+    priority
+    stage_id
+    project_id
+    position
+    assignees {
+      id
+      first_name
+      last_name
+      username
+      avatar_color
+      __typename
+    }
+    stage {
+      id
+      name
+      position
+      workflow_id
+      __typename
+    }
+    tags {
+      id
+      name
+      color
+      __typename
+    }
+    __typename
+}
+`;
