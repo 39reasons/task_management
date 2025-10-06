@@ -28,7 +28,7 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700"
+      className="min-w-[280px] w-[280px] flex-shrink-0 bg-gray-800 rounded-lg p-4 shadow border border-gray-700"
     >
       <div className="flex items-start justify-between mb-3 gap-2">
         <h3 className="font-semibold text-white break-all leading-snug flex-1 min-w-0 overflow-hidden">
