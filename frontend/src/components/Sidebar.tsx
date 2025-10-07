@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_PROJECTS, ADD_PROJECT, DELETE_PROJECT, UPDATE_PROJECT } from "../graphql";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   PlusCircle,
   Settings,
@@ -40,6 +40,8 @@ export default function Sidebar({ user }: SidebarProps) {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [isPublic, setIsPublic] = useState(false);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsProject, setSettingsProject] = useState<
     | {
@@ -60,11 +62,43 @@ export default function Sidebar({ user }: SidebarProps) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showDangerZone, setShowDangerZone] = useState(false);
 
+  const openCreateModal = useCallback(() => {
+    setCreateError(null);
+    setShowModal(true);
+  }, []);
+
+  const closeCreateModal = useCallback(() => {
+    if (isCreatingProject) return;
+    setShowModal(false);
+    setCreateError(null);
+  }, [isCreatingProject]);
+
   useEffect(() => {
     refetch();
   }, [user, refetch]);
 
-  if (loading) return <div className="p-4 text-gray-400">Loading...</div>;
+  useEffect(() => {
+    if (!showModal) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeCreateModal();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showModal, isCreatingProject, closeCreateModal]);
+
+  if (loading) return <div className="p-6 text-sm text-slate-300">Loading projects…</div>;
+
+  const projects = (data?.projects ?? []) as Array<{
+    id: string;
+    name: string;
+    description?: string | null;
+    is_public: boolean;
+    viewer_is_owner: boolean;
+  }>;
+  const projectCount = projects.length;
 
   const openProjectSettings = (project: {
     id: string;
@@ -167,57 +201,106 @@ export default function Sidebar({ user }: SidebarProps) {
 
   const handleAddProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectName.trim()) return;
-    const result = await addProject({
-      variables: {
-        name: newProjectName,
-        description: newProjectDesc || null,
-        is_public: isPublic,
-      },
-    });
-    setNewProjectName("");
-    setNewProjectDesc("");
-    setIsPublic(false);
-    setShowModal(false);
+    if (!newProjectName.trim() || isCreatingProject) return;
 
-    const newProjectId = result.data?.addProject?.id;
-    if (newProjectId) navigate(`/projects/${newProjectId}`);
+    setIsCreatingProject(true);
+    setCreateError(null);
+
+    try {
+      const result = await addProject({
+        variables: {
+          name: newProjectName,
+          description: newProjectDesc || null,
+          is_public: isPublic,
+        },
+      });
+      const newProjectId = result.data?.addProject?.id;
+
+      setNewProjectName("");
+      setNewProjectDesc("");
+      setIsPublic(false);
+      setShowModal(false);
+
+      if (newProjectId) navigate(`/projects/${newProjectId}`);
+    } catch (error) {
+      setCreateError((error as Error).message ?? "Unable to create project.");
+    } finally {
+      setIsCreatingProject(false);
+    }
   };
 
   return (
-    <aside className="w-64 bg-gray-800 text-white p-4 flex flex-col">
-      <h2 className="text-lg font-bold mb-4">Projects</h2>
+    <aside className="w-72 flex-shrink-0 flex-col gap-6 border-r border-white/10 bg-gradient-to-b from-slate-900/85 via-slate-800/75 to-slate-900/85 px-5 py-6 text-slate-100 shadow-[0_25px_60px_-40px_rgba(59,130,246,0.45)]">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-[11px] uppercase tracking-[0.35em] text-blue-200/70">Workspace</p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-white">Projects</h2>
+            <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+              {projectCount}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400">
+            {projectCount
+              ? "Boards you can jump into right now."
+              : user
+                ? "Create a project to start building your workspace."
+                : "Sign in to see projects and collaborate."}
+          </p>
+        </div>
 
-      {/* Project list */}
-      <ul className="space-y-2">
-        {/* User projects */}
-        {data?.projects?.map(
-          (project: {
-            id: string;
-            name: string;
-            description?: string | null;
-            is_public: boolean;
-            viewer_is_owner: boolean;
-          }) => (
+        {user ? (
+          <button
+            onClick={openCreateModal}
+            className="group inline-flex w-full items-center justify-center gap-2 rounded-full border border-blue-400/50 bg-blue-500/15 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:border-blue-300/70 hover:bg-blue-500/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+          >
+            <PlusCircle className="h-4 w-4 transition group-hover:scale-110" />
+            <span>New Project</span>
+          </button>
+        ) : ""}
+      </div>
+
+      <div className="mt-2 flex-1 overflow-y-auto pr-1 styled-scrollbars">
+        <ul className="space-y-3 pb-2">
+          {projects.map((project) => (
             <li key={project.id}>
               <NavLink
                 to={`/projects/${project.id}`}
                 className={({ isActive }) =>
-                  `group flex items-center justify-between rounded-lg border-l-4 p-2 transition-colors ${
+                  `group relative flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm transition-all duration-150 ${
                     isActive
-                      ? "border-blue-500 bg-gray-700 text-white shadow"
-                      : "border-transparent text-gray-200 hover:border-blue-400 hover:bg-gray-700 hover:text-white"
-                  } cursor-default`
+                      ? "border-blue-400/60 bg-blue-500/20 text-white shadow-[0_20px_40px_-30px_rgba(56,189,248,0.75)]"
+                      : "border-white/10 bg-white/0 text-slate-300 hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-white"
+                  }`
                 }
               >
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="font-medium truncate" title={project.name}>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white" title={project.name}>
                     {project.name}
-                  </span>
-                  {project.is_public && (
-                    <span className="text-xs text-green-400">Public</span>
-                  )}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                        project.is_public
+                          ? "border-emerald-400/50 bg-emerald-500/10 text-emerald-200"
+                          : "border-slate-700 bg-slate-800/80 text-slate-300"
+                      }`}
+                    >
+                      {project.is_public ? "Public" : "Private"}
+                    </span>
+                    {project.viewer_is_owner ? (
+                      <span className="inline-flex items-center rounded-full border border-blue-400/40 bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-100">
+                        Owner
+                      </span>
+                    ) : null}
+                  </div>
+                  {project.description?.trim() ? (
+                    <p className="mt-2 truncate text-xs text-slate-400">
+                      {project.description}
+                    </p>
+                  ) : null}
                 </div>
+
                 {user && project.viewer_is_owner && (
                   <button
                     type="button"
@@ -227,71 +310,112 @@ export default function Sidebar({ user }: SidebarProps) {
                       openProjectSettings(project);
                     }}
                     aria-label={`Open settings for ${project.name}`}
-                    className="opacity-0 group-hover:opacity-100 text-gray-400 transition hover:text-blue-300"
+                    className="opacity-0 transition group-hover:opacity-100"
                   >
-                    <Settings size={16} />
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:border-blue-400/60 hover:bg-blue-500/15 hover:text-white">
+                      <Settings size={16} />
+                    </span>
                   </button>
                 )}
               </NavLink>
             </li>
-          )
-        )}
-      </ul>
-
-      {/* New Project Button (only if logged in) */}
-      {user && (
-        <button
-          onClick={() => setShowModal(true)}
-          className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors"
-        >
-          <PlusCircle className="w-4 h-4" />
-          New Project
-        </button>
-      )}
+          ))}
+        </ul>
+      </div>
 
       {/* Create Project Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-900 p-6 rounded-xl shadow-lg w-96">
-            <h3 className="text-xl font-semibold mb-4">Create Project</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:px-6">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={closeCreateModal}
+            role="presentation"
+          />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-slate-100 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-[0.35em] text-blue-200/70">Project</p>
+                <h3 className="text-2xl font-semibold leading-tight text-white">Create Project</h3>
+                <p className="text-sm text-slate-400">
+                  Spin up a workspace board with optional description and visibility.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                className="rounded-full border border-white/10 bg-white/5 p-1.5 text-slate-300 transition hover:border-blue-400/40 hover:bg-blue-500/15 hover:text-white disabled:opacity-60"
+                disabled={isCreatingProject}
+                aria-label="Close create project modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
             <form onSubmit={handleAddProject} className="space-y-4">
-              <input
-                type="text"
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-                placeholder="Project name"
-                className="w-full rounded-lg px-3 py-2 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <textarea
-                value={newProjectDesc}
-                onChange={(e) => setNewProjectDesc(e.target.value)}
-                placeholder="Description (optional)"
-                rows={3}
-                className="w-full rounded-lg px-3 py-2 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <label className="flex items-center gap-2 text-gray-300">
+              <div className="space-y-2">
+                <label htmlFor="new-project-name" className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                  Project name
+                </label>
+                <input
+                  id="new-project-name"
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Growth marketing roadmap"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isCreatingProject}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="new-project-desc" className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                  Description (optional)
+                </label>
+                <textarea
+                  id="new-project-desc"
+                  value={newProjectDesc}
+                  onChange={(e) => setNewProjectDesc(e.target.value)}
+                  placeholder="Who is this for? What outcome are you targeting?"
+                  rows={3}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isCreatingProject}
+                />
+              </div>
+              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
                 <input
                   type="checkbox"
                   checked={isPublic}
                   onChange={(e) => setIsPublic(e.target.checked)}
-                  className="form-checkbox h-4 w-4 text-blue-600"
+                  className="h-4 w-4 rounded border-white/30 bg-transparent text-blue-500 focus:ring-blue-400 disabled:cursor-not-allowed"
+                  disabled={isCreatingProject}
                 />
                 Make project public
               </label>
+              {createError ? (
+                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+                  {createError}
+                </div>
+              ) : null}
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-500 transition-colors"
+                  onClick={closeCreateModal}
+                  className="inline-flex items-center justify-center rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-slate-300 hover:text-white disabled:opacity-60"
+                  disabled={isCreatingProject}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!newProjectName.trim()}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!newProjectName.trim() || isCreatingProject}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-blue-400/50 bg-blue-500/20 px-5 py-2 text-sm font-semibold text-blue-100 transition hover:border-blue-300/70 hover:bg-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Create
+                  {isCreatingProject ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating…
+                    </>
+                  ) : (
+                    "Create"
+                  )}
                 </button>
               </div>
             </form>
