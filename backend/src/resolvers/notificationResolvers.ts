@@ -1,7 +1,14 @@
 import * as NotificationService from "../services/NotificationService.js";
 import * as ProjectService from "../services/ProjectService.js";
+import { createNotificationEventStream, type NotificationPubSubEvent } from "../events/notificationPubSub.js";
 import type { GraphQLContext } from "../types/context";
 import type { Notification } from "@shared/types";
+
+type NotificationEventPayload = {
+  action: "CREATED" | "UPDATED" | "DELETED";
+  notification: Notification | null;
+  notification_id: string | null;
+};
 
 export const notificationResolvers = {
   Query: {
@@ -50,6 +57,50 @@ export const notificationResolvers = {
       const deleted = await NotificationService.deleteNotification(id, ctx.user.id);
       if (!deleted) throw new Error("Notification not found");
       return true;
+    },
+  },
+
+  Subscription: {
+    notificationEvents: {
+      subscribe: async (
+        _: unknown,
+        { recipient_id }: { recipient_id: string },
+        ctx: GraphQLContext
+      ) => {
+        if (!ctx.user) throw new Error("Not authenticated");
+        if (ctx.user.id !== recipient_id) {
+          throw new Error("Not authorized to subscribe to these notifications");
+        }
+        return createNotificationEventStream(recipient_id);
+      },
+      resolve: (event: NotificationPubSubEvent): NotificationEventPayload => {
+        switch (event.type) {
+          case "created":
+            return {
+              action: "CREATED",
+              notification: event.notification,
+              notification_id: event.notification.id,
+            };
+          case "updated":
+            return {
+              action: "UPDATED",
+              notification: event.notification,
+              notification_id: event.notification.id,
+            };
+          case "deleted":
+            return {
+              action: "DELETED",
+              notification: null,
+              notification_id: event.notificationId,
+            };
+          default:
+            return {
+              action: "UPDATED",
+              notification: null,
+              notification_id: null,
+            };
+        }
+      },
     },
   },
 };

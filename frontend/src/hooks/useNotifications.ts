@@ -1,10 +1,11 @@
-import { useMutation, useQuery } from "@apollo/client";
+import { useMutation, useQuery, useSubscription } from "@apollo/client";
 import {
   GET_NOTIFICATIONS,
   RESPOND_NOTIFICATION,
   MARK_NOTIFICATION_READ,
   GET_PROJECTS,
   DELETE_NOTIFICATION,
+  NOTIFICATION_EVENTS,
 } from "../graphql";
 import type { Notification } from "@shared/types";
 
@@ -16,6 +17,14 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
       skip: !enabled,
     }
   );
+
+  useSubscription(NOTIFICATION_EVENTS, {
+    variables: { recipient_id: _userId },
+    skip: !enabled || !_userId,
+    onData: () => {
+      refetch().catch(() => {});
+    },
+  });
 
   const [respondMutation] = useMutation(RESPOND_NOTIFICATION);
   const [markReadMutation] = useMutation(MARK_NOTIFICATION_READ);

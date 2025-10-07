@@ -1,4 +1,5 @@
 import { query } from "../db/index.js";
+import { publishNotificationEvent } from "../events/notificationPubSub.js";
 import type { Notification, User, Project } from "@shared/types";
 
 function mapNotificationRow(row: any): Notification {
@@ -176,6 +177,10 @@ export async function sendProjectInvite(
 
   const notification = await getNotificationById(insertRes.rows[0].id);
   if (!notification) throw new Error("Failed to create notification");
+  await publishNotificationEvent({
+    type: "created",
+    notification,
+  });
   return notification;
 }
 
@@ -230,6 +235,10 @@ export async function respondToNotification(
 
   const updated = await getNotificationById(id);
   if (!updated) throw new Error("Notification not found after update");
+  await publishNotificationEvent({
+    type: "updated",
+    notification: updated,
+  });
   return updated;
 }
 
@@ -250,13 +259,26 @@ export async function markNotificationRead(
 
   const updated = await getNotificationById(id);
   if (!updated) throw new Error("Notification not found");
+  await publishNotificationEvent({
+    type: "updated",
+    notification: updated,
+  });
   return updated;
 }
 
 export async function deleteNotification(id: string, user_id: string): Promise<boolean> {
+  const existing = await getNotificationById(id);
   const result = await query(
     `DELETE FROM notifications WHERE id = $1 AND recipient_id = $2`,
     [id, user_id]
   );
-  return (result.rowCount ?? 0) > 0;
+  const deleted = (result.rowCount ?? 0) > 0;
+  if (deleted) {
+    await publishNotificationEvent({
+      type: "deleted",
+      notificationId: id,
+      recipientId: existing?.recipient_id ?? null,
+    });
+  }
+  return deleted;
 }

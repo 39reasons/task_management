@@ -4,10 +4,23 @@ type Notification {
   type: String!
   status: String!
   is_read: Boolean!
+  recipient_id: ID
   project: Project
   sender: User
   created_at: String!
   updated_at: String!
+}
+
+enum NotificationEventAction {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+type NotificationEvent {
+  action: NotificationEventAction!
+  notification: Notification
+  notification_id: ID
 }
 
 extend type Query {
@@ -19,4 +32,8 @@ extend type Mutation {
   respondToNotification(id: ID!, accept: Boolean!): Notification!
   markNotificationRead(id: ID!, read: Boolean): Notification!
   deleteNotification(id: ID!): Boolean!
+}
+
+extend type Subscription {
+  notificationEvents(recipient_id: ID!): NotificationEvent!
 }

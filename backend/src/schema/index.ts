@@ -39,6 +39,7 @@ const notificationSchema = readFileSync(
 export const typeDefs = `
   type Query
   type Mutation
+  type Subscription
   ${taskSchema}
   ${projectSchema}
   ${userSchema}

@@ -290,7 +290,7 @@ function normalizeSuggestion(
     ? uniqueStrings(suggestion.tags)
     : [];
   const subtasks = Array.isArray(suggestion.subtasks)
-    ? suggestion.subtasks.map((task) => task.trim()).filter(Boolean)
+    ? suggestion.subtasks.map((task: string) => task.trim()).filter(Boolean)
     : [];
 
   return {

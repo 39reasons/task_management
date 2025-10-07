@@ -8,6 +8,7 @@ export const GET_NOTIFICATIONS = gql`
       type
       status
       is_read
+      recipient_id
       created_at
       project {
         id
@@ -56,5 +57,34 @@ export const MARK_NOTIFICATION_READ = gql`
 export const DELETE_NOTIFICATION = gql`
   mutation DeleteNotification($id: ID!) {
     deleteNotification(id: $id)
+  }
+`;
+
+export const NOTIFICATION_EVENTS = gql`
+  subscription NotificationEvents($recipient_id: ID!) {
+    notificationEvents(recipient_id: $recipient_id) {
+      action
+      notification_id
+      notification {
+        id
+        message
+        type
+        status
+        is_read
+        recipient_id
+        created_at
+        project {
+          id
+          name
+        }
+        sender {
+          id
+          first_name
+          last_name
+          username
+          avatar_color
+        }
+      }
+    }
   }
 `;

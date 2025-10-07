@@ -125,3 +125,11 @@ export interface Notification {
   updated_at: string;
   recipient_id?: string;
 }
+
+export type NotificationEventAction = "CREATED" | "UPDATED" | "DELETED";
+
+export interface NotificationEvent {
+  action: NotificationEventAction;
+  notification?: Notification | null;
+  notification_id?: string | null;
+}
