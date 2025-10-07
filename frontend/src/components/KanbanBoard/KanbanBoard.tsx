@@ -54,6 +54,12 @@ function areStagesEquivalent(
     return false;
   }
 
+  for (let index = 0; index < nextStages.length; index += 1) {
+    if (nextStages[index]?.id !== currentStages[index]?.id) {
+      return false;
+    }
+  }
+
   const byId = new Map(currentStages.map((stage) => [stage.id, stage]));
   for (const stage of nextStages) {
     const comparison = byId.get(stage.id);
