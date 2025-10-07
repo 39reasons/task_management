@@ -1,7 +1,7 @@
 import * as TagService from "../services/TagService.js";
 import * as TaskService from "../services/TaskService.js";
 import type { GraphQLContext } from "../types/context";
-import type { Task } from "@shared/types";
+import type { Task } from "../../../shared/types.js";
 
 export const tagResolvers = {
   Task: {
@@ -42,11 +42,7 @@ export const tagResolvers = {
       if (!task) throw new Error("Task not found");
 
       await TagService.addTagToTask(task_id, task.project_id, name, color);
-      const updated = await TaskService.getTaskById(task_id);
-      if (updated) {
-        await TaskService.emitTaskUpdated(updated, ctx.clientId ?? null);
-      }
-      return updated;
+      return await TaskService.notifyTaskUpdated(task_id, ctx.clientId ?? null);
     },
 
     assignTagToTask: async (
@@ -56,11 +52,7 @@ export const tagResolvers = {
     ) => {
       if (!ctx.user) throw new Error("Not authenticated");
       await TagService.assignTagToTask(task_id, tag_id);
-      const updated = await TaskService.getTaskById(task_id);
-      if (updated) {
-        await TaskService.emitTaskUpdated(updated, ctx.clientId ?? null);
-      }
-      return updated;
+      return await TaskService.notifyTaskUpdated(task_id, ctx.clientId ?? null);
     },
 
     removeTagFromTask: async (
@@ -70,11 +62,7 @@ export const tagResolvers = {
     ) => {
       if (!ctx.user) throw new Error("Not authenticated");
       await TagService.removeTagFromTask(task_id, tag_id);
-      const updated = await TaskService.getTaskById(task_id);
-      if (updated) {
-        await TaskService.emitTaskUpdated(updated, ctx.clientId ?? null);
-      }
-      return updated;
+      return await TaskService.notifyTaskUpdated(task_id, ctx.clientId ?? null);
     },
 
     updateTag: async (

@@ -1,6 +1,6 @@
 import { query } from "../db/index.js";
 import { publishNotificationEvent } from "../events/notificationPubSub.js";
-import type { Notification, User, Project } from "@shared/types";
+import type { Notification, User, Project } from "../../../shared/types.js";
 
 function mapNotificationRow(row: any): Notification {
     const created_at = normalizeTimestamp(row.created_at);

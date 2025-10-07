@@ -3,7 +3,7 @@ import type {
   Task,
   WorkflowDraftSuggestion,
   WorkflowStageSuggestion,
-} from "@shared/types";
+} from "../../../shared/types.js";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1/chat/completions";

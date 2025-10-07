@@ -1,5 +1,5 @@
 import { query } from "../db/index.js";
-import type { Workflow } from "@shared/types";
+import type { Workflow } from "../../../shared/types.js";
 
 function buildProjectAccessClause(user_id: string | null, paramIndex: number) {
   if (user_id) {

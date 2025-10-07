@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useMutation, useQuery } from "@apollo/client";
+import { useMutation, useQuery, useSubscription } from "@apollo/client";
 import {
   GET_TASKS,
   DELETE_TASK,
@@ -7,8 +7,10 @@ import {
   UPDATE_TASK_PRIORITY,
   MOVE_TASK,
   REORDER_TASKS,
+  TASK_BOARD_EVENTS,
 } from "../graphql";
 import type { Stage, Task } from "@shared/types";
+import { TASK_BOARD_ALL_PROJECTS } from "@shared/types";
 
 interface UseAllTasksBoardResult {
   stages: Array<Stage & { tasks: Task[] }>;
@@ -24,6 +26,13 @@ interface UseAllTasksBoardResult {
 
 export function useAllTasksBoard(): UseAllTasksBoardResult {
   const { data, loading, error, refetch } = useQuery<{ tasks: Task[] }>(GET_TASKS);
+
+  useSubscription(TASK_BOARD_EVENTS, {
+    variables: { project_id: TASK_BOARD_ALL_PROJECTS },
+    onData: () => {
+      void refetch();
+    },
+  });
 
   const stageBuckets = useMemo(() => {
     const map = new Map<string, Stage & { tasks: Task[] }>();

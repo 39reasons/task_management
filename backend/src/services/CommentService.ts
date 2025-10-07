@@ -1,5 +1,5 @@
 import { query } from "../db/index.js";
-import type { Comment } from "@shared/types";
+import type { Comment } from "../../../shared/types.js";
 import { getTaskById } from "./TaskService.js";
 
 export async function addComment(

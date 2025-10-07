@@ -1,7 +1,8 @@
 import { query } from "../db/index.js";
-import type { Task, User } from "@shared/types";
+import type { Task, User } from "../../../shared/types.js";
 import * as TagService from "./TagService.js";
 import * as StageService from "./StageService.js";
+import { publishTaskBoardEvent, type TaskBoardEvent, type TaskBoardEventAction } from "../events/taskBoardPubSub.js";
 
 const TASK_BASE_SELECT = `
   SELECT
@@ -68,11 +69,29 @@ async function ensureTaskHydrated(task: Task): Promise<Task> {
   };
 }
 
-export async function emitTaskUpdated(taskOrId: Task | string, origin?: string | null): Promise<void> {
-  const baseTask =
-    typeof taskOrId === "string" ? await getTaskById(taskOrId) : (taskOrId as Task | null);
-  if (!baseTask) return;
-  const hydrated = await ensureTaskHydrated(baseTask);
+async function broadcastTaskEvent(event: Omit<TaskBoardEvent, "timestamp">): Promise<void> {
+  await publishTaskBoardEvent({
+    ...event,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function emitTaskUpdateEvent(
+  task: Task,
+  action: TaskBoardEventAction,
+  origin?: string | null,
+  extra?: Partial<TaskBoardEvent>
+): Promise<void> {
+  const stage = task.stage ?? (await StageService.getStageById(task.stage_id));
+  await broadcastTaskEvent({
+    action,
+    project_id: task.project_id,
+    workflow_id: stage?.workflow_id ?? null,
+    stage_id: task.stage_id,
+    task_id: task.id,
+    origin: origin ?? null,
+    ...extra,
+  });
 }
 
 export async function getTasks(
@@ -169,7 +188,9 @@ export async function createTask({
 
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Failed to create task");
-  return await ensureTaskHydrated(task);
+  const hydrated = await ensureTaskHydrated(task);
+  await emitTaskUpdateEvent(hydrated, "TASK_CREATED", options?.origin ?? null);
+  return hydrated;
 }
 
 export async function updateTask(
@@ -191,6 +212,8 @@ export async function updateTask(
   },
   options?: { origin?: string | null }
 ): Promise<Task> {
+  const beforeUpdate = await getTaskById(id);
+
   const result = await query<{ id: string }>(
     `
     UPDATE tasks
@@ -220,7 +243,12 @@ export async function updateTask(
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after update");
   const hydrated = await ensureTaskHydrated(task);
-  await emitTaskUpdated(hydrated, options?.origin ?? null);
+  await emitTaskUpdateEvent(hydrated, "TASK_UPDATED", options?.origin ?? null, {
+    previous_stage_id:
+      beforeUpdate && beforeUpdate.stage_id !== hydrated.stage_id
+        ? beforeUpdate.stage_id
+        : null,
+  });
   return hydrated;
 }
 
@@ -229,6 +257,8 @@ export async function moveTask(
   to_stage_id: string,
   options?: { origin?: string | null }
 ): Promise<Task> {
+  const beforeMove = await getTaskById(task_id);
+
   const result = await query<{ id: string }>(
     `
     WITH next_position AS (
@@ -250,7 +280,9 @@ export async function moveTask(
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after move");
   const hydrated = await ensureTaskHydrated(task);
-  await emitTaskUpdated(hydrated, options?.origin ?? null);
+  await emitTaskUpdateEvent(hydrated, "TASK_MOVED", options?.origin ?? null, {
+    previous_stage_id: beforeMove?.stage_id ?? null,
+  });
   return hydrated;
 }
 
@@ -262,7 +294,15 @@ export async function deleteTask(id: string, options?: { origin?: string | null 
   );
   const deleted = (result.rowCount ?? 0) > 0;
   if (deleted && task) {
-    await emitTaskUpdated(task, options?.origin ?? null);
+    const stage = task.stage ?? (task.stage_id ? await StageService.getStageById(task.stage_id) : null);
+    await broadcastTaskEvent({
+      action: "TASK_DELETED",
+      project_id: task.project_id,
+      workflow_id: stage?.workflow_id ?? null,
+      stage_id: task.stage_id,
+      task_id: task.id,
+      origin: options?.origin ?? null,
+    });
   }
   return deleted;
 }
@@ -287,7 +327,7 @@ export async function updateTaskPriority(
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after update");
   const hydrated = await ensureTaskHydrated(task);
-  await emitTaskUpdated(hydrated, options?.origin ?? null);
+  await emitTaskUpdateEvent(hydrated, "TASK_UPDATED", options?.origin ?? null);
   return hydrated;
 }
 
@@ -317,7 +357,15 @@ export async function reorderTasks(
 
   const projectId = await getProjectIdForStage(stage_id);
   if (projectId) {
-    await emitTaskUpdated(stage_id, options?.origin ?? null);
+    const stage = await StageService.getStageById(stage_id);
+    await broadcastTaskEvent({
+      action: "TASKS_REORDERED",
+      project_id: projectId,
+      workflow_id: stage?.workflow_id ?? null,
+      stage_id,
+      task_ids,
+      origin: options?.origin ?? null,
+    });
   }
 }
 
@@ -368,5 +416,16 @@ export async function setTaskMembers(
     );
   }
 
-  await emitTaskUpdated(task_id, options?.origin ?? null);
+  const task = await getTaskById(task_id);
+  if (task) {
+    await notifyTaskUpdated(task, options?.origin ?? null);
+  }
+}
+
+export async function notifyTaskUpdated(taskOrId: Task | string, origin?: string | null): Promise<Task | null> {
+  const task = typeof taskOrId === "string" ? await getTaskById(taskOrId) : taskOrId;
+  if (!task) return null;
+  const hydrated = await ensureTaskHydrated(task);
+  await emitTaskUpdateEvent(hydrated, "TASK_UPDATED", origin ?? null);
+  return hydrated;
 }

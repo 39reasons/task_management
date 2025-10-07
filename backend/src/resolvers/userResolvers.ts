@@ -1,6 +1,6 @@
 import * as UserService from "../services/UserService.js";
 import type { GraphQLContext } from "../types/context";
-import type { User } from "@shared/types";
+import type { User } from "../../../shared/types.js";
 
 export const userResolvers = {
   Query: {

@@ -1,5 +1,6 @@
 import { query } from "../db/index.js";
-import type { Stage } from "@shared/types";
+import type { Stage } from "../../../shared/types.js";
+import { publishTaskBoardEvent, type TaskBoardEvent } from "../events/taskBoardPubSub.js";
 
 const STAGE_NAME_MAX_LENGTH = 512;
 
@@ -28,10 +29,26 @@ export async function getStagesByWorkflow(workflow_id: string): Promise<Stage[]>
   return result.rows.map((row) => ({ ...row, tasks: [] }));
 }
 
+async function broadcastStageEvent(event: Omit<TaskBoardEvent, "timestamp">): Promise<void> {
+  await publishTaskBoardEvent({
+    ...event,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function getProjectIdForWorkflow(workflow_id: string): Promise<string | null> {
+  const result = await query<{ project_id: string }>(
+    `SELECT project_id FROM workflows WHERE id = $1`,
+    [workflow_id]
+  );
+  return result.rows[0]?.project_id ?? null;
+}
+
 export async function addStage(
   workflow_id: string,
   name: string,
-  position?: number | null
+  position?: number | null,
+  options?: { origin?: string | null }
 ): Promise<Stage> {
   const sanitizedName = sanitizeStageName(name);
 
@@ -55,13 +72,27 @@ export async function addStage(
     [workflow_id, sanitizedName, position ?? null]
   );
 
-  return { ...result.rows[0], tasks: [] };
+  const stage = { ...result.rows[0], tasks: [] };
+
+  const projectId = await getProjectIdForWorkflow(workflow_id);
+  if (projectId) {
+    await broadcastStageEvent({
+      action: "STAGE_CREATED",
+      project_id: projectId,
+      workflow_id,
+      stage_id: stage.id,
+      origin: options?.origin ?? null,
+    });
+  }
+
+  return stage;
 }
 
 export async function updateStage(
   id: string,
   name?: string,
-  position?: number
+  position?: number,
+  options?: { origin?: string | null }
 ): Promise<Stage> {
   const sanitizedName = name === undefined ? null : sanitizeStageName(name);
 
@@ -81,21 +112,52 @@ export async function updateStage(
     throw new Error("Stage not found");
   }
 
-  return { ...result.rows[0], tasks: [] };
+  const stage = { ...result.rows[0], tasks: [] };
+  const projectId = await getProjectIdForWorkflow(stage.workflow_id);
+  if (projectId) {
+    await broadcastStageEvent({
+      action: "STAGE_UPDATED",
+      project_id: projectId,
+      workflow_id: stage.workflow_id,
+      stage_id: stage.id,
+      origin: options?.origin ?? null,
+    });
+  }
+
+  return stage;
 }
 
-export async function deleteStage(id: string): Promise<boolean> {
-  const result = await query(
-    `DELETE FROM stages WHERE id = $1`,
+export async function deleteStage(id: string, options?: { origin?: string | null }): Promise<boolean> {
+  const existing = await query<{ workflow_id: string }>(
+    `SELECT workflow_id FROM stages WHERE id = $1`,
     [id]
   );
+  const workflowId = existing.rows[0]?.workflow_id ?? null;
 
-  return (result.rowCount ?? 0) > 0;
+  const result = await query(`DELETE FROM stages WHERE id = $1`, [id]);
+
+  const deleted = (result.rowCount ?? 0) > 0;
+
+  if (deleted && workflowId) {
+    const projectId = await getProjectIdForWorkflow(workflowId);
+    if (projectId) {
+      await broadcastStageEvent({
+        action: "STAGE_DELETED",
+        project_id: projectId,
+        workflow_id: workflowId,
+        stage_id: id,
+        origin: options?.origin ?? null,
+      });
+    }
+  }
+
+  return deleted;
 }
 
 export async function reorderStages(
   workflow_id: string,
-  stage_ids: string[]
+  stage_ids: string[],
+  options?: { origin?: string | null }
 ): Promise<void> {
   if (stage_ids.length === 0) {
     return;
@@ -115,6 +177,17 @@ export async function reorderStages(
     `,
     [workflow_id, stage_ids]
   );
+
+  const projectId = await getProjectIdForWorkflow(workflow_id);
+  if (projectId) {
+    await broadcastStageEvent({
+      action: "STAGES_REORDERED",
+      project_id: projectId,
+      workflow_id,
+      stage_ids,
+      origin: options?.origin ?? null,
+    });
+  }
 }
 
 export async function getStageById(id: string): Promise<Stage | null> {

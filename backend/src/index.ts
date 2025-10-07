@@ -6,7 +6,7 @@ import { resolvers } from "./resolvers/index.js";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 import { Pool } from "pg";
-import type { DecodedToken } from "@shared/types";
+import type { DecodedToken } from "../../shared/types.js";
 import type { GraphQLContext } from "./types/context.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { WebSocketServer } from "ws";

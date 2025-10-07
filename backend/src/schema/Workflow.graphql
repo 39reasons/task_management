@@ -31,3 +31,32 @@ input GenerateWorkflowStagesInput {
   workflow_id: ID!
   prompt: String!
 }
+
+enum TaskBoardEventAction {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  TASK_MOVED
+  TASKS_REORDERED
+  STAGE_CREATED
+  STAGE_UPDATED
+  STAGE_DELETED
+  STAGES_REORDERED
+}
+
+type TaskBoardEvent {
+  action: TaskBoardEventAction!
+  project_id: ID!
+  workflow_id: ID
+  stage_id: ID
+  previous_stage_id: ID
+  task_id: ID
+  task_ids: [ID!]
+  stage_ids: [ID!]
+  origin: String
+  timestamp: String
+}
+
+extend type Subscription {
+  taskBoardEvents(project_id: ID!): TaskBoardEvent!
+}

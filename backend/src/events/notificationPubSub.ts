@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { createClient } from "redis";
-import type { Notification } from "@shared/types";
+import type { Notification } from "../../../shared/types.js";
 
 type NotificationCreatedOrUpdatedEvent = {
   type: "created" | "updated";

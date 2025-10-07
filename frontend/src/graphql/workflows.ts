@@ -120,3 +120,20 @@ export const GENERATE_WORKFLOW_STAGES = gql`
     }
   }
 `;
+
+export const TASK_BOARD_EVENTS = gql`
+  subscription TaskBoardEvents($project_id: ID!) {
+    taskBoardEvents(project_id: $project_id) {
+      action
+      project_id
+      workflow_id
+      stage_id
+      previous_stage_id
+      task_id
+      task_ids
+      stage_ids
+      origin
+      timestamp
+    }
+  }
+`;

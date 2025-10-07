@@ -2,7 +2,7 @@ import * as TaskService from "../services/TaskService.js";
 import * as CommentService from "../services/CommentService.js";
 import * as StageService from "../services/StageService.js";
 import * as AIService from "../services/AIService.js";
-import type { Task, TaskDraftSuggestion } from "@shared/types";
+import type { Task, TaskDraftSuggestion } from "../../../shared/types.js";
 import type { GraphQLContext } from "../types/context";
 
 export const taskResolvers = {

@@ -1,6 +1,6 @@
 import * as ProjectService from "../services/ProjectService.js";
 import * as WorkflowService from "../services/WorkflowService.js";
-import type { Project, Workflow, User } from "@shared/types";
+import type { Project, Workflow, User } from "../../../shared/types.js";
 import { GraphQLContext } from "src/types/context";
 
 export const projectResolvers = {

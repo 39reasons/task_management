@@ -1,4 +1,4 @@
-import type { Project, Task, User } from "@shared/types";
+import type { Project, Task, User } from "../../../shared/types.js";
 import { query } from "../db/index.js";
 
 const PROJECT_FIELDS_SELECT = `

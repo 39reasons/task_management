@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useMutation, useQuery } from "@apollo/client";
+import { useMutation, useQuery, useSubscription } from "@apollo/client";
 import {
   GET_WORKFLOWS,
   CREATE_TASK,
@@ -13,6 +13,7 @@ import {
   REORDER_TASKS,
   REORDER_STAGES,
   GENERATE_WORKFLOW_STAGES,
+  TASK_BOARD_EVENTS,
 } from "../graphql";
 import type { Stage, Task, Workflow } from "@shared/types";
 
@@ -76,6 +77,14 @@ export function useProjectBoard(): UseProjectBoardResult {
 
     await refetch({ project_id: projectId });
   }, [projectId, refetch]);
+
+  useSubscription(TASK_BOARD_EVENTS, {
+    variables: { project_id: projectId ?? "" },
+    skip: !projectId,
+    onData: () => {
+      void refetchBoard();
+    },
+  });
 
   const [createTaskMutation] = useMutation(CREATE_TASK);
   const [deleteTaskMutation] = useMutation(DELETE_TASK);

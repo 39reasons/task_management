@@ -1,6 +1,6 @@
 import * as CommentService from "../services/CommentService.js";
 import type { GraphQLContext } from "../types/context";
-import type { Comment, Task } from "@shared/types";
+import type { Comment, Task } from "../../../shared/types.js";
 
 export const commentResolvers = {
   Task: {

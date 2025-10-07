@@ -133,3 +133,29 @@ export interface NotificationEvent {
   notification?: Notification | null;
   notification_id?: string | null;
 }
+
+export const TASK_BOARD_ALL_PROJECTS = "__ALL__";
+
+export type TaskBoardEventAction =
+  | "TASK_CREATED"
+  | "TASK_UPDATED"
+  | "TASK_DELETED"
+  | "TASK_MOVED"
+  | "TASKS_REORDERED"
+  | "STAGE_CREATED"
+  | "STAGE_UPDATED"
+  | "STAGE_DELETED"
+  | "STAGES_REORDERED";
+
+export interface TaskBoardEvent {
+  action: TaskBoardEventAction;
+  project_id: string;
+  workflow_id?: string | null;
+  stage_id?: string | null;
+  previous_stage_id?: string | null;
+  task_id?: string | null;
+  task_ids?: string[] | null;
+  stage_ids?: string[] | null;
+  origin?: string | null;
+  timestamp?: string | null;
+}

@@ -1,10 +1,12 @@
 import * as WorkflowService from "../services/WorkflowService.js";
 import * as StageService from "../services/StageService.js";
 import * as TaskService from "../services/TaskService.js";
+import * as ProjectService from "../services/ProjectService.js";
 import * as AIService from "../services/AIService.js";
+import { createTaskBoardEventStream, ALL_PROJECTS_CHANNEL, type TaskBoardEvent } from "../events/taskBoardPubSub.js";
 import type { GraphQLContext } from "../types/context";
-import type { Stage, Workflow } from "@shared/types";
-import type { Task } from "@shared/types";
+import type { Stage, Workflow } from "../../../shared/types.js";
+import type { Task } from "../../../shared/types.js";
 
 export const workflowResolvers = {
   Query: {
@@ -38,7 +40,9 @@ export const workflowResolvers = {
       ctx: GraphQLContext
     ): Promise<Stage> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await StageService.addStage(workflow_id, name, position);
+      return await StageService.addStage(workflow_id, name, position, {
+        origin: ctx.clientId ?? null,
+      });
     },
     updateStage: async (
       _: unknown,
@@ -46,7 +50,9 @@ export const workflowResolvers = {
       ctx: GraphQLContext
     ): Promise<Stage> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await StageService.updateStage(id, name, position);
+      return await StageService.updateStage(id, name, position, {
+        origin: ctx.clientId ?? null,
+      });
     },
     deleteStage: async (
       _: unknown,
@@ -54,7 +60,9 @@ export const workflowResolvers = {
       ctx: GraphQLContext
     ): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await StageService.deleteStage(id);
+      return await StageService.deleteStage(id, {
+        origin: ctx.clientId ?? null,
+      });
     },
     reorderStages: async (
       _: unknown,
@@ -62,7 +70,9 @@ export const workflowResolvers = {
       ctx: GraphQLContext
     ): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      await StageService.reorderStages(workflow_id, stage_ids);
+      await StageService.reorderStages(workflow_id, stage_ids, {
+        origin: ctx.clientId ?? null,
+      });
       return true;
     },
     generateWorkflowStages: async (
@@ -97,7 +107,9 @@ export const workflowResolvers = {
       const createdStages: Stage[] = [];
       let position = basePosition;
       for (const suggestion of suggestions) {
-        const stage = await StageService.addStage(workflow_id, suggestion.name, position);
+        const stage = await StageService.addStage(workflow_id, suggestion.name, position, {
+          origin: ctx.clientId ?? null,
+        });
         createdStages.push(stage);
         position += 1;
       }
@@ -115,6 +127,50 @@ export const workflowResolvers = {
   Stage: {
     tasks: async (parent: Stage, _: unknown, ctx: GraphQLContext): Promise<Task[]> => {
       return await TaskService.getTasks({ stage_id: parent.id }, ctx.user?.id ?? null);
+    },
+  },
+
+  Subscription: {
+    taskBoardEvents: {
+      subscribe: async (
+        _: unknown,
+        { project_id }: { project_id: string },
+        ctx: GraphQLContext
+      ) => {
+        if (!ctx.user) throw new Error("Not authenticated");
+
+        if (project_id !== ALL_PROJECTS_CHANNEL) {
+          const hasAccess = await ProjectService.userHasProjectAccess(project_id, ctx.user.id);
+          if (!hasAccess) {
+            throw new Error("Project not found or not accessible");
+          }
+        }
+
+        const iterator = createTaskBoardEventStream(project_id);
+        const clientOrigin = ctx.clientId ?? null;
+
+        const filtered = (async function* (): AsyncIterableIterator<TaskBoardEvent> {
+          for await (const event of iterator) {
+            if (clientOrigin && event.origin && event.origin === clientOrigin) {
+              continue;
+            }
+            yield event;
+          }
+        })();
+
+        return filtered;
+      },
+      resolve: (event: TaskBoardEvent) => ({
+        ...event,
+        workflow_id: event.workflow_id ?? null,
+        stage_id: event.stage_id ?? null,
+        previous_stage_id: event.previous_stage_id ?? null,
+        task_id: event.task_id ?? null,
+        task_ids: event.task_ids ?? null,
+        stage_ids: event.stage_ids ?? null,
+        origin: event.origin ?? null,
+        timestamp: event.timestamp ?? null,
+      }),
     },
   },
 };

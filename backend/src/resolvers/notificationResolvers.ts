@@ -2,7 +2,7 @@ import * as NotificationService from "../services/NotificationService.js";
 import * as ProjectService from "../services/ProjectService.js";
 import { createNotificationEventStream, type NotificationPubSubEvent } from "../events/notificationPubSub.js";
 import type { GraphQLContext } from "../types/context";
-import type { Notification } from "@shared/types";
+import type { Notification } from "../../../shared/types.js";
 
 type NotificationEventPayload = {
   action: "CREATED" | "UPDATED" | "DELETED";
