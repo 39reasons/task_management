@@ -41,3 +41,55 @@ export const DELETE_PROJECT = gql`
     deleteProject(id: $id)
   }
 `;
+
+export const GET_PROJECTS_OVERVIEW = gql`
+  query GetProjectsOverview {
+    projects {
+      id
+      name
+      description
+      is_public
+      created_at
+      updated_at
+      viewer_is_owner
+      members {
+        id
+        first_name
+        last_name
+        username
+        avatar_color
+      }
+      workflows {
+        id
+        name
+        stages {
+          id
+          name
+          position
+          tasks {
+            id
+            title
+            description
+            due_date
+            priority
+            stage_id
+            project_id
+            position
+            assignees {
+              id
+              first_name
+              last_name
+              username
+              avatar_color
+            }
+            tags {
+              id
+              name
+              color
+            }
+          }
+        }
+      }
+    }
+  }
+`;
