@@ -106,6 +106,13 @@ httpServer.on("request", async (req: IncomingMessage, res: ServerResponse) => {
 
   const url = new URL(req.url, `http://${req.headers.host ?? `localhost:${PORT}`}`);
 
+  if (url.pathname === "/health" || url.pathname === "/healthz") {
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "text/plain");
+    res.end("ok");
+    return;
+  }
+
   if (url.pathname !== "/graphql") {
     res.statusCode = 404;
     res.end("Not found");

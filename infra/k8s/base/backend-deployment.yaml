@@ -61,23 +61,22 @@ spec:
                 secretKeyRef:
                   name: backend-secrets
                   key: OPENAI_API_KEY
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: REDIS_URL
           readinessProbe:
             httpGet:
-              path: /?query=%7B__typename%7D
+              path: /health
               port: 4000
-              httpHeaders:
-                - name: apollo-require-preflight
-                  value: "true"
             initialDelaySeconds: 10
             periodSeconds: 10
 
           livenessProbe:
             httpGet:
-              path: /?query=%7B__typename%7D
+              path: /health
               port: 4000
-              httpHeaders:
-                - name: apollo-require-preflight
-                  value: "true"
             initialDelaySeconds: 30
             periodSeconds: 20
       restartPolicy: Always
