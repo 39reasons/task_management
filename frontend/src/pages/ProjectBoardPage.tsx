@@ -5,7 +5,7 @@ import { KanbanBoard } from "../components/KanbanBoard/KanbanBoard";
 import { useProjectBoard } from "../hooks/useProjectBoard";
 import { GET_PROJECTS, UPDATE_PROJECT, DELETE_PROJECT, GET_PROJECTS_OVERVIEW } from "../graphql";
 import type { AuthUser, Task, Project } from "@shared/types";
-import { Sparkles, Loader2, UserPlus2, Settings, ShieldAlert, Trash2 } from "lucide-react";
+import { Sparkles, Loader2, UserPlus2, Settings, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
@@ -62,7 +62,7 @@ export function ProjectBoardPage({
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
-  const [showDanger, setShowDanger] = useState(false);
+  const [isDeleteSectionOpen, setIsDeleteSectionOpen] = useState(false);
   const navigate = useNavigate();
 
   const [updateProject] = useMutation(UPDATE_PROJECT, {
@@ -83,7 +83,7 @@ export function ProjectBoardPage({
     setSettingsError(null);
     setDeleteError(null);
     setDeleteConfirmation("");
-    setShowDanger(false);
+    setIsDeleteSectionOpen(false);
   }, []);
 
   const { data: projectsData } = useQuery<{ projects: Project[] }>(GET_PROJECTS, {
@@ -136,7 +136,7 @@ export function ProjectBoardPage({
     setSettingsError(null);
     setDeleteError(null);
     setDeleteConfirmation("");
-    setShowDanger(false);
+    setIsDeleteSectionOpen(false);
   }, [currentProject]);
 
   const handleSettingsSave = useCallback(async () => {
@@ -176,8 +176,8 @@ export function ProjectBoardPage({
 
   const handleProjectDelete = useCallback(async () => {
     if (!settingsProject) return;
-    if (deleteConfirmation.trim().toUpperCase() !== "DELETE") {
-      setDeleteError('Type "DELETE" to confirm deletion.');
+    if (deleteConfirmation.trim().toLowerCase() !== "delete") {
+      setDeleteError('Type "delete" to confirm deletion.');
       return;
     }
 
@@ -407,6 +407,69 @@ export function ProjectBoardPage({
 
               {settingsError ? <p className="text-sm text-destructive">{settingsError}</p> : null}
 
+              <div className="space-y-3 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex w-full items-center justify-between text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() =>
+                    setIsDeleteSectionOpen((prev) => {
+                      const next = !prev;
+                      if (!next) {
+                        setDeleteError(null);
+                        setDeleteConfirmation("");
+                      }
+                      return next;
+                    })
+                  }
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </span>
+                  <span className="text-xs">{isDeleteSectionOpen ? "Hide" : "Show"}</span>
+                </Button>
+                {isDeleteSectionOpen ? (
+                  <div className="space-y-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 shadow-[0_0_0_1px_rgba(220,38,38,0.08)]">
+                    <p className="text-xs text-destructive/80">
+                      Deleting <span className="font-semibold">{settingsProject.name}</span> is permanent and removes all
+                      of its tasks.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="project-delete-confirm" className="text-xs font-medium text-destructive">
+                        Type delete to confirm
+                      </Label>
+                      <Input
+                        id="project-delete-confirm"
+                        value={deleteConfirmation}
+                        onChange={(event) => setDeleteConfirmation(event.target.value)}
+                        placeholder="delete"
+                        disabled={deleteSubmitting}
+                        className="border border-destructive/40 focus-visible:ring-destructive"
+                      />
+                    </div>
+                    {deleteError ? <p className="text-xs text-destructive">{deleteError}</p> : null}
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="flex items-center gap-2"
+                      disabled={
+                        settingsSubmitting ||
+                        deleteSubmitting ||
+                        deleteConfirmation.trim().toLowerCase() !== "delete"
+                      }
+                      onClick={() => {
+                        setDeleteError(null);
+                        void handleProjectDelete();
+                      }}
+                    >
+                      {deleteSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Delete project
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+
               <DialogFooter>
                 <Button
                   type="button"
@@ -422,53 +485,6 @@ export function ProjectBoardPage({
                   Save changes
                 </Button>
               </DialogFooter>
-
-              <div className="space-y-4 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="flex w-full items-center justify-between text-destructive"
-                  onClick={() => setShowDanger((prev) => !prev)}
-                >
-                  <span className="flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4" />
-                    Danger zone
-                  </span>
-                  <span className="text-xs">{showDanger ? "Hide" : "Show"}</span>
-                </Button>
-                {showDanger ? (
-                  <div className="space-y-3 border-t border-destructive/30 pt-3 text-sm text-destructive">
-                    <p>
-                      Deleting <span className="font-semibold">{settingsProject.name}</span> is permanent and removes
-                      all of its tasks.
-                    </p>
-                    <div className="space-y-2">
-                      <Label htmlFor="project-delete-confirm">Type DELETE to confirm</Label>
-                      <Input
-                        id="project-delete-confirm"
-                        value={deleteConfirmation}
-                        onChange={(event) => setDeleteConfirmation(event.target.value)}
-                        placeholder="DELETE"
-                        className="border-destructive/30 focus-visible:ring-destructive"
-                      />
-                    </div>
-                    {deleteError ? <p className="text-xs text-destructive">{deleteError}</p> : null}
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => void handleProjectDelete()}
-                      disabled={
-                        deleteSubmitting || deleteConfirmation.trim().toUpperCase() !== "DELETE"
-                      }
-                      className="flex items-center gap-2"
-                    >
-                      {deleteSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                      <Trash2 className="h-4 w-4" />
-                      Delete project
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
             </form>
           </DialogContent>
         ) : null}
