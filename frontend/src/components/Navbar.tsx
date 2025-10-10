@@ -74,7 +74,7 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="flex items-center gap-3 rounded-full px-2.5 py-1.5 hover:bg-accent"
+                    className="flex items-center gap-3 rounded-full px-2.5 py-1.5 hover:bg-accent focus-visible:ring-0 focus-visible:ring-offset-0"
                   >
                     <Avatar className="h-9 w-9 border border-border/80 shadow-inner">
                       <AvatarFallback
@@ -106,11 +106,14 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
                     <span className="text-sm font-semibold text-foreground">{getFullName(user)}</span>
                     <span className="text-xs text-muted-foreground">@{user.username}</span>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuSeparator className="bg-white/80 dark:bg-white/40" />
+                  <DropdownMenuItem
+                    asChild
+                    className="group cursor-pointer rounded-md border border-transparent text-foreground transition hover:border-blue-500/10 hover:bg-blue-500/10 dark:hover:border-white/20 dark:hover:bg-white/10"
+                  >
                     <Link
                       to="/settings"
-                      className="flex w-full items-center gap-2 text-sm text-foreground"
+                      className="flex w-full items-center gap-2 text-sm transition group-hover:text-blue-600 dark:group-hover:text-primary"
                     >
                       <Settings className="h-4 w-4 text-muted-foreground" />
                       Settings
@@ -118,14 +121,16 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
+                    className="group cursor-pointer rounded-md border border-transparent text-destructive transition hover:border-blue-500/10 hover:bg-blue-500/10 dark:hover:border-white/20 dark:hover:bg-white/10"
                     onSelect={(event) => {
                       event.preventDefault();
                       onLogout();
                     }}
                   >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
+                    <span className="flex w-full items-center gap-2 text-sm transition group-hover:text-blue-600 dark:group-hover:text-primary">
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
