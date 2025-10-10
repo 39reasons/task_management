@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useMutation } from "@apollo/client";
 import { LOGIN } from "../../graphql";
 import InputField from "./InputField";
+import { Button } from "../ui";
+import { Loader2 } from "lucide-react";
 import type { AuthUser } from "@shared/types";
 
 interface LoginFormProps {
@@ -27,7 +29,11 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
       <InputField
         label="Username"
@@ -44,13 +50,16 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
         autoComplete="current-password"
       />
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50"
-      >
-        {loading ? "Logging in..." : "Log In"}
-      </button>
+      <Button type="submit" className="w-full font-semibold" disabled={loading}>
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Logging in…
+          </>
+        ) : (
+          "Log In"
+        )}
+      </Button>
     </form>
   );
 }

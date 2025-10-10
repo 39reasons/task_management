@@ -9,6 +9,23 @@ import { useModal } from "./ModalStack";
 import type { User } from "@shared/types";
 import { getFullName, getInitials } from "../utils/user";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import {
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  ScrollArea,
+} from "./ui";
+import { Loader2, X } from "lucide-react";
+import { cn } from "../lib/utils";
 
 interface ProjectInviteModalProps {
   projectId: string | null;
@@ -133,106 +150,123 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
     setSelectedUsers((prev) => prev.filter((user) => user.id !== id));
   };
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      closeModal("invite");
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={() => closeModal("invite")} />
-      <div className="relative bg-gray-800 rounded-xl shadow-lg w-full max-w-sm p-6 space-y-4">
-        <h3 className="text-lg font-semibold text-white">Invite Members</h3>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
+      <DialogContent className="max-w-md space-y-4">
+        <DialogHeader>
+          <DialogTitle>Invite members</DialogTitle>
+          <DialogDescription>
+            Search for teammates and send them an invite to join this project.
+          </DialogDescription>
+        </DialogHeader>
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-300 mb-1">Search users</label>
-            <input
-              type="text"
+          <div className="space-y-2">
+            <Label htmlFor="invite-search">Search users</Label>
+            <Input
+              id="invite-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a username or name"
-              className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600"
               autoFocus
             />
-            {searching && <p className="text-xs text-gray-500 mt-1">Searching…</p>}
-            {!searching && showSuggestions && query.trim().length >= 2 && suggestions.length === 0 && (
-              <p className="text-xs text-gray-500 mt-1">No users found.</p>
-            )}
-            {!searching && showSuggestions && suggestions.length > 0 && (
-              <div className="mt-2 border border-gray-700 rounded-md bg-gray-900 max-h-40 overflow-y-auto">
-                {suggestions.map((user, idx) => {
-                  const isActive = idx === activeIndex;
-                  return (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => toggleUser(user)}
-                      className={`w-full text-left px-3 py-2 text-sm border-b border-gray-800 last:border-0 flex items-center justify-between ${
-                        isActive ? "bg-gray-700" : "hover:bg-gray-800"
-                      } text-white`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold uppercase text-white"
-                          style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
-                        >
-                          {getInitials(user)}
-                        </span>
-                        <div>
-                          <span className="font-medium">{getFullName(user)}</span>
-                          <span className="text-gray-400 text-xs ml-2">@{user.username}</span>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {searching ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Searching…
+                </span>
+              ) : null}
+              {!searching && showSuggestions && query.trim().length >= 2 && suggestions.length === 0 ? (
+                <span>No users found.</span>
+              ) : null}
+            </div>
+
+            {!searching && showSuggestions && suggestions.length > 0 ? (
+              <ScrollArea className="max-h-48 overflow-hidden rounded-md border border-border">
+                <div className="divide-y divide-border bg-card">
+                  {suggestions.map((user, idx) => {
+                    const isActive = idx === activeIndex;
+                    return (
+                      <Button
+                        key={user.id}
+                        type="button"
+                        variant="ghost"
+                        onClick={() => toggleUser(user)}
+                        className={cn(
+                          "flex w-full items-center justify-start gap-3 rounded-none px-3 py-2 text-left text-sm",
+                          isActive ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
+                        )}
+                      >
+                        <Avatar className="h-8 w-8 border border-border/60">
+                          <AvatarFallback
+                            style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
+                            className="text-sm font-semibold text-primary"
+                          >
+                            {getInitials(user)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground">{getFullName(user)}</span>
+                          <span className="text-xs text-muted-foreground">@{user.username}</span>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            ) : null}
           </div>
 
-          {selectedUsers.length > 0 && (
+          {selectedUsers.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {selectedUsers.map((user) => (
-                <span
+                <Badge
                   key={user.id}
-                  className="px-2 py-1 bg-gray-700 text-xs rounded-full flex items-center gap-2"
+                  variant="secondary"
+                  className="flex items-center gap-2 border border-border bg-muted px-2 py-1 text-xs"
                 >
                   <span
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold uppercase text-white"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold uppercase text-primary"
                     style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
                   >
                     {getInitials(user)}
                   </span>
                   <span>{getFullName(user)}</span>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => removeSelected(user.id)}
-                    className="text-gray-300 hover:text-red-400"
+                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
                   >
-                    ✕
-                  </button>
-                </span>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </Badge>
               ))}
             </div>
-          )}
+          ) : null}
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          {success && <p className="text-sm text-green-400">{success}</p>}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {success ? <p className="text-sm text-emerald-400">{success}</p> : null}
 
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => closeModal("invite")}
-              className="px-3 py-1 rounded bg-gray-700 text-white hover:bg-gray-600"
-            >
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="ghost" onClick={() => closeModal("invite")}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || selectedUsers.length === 0}
-              className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
-            >
-              Send Invites
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" disabled={loading || selectedUsers.length === 0}>
+              Send invites
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -3,6 +3,8 @@ import { CornerDownLeft, Edit3, Trash2, Dot } from "lucide-react";
 import { getFullName, getInitials } from "../../utils/user";
 import { DEFAULT_AVATAR_COLOR } from "../../constants/colors";
 import type { CommentWithUser } from "./types";
+import { Button, Input, Textarea } from "../ui";
+import { cn } from "../../lib/utils";
 
 interface TaskCommentsPanelProps {
   comments: CommentWithUser[];
@@ -43,39 +45,40 @@ export function TaskCommentsPanel({
   };
 
   return (
-    <div className="flex flex-col pl-0">
-      <form onSubmit={handleSubmit} className="mb-4">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-600/60 bg-gray-900/80 px-4 py-2 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/30">
-          <input
+    <div className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit}>
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-[hsl(var(--card))] px-4 py-2 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
+          <Input
             type="text"
-            className="flex-1 bg-transparent text-sm text-white placeholder-gray-400 focus:outline-none"
+            className="flex-1 border-0 bg-transparent px-0 text-sm text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
             placeholder="Write a comment..."
             value={commentText}
             onChange={(event) => onCommentTextChange(event.target.value)}
           />
-          <button
+          <Button
             type="submit"
+            size="icon"
+            variant="ghost"
             disabled={!trimmedComment}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
-              trimmedComment
-                ? "text-blue-300 hover:bg-blue-500/10 border-transparent"
-                : "border-transparent text-gray-500"
-            }`}
+            className={cn(
+              "h-8 w-8 rounded-full border border-transparent text-muted-foreground",
+              trimmedComment && "text-primary hover:border-primary/40 hover:bg-primary/10"
+            )}
             aria-label="Submit comment"
           >
-            <CornerDownLeft size={16} />
-          </button>
+            <CornerDownLeft className="h-4 w-4" />
+          </Button>
         </div>
       </form>
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       ) : comments.length === 0 ? (
-        <p className="text-sm text-gray-500">No comments yet.</p>
+        <p className="text-sm text-muted-foreground">No comments yet.</p>
       ) : (
         <Fragment>
-          <div className="mb-2 text-sm font-semibold text-white">Comments</div>
-          <div className="overflow-y-auto min-h-0 pr-2 space-y-2 max-h-[calc(80vh-10rem)]">
+          <div className="text-sm font-semibold text-foreground">Comments</div>
+          <div className="space-y-3">
             {comments.map((comment) => {
               const isOwn = currentUserId === comment.user?.id;
               const isEditing = editingCommentId === comment.id;
@@ -142,76 +145,84 @@ function CommentItem({
 
   return (
     <div
-      className={`group relative flex gap-3 rounded-xl border border-gray-700/60 bg-gray-900/70 p-3 shadow-sm transition ${
-        isEditing ? "border-blue-500/80 bg-gray-900/80" : "hover:border-blue-500/70 hover:bg-gray-900/80"
-      }`}
+      className={cn(
+        "group relative flex gap-3 rounded-lg border border-border bg-[hsl(var(--card))] p-3 shadow-sm transition hover:border-primary/20 hover:bg-muted/40",
+        isEditing && "border-primary/50 bg-primary/5"
+      )}
     >
       <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold uppercase text-white"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold uppercase text-primary"
         style={{ backgroundColor: comment.user?.avatar_color || DEFAULT_AVATAR_COLOR }}
       >
         {comment.user ? getInitials(comment.user) : "?"}
       </div>
       <div className="flex-1 space-y-2">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
-          <span className="font-semibold text-white">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">
             {comment.user ? getFullName(comment.user) : "Unknown"}
           </span>
-          {comment.user?.username && <span className="text-gray-500">@{comment.user.username}</span>}
-          <Dot size={14} className="text-gray-600" />
+          {comment.user?.username && <span className="text-muted-foreground/80">@{comment.user.username}</span>}
+          <Dot size={14} className="text-muted-foreground/50" />
           <span>{timeAgo(Number(comment.created_at))}</span>
-          {isEdited && <span className="text-gray-500">(edited)</span>}
+          {isEdited && <span className="text-muted-foreground/70">(edited)</span>}
         </div>
 
         {isOwn && !isEditing && (
           <div className="absolute right-3 top-3 hidden items-center gap-2 group-hover:flex">
-            <button
+            <Button
               type="button"
+              size="icon"
+              variant="ghost"
               onClick={onStartEdit}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-600/70 bg-gray-900/70 text-gray-300 transition hover:border-blue-400 hover:text-blue-200"
+              className="h-7 w-7 rounded-full border border-border/60 text-muted-foreground hover:border-primary/40 hover:text-primary"
               aria-label="Edit comment"
             >
               <Edit3 size={14} />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="icon"
+              variant="ghost"
               onClick={onDelete}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-600/70 bg-gray-900/70 text-gray-300 transition hover:border-red-400 hover:text-red-200"
+              className="h-7 w-7 rounded-full border border-border/60 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
               aria-label="Delete comment"
             >
               <Trash2 size={14} />
-            </button>
+            </Button>
           </div>
         )}
 
         {isEditing ? (
           <div className="space-y-2">
-            <textarea
+            <Textarea
               value={editingText}
               onChange={(event) => onChangeEditingText(event.target.value)}
-              className="w-full resize-vertical rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="w-full resize-vertical text-sm"
               placeholder="Update your comment"
             />
             <div className="flex gap-2 text-xs">
-              <button
+              <Button
                 type="button"
+                size="sm"
                 onClick={handleSave}
-                className="rounded-lg bg-blue-600 px-3 py-1.5 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
+                className="h-8 px-3"
                 disabled={!editingText.trim() || editingText.trim() === trimmedOriginal}
               >
                 Save
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                size="sm"
+                variant="ghost"
                 onClick={onCancelEdit}
-                className="rounded-lg px-3 py-1.5 text-gray-300 transition hover:bg-gray-800 hover:text-gray-100"
+                className="h-8 px-3 text-muted-foreground"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
             {comment.content}
           </div>
         )}

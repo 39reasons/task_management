@@ -1,12 +1,22 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@apollo/client";
-import { AlertTriangle, ArrowUpRight, CalendarClock, FolderOpen, Layers, ListChecks, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CalendarClock,
+  FolderOpen,
+  Layers,
+  ListChecks,
+  Users,
+} from "lucide-react";
 import type { AuthUser, Project, Stage, Task, User, Workflow } from "@shared/types";
 import { useAllTasksBoard } from "../hooks/useAllTasksBoard";
 import { GET_PROJECTS_OVERVIEW } from "../graphql";
 import { getInitials } from "../utils/user";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import { Button } from "../components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 
 interface HomePageProps {
   user: AuthUser | null;
@@ -36,16 +46,22 @@ interface ProjectSummary {
   nextDueTask: TaskWithDue | null;
 }
 
+interface WorkspaceTotals {
+  totalProjects: number;
+  publicProjects: number;
+  privateProjects: number;
+  workflowCount: number;
+  stageCount: number;
+  taskCount: number;
+  memberCount: number;
+  tagCount: number;
+}
+
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
 });
 
-const LONG_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
 
 function toDate(value?: string | null): Date | null {
   if (!value) return null;
@@ -72,10 +88,20 @@ function formatRelativeToToday(date: Date): string {
   return `${Math.abs(diffDays)} days overdue`;
 }
 
-function formatUpdatedAt(value?: string | null): string {
-  const parsed = toDate(value);
-  if (!parsed) return "—";
-  return LONG_DATE_FORMATTER.format(parsed);
+function WorkspaceSnapshot({ totals }: { totals: WorkspaceTotals }) {
+  return (
+    <div className="rounded-3xl border border-border/80 bg-slate-50 px-6 py-5 text-slate-900 shadow-lg shadow-slate-950/10 transition dark:border-white/10 dark:bg-white/10 dark:text-primary">
+      <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-900 dark:text-primary/80">
+        Workspace snapshot
+      </p>
+      <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-900 dark:text-primary">
+        {totals.taskCount}
+      </p>
+      <p className="text-sm text-slate-600 dark:text-primary/75">
+        tasks across {totals.totalProjects} projects
+      </p>
+    </div>
+  );
 }
 
 export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePageProps) {
@@ -84,7 +110,10 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
     loading,
     error,
   } = useQuery<{ projects: ProjectOverview[] }>(GET_PROJECTS_OVERVIEW, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "network-only",
+    nextFetchPolicy: "cache-first",
+    errorPolicy: "all",
+    returnPartialData: true,
   });
 
   const {
@@ -254,131 +283,120 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
   const showProjectsEmptyState = !loading && projectSummaries.length === 0;
   return (
     <div className="space-y-8 pb-6">
-      <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-slate-950 px-6 py-8 shadow-lg shadow-slate-950/40">
+      <section className="rounded-3xl border border-border bg-card px-6 py-8 shadow-lg shadow-slate-950/5">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <p className="text-sm font-medium text-blue-200/80">
+            <p className="text-sm font-medium text-muted-foreground">
               {user
                 ? `Welcome back, ${user.first_name ?? user.username}!`
                 : "Welcome to JellyFlow"}
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
               {user ? "Your workspace at a glance" : "Organize projects, workflows, and tasks in one place"}
             </h1>
-            <p className="max-w-2xl text-sm text-slate-300">
+            <p className="max-w-2xl text-sm text-muted-foreground">
               Projects collect your workflows, workflows group stages, and stages hold the tasks that power your team.
               Invite teammates to collaborate, and keep work on track with due dates, priorities, and tags.
             </p>
           </div>
           <div className="w-full max-w-xs">
             {user ? (
-              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-4 text-blue-100 shadow-inner shadow-blue-900/30">
-                <p className="text-xs uppercase tracking-wide text-blue-200/80">
-                  Workspace snapshot
-                </p>
-                <p className="mt-2 text-3xl font-semibold">
-                  {totals.taskCount}
-                </p>
-                <p className="text-xs text-blue-100/80">
-                  tasks across {totals.totalProjects} projects
-                </p>
-              </div>
+              <WorkspaceSnapshot totals={totals} />
             ) : (
-              <Link
-                to="/signup"
-                className="inline-flex w-full items-center justify-center rounded-full border border-blue-400/40 bg-blue-500/10 px-5 py-2.5 text-sm font-semibold text-blue-100 transition hover:border-blue-300/60 hover:bg-blue-500/20"
-              >
-                Create your workspace
-              </Link>
+              <Button asChild className="w-full">
+                <Link to="/signup">Create your workspace</Link>
+              </Button>
             )}
           </div>
         </div>
       </section>
 
-      {hasAnyError && (
+      {hasAnyError ? (
         <div className="space-y-2">
           {error ? (
-            <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {error.message || "Unable to load projects right now."}
-            </div>
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load projects</AlertTitle>
+              <AlertDescription>{error.message ?? "Something went wrong."}</AlertDescription>
+            </Alert>
           ) : null}
           {tasksErrorMessage ? (
-            <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {tasksErrorMessage}
-            </div>
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load tasks</AlertTitle>
+              <AlertDescription>{tasksErrorMessage}</AlertDescription>
+            </Alert>
           ) : null}
         </div>
-      )}
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/75 p-5 shadow-inner shadow-slate-950/40">
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-start justify-between">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/15 text-blue-200">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#d2e2fb] text-[#1f6feb] transition dark:bg-blue-500/30 dark:text-blue-200">
               <FolderOpen className="h-5 w-5" />
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground">
               {totals.totalProjects ? `${totals.publicProjects} public · ${totals.privateProjects} private` : "No projects yet"}
             </span>
           </div>
-          <p className="mt-5 text-3xl font-semibold text-white">{totals.totalProjects}</p>
-          <p className="text-sm text-slate-400">Projects in workspace</p>
+          <p className="mt-5 text-3xl font-semibold text-foreground">{totals.totalProjects}</p>
+          <p className="text-sm text-blue-500 dark:text-primary">Projects in workspace</p>
         </div>
 
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/75 p-5 shadow-inner shadow-slate-950/40">
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-start justify-between">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
               <Layers className="h-5 w-5" />
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground">
               {totals.stageCount} stages
             </span>
           </div>
-          <p className="mt-5 text-3xl font-semibold text-white">{totals.workflowCount}</p>
-          <p className="text-sm text-slate-400">Active workflows</p>
+          <p className="mt-5 text-3xl font-semibold text-foreground">{totals.workflowCount}</p>
+          <p className="text-sm text-muted-foreground">Active workflows</p>
         </div>
 
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/75 p-5 shadow-inner shadow-slate-950/40">
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-start justify-between">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/15 text-purple-200">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/10 text-purple-600">
               <ListChecks className="h-5 w-5" />
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground">
               {prioritySummary.high} high · {prioritySummary.medium} med · {prioritySummary.low} low · {prioritySummary.none} none
             </span>
           </div>
-          <p className="mt-5 text-3xl font-semibold text-white">{totals.taskCount}</p>
-          <p className="text-sm text-slate-400">Tasks in play</p>
+          <p className="mt-5 text-3xl font-semibold text-foreground">{totals.taskCount}</p>
+          <p className="text-sm text-muted-foreground">Tasks in play</p>
         </div>
 
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/75 p-5 shadow-inner shadow-slate-950/40">
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-start justify-between">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-200">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
               <Users className="h-5 w-5" />
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground">
               {totals.tagCount} tags
             </span>
           </div>
-          <p className="mt-5 text-3xl font-semibold text-white">{totals.memberCount}</p>
-          <p className="text-sm text-slate-400">Collaborators</p>
+          <p className="mt-5 text-3xl font-semibold text-foreground">{totals.memberCount}</p>
+          <p className="text-sm text-muted-foreground">Collaborators</p>
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-800/70 bg-slate-900/70 px-6 py-6 shadow-lg shadow-slate-950/30">
+      <section className="rounded-3xl border border-border bg-card px-6 py-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-white">Projects overview</h2>
-            <p className="text-sm text-slate-400">
+            <h2 className="text-lg font-semibold text-foreground">Projects overview</h2>
+            <p className="text-sm text-muted-foreground">
               Browse the projects you can access, their workflows, and the tasks moving through each stage.
             </p>
           </div>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-muted-foreground">
             {loading ? "Loading projects…" : `${projectSummaries.length} project${projectSummaries.length === 1 ? "" : "s"}`}
           </span>
         </div>
 
         {showProjectsEmptyState ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 px-4 py-8 text-center text-sm text-slate-400">
+          <div className="mt-6 rounded-2xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
             {user ? (
               <p>
                 No projects yet. Use the sidebar to create your first project and we’ll populate this overview.
@@ -395,64 +413,64 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
               <Link
                 key={summary.project.id}
                 to={`/projects/${summary.project.id}`}
-                className="group flex h-full flex-col rounded-3xl border border-slate-800/70 bg-slate-900/80 p-5 transition duration-200 hover:border-blue-500/40 hover:bg-slate-900/95"
+                className="group flex h-full flex-col rounded-3xl border border-border bg-card p-5 transition duration-200 hover:border-primary/30 hover:bg-muted/60"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
-                    <h3 className="text-lg font-semibold text-white">{summary.project.name}</h3>
-                    <p className="text-sm text-slate-300">
+                    <h3 className="text-lg font-semibold text-foreground">{summary.project.name}</h3>
+                    <p className="text-sm text-muted-foreground">
                       {summary.project.description?.trim() || "No description yet."}
                     </p>
                   </div>
                   <span
-                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${
                       summary.project.is_public
-                        ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
-                        : "border-slate-700 bg-slate-800 text-slate-300"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-border bg-muted/40 text-muted-foreground"
                     }`}
                   >
                     {summary.project.is_public ? "Public" : "Private"}
                   </span>
                 </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-3 text-center text-xs text-slate-300">
-                  <div className="rounded-2xl bg-slate-950/60 px-3 py-2">
-                    <p className="text-base font-semibold text-white">{summary.workflowCount}</p>
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Workflows</p>
+                <div className="mt-5 grid grid-cols-3 gap-3 text-center text-xs text-muted-foreground">
+                  <div className="rounded-2xl bg-muted px-3 py-2">
+                    <p className="text-base font-semibold text-foreground">{summary.workflowCount}</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Workflows</p>
                   </div>
-                  <div className="rounded-2xl bg-slate-950/60 px-3 py-2">
-                    <p className="text-base font-semibold text-white">{summary.stageCount}</p>
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Stages</p>
+                  <div className="rounded-2xl bg-muted px-3 py-2">
+                    <p className="text-base font-semibold text-foreground">{summary.stageCount}</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Stages</p>
                   </div>
-                  <div className="rounded-2xl bg-slate-950/60 px-3 py-2">
-                    <p className="text-base font-semibold text-white">{summary.taskCount}</p>
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Tasks</p>
+                  <div className="rounded-2xl bg-muted px-3 py-2">
+                    <p className="text-base font-semibold text-foreground">{summary.taskCount}</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Tasks</p>
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-300">
-                  <div className="rounded-2xl border border-slate-800/60 bg-slate-900/80 px-3 py-2 text-left">
-                    <p className="text-sm font-semibold text-white">{summary.tagCount}</p>
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Tags in use</p>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
+                  <div className="rounded-2xl border border-border bg-card px-3 py-2 text-left dark:border-white/10 dark:bg-[hsl(var(--sidebar-background))]">
+                    <p className="text-sm font-semibold text-foreground">{summary.tagCount}</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Tags in use</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-800/60 bg-slate-900/80 px-3 py-2 text-left">
-                    <p className="text-sm font-semibold text-white">{summary.overdueCount}</p>
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Overdue tasks</p>
+                  <div className="rounded-2xl border border-border bg-card px-3 py-2 text-left dark:border-white/10 dark:bg-[hsl(var(--sidebar-background))]">
+                    <p className="text-sm font-semibold text-foreground">{summary.overdueCount}</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Overdue tasks</p>
                   </div>
                 </div>
 
                 <div className="mt-4">
                   {summary.nextDueTask ? (
-                    <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-xs text-blue-100 shadow-inner shadow-blue-900/20">
-                      <p className="text-sm font-semibold text-blue-100">
+                    <div className="rounded-2xl border border-border bg-card px-4 py-3 text-xs text-foreground shadow-sm dark:border-white/10 dark:bg-[hsl(var(--sidebar-background))] dark:text-primary">
+                      <p className="text-sm font-semibold text-foreground dark:text-primary">
                         Next due · {summary.nextDueTask.task.title}
                       </p>
-                      <p className="mt-1 text-[11px] uppercase tracking-wide text-blue-200/80">
+                      <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground/80 dark:text-primary/70">
                         {formatRelativeToToday(summary.nextDueTask.dueDate)} · {SHORT_DATE_FORMATTER.format(summary.nextDueTask.dueDate)}
                       </p>
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-slate-800/60 bg-slate-900/75 px-4 py-3 text-xs text-slate-400">
+                    <div className="rounded-2xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground dark:border-white/10 dark:bg-[hsl(var(--sidebar-background))] dark:text-primary/70">
                       No upcoming due dates.
                     </div>
                   )}
@@ -464,7 +482,7 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
                       {(summary.project.members ?? []).slice(0, 4).map((member) => (
                         <span
                           key={member.id}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-900/80 text-xs font-semibold text-white"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-xs font-semibold text-primary"
                           style={{ backgroundColor: member.avatar_color ?? DEFAULT_AVATAR_COLOR }}
                         >
                           {getInitials(member)}
@@ -472,22 +490,18 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
                       ))}
                     </div>
                     {summary.project.members && summary.project.members.length > 4 ? (
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-muted-foreground">
                         +{summary.project.members.length - 4}
                       </span>
                     ) : null}
                     {(!summary.project.members || summary.project.members.length === 0) && (
-                      <span className="text-xs text-slate-500">No members yet</span>
+                      <span className="text-xs text-muted-foreground">No members yet</span>
                     )}
                   </div>
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 transition group-hover:text-blue-200">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-500 transition group-hover:bg-blue-500/20 group-hover:text-blue-600 dark:bg-white/10 dark:text-primary dark:group-hover:bg-white/20 dark:group-hover:text-primary/80">
                     View board
                     <ArrowUpRight className="h-4 w-4" />
                   </span>
-                </div>
-
-                <div className="mt-4 text-xs text-slate-500">
-                  Updated {formatUpdatedAt(summary.project.updated_at ?? summary.project.created_at)}
                 </div>
               </Link>
             ))}
@@ -496,17 +510,17 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/75 px-5 py-6">
+        <div className="rounded-3xl border border-border bg-card px-5 py-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-white">Upcoming due dates</h2>
-              <p className="text-sm text-slate-400">The next tasks scheduled across all workflows.</p>
+              <h2 className="text-lg font-semibold text-foreground">Upcoming due dates</h2>
+              <p className="text-sm text-muted-foreground">The next tasks scheduled across all workflows.</p>
             </div>
-            <CalendarClock className="h-5 w-5 text-blue-300" />
+            <CalendarClock className="h-5 w-5 text-primary" />
           </div>
 
           {upcomingTasks.length === 0 ? (
-            <p className="mt-6 text-sm text-slate-500">
+            <p className="mt-6 rounded-3xl border border-white/10 bg-[hsl(var(--sidebar-background))] px-4 py-3 text-sm text-primary/75">
               No upcoming due dates. Assign due dates to tasks to see them here.
             </p>
           ) : (
@@ -514,17 +528,17 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
               {upcomingTasks.map(({ task, dueDate }) => (
                 <li
                   key={task.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/85 px-4 py-3 text-sm text-white transition hover:border-blue-500/40 hover:bg-slate-900"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-foreground transition hover:border-primary/30 hover:bg-muted/60 dark:border-white/10 dark:bg-[hsl(var(--sidebar-background))] dark:text-primary"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-semibold">{task.title}</p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="truncate font-semibold text-foreground dark:text-primary">{task.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground dark:text-primary/70">
                       {task.stage?.name ?? "Stage"} · {SHORT_DATE_FORMATTER.format(dueDate)} · {formatRelativeToToday(dueDate)}
                     </p>
                   </div>
                   <Link
                     to={`/projects/${task.project_id}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 transition hover:text-blue-200"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary transition hover:text-primary/80"
                   >
                     View
                     <ArrowUpRight className="h-4 w-4" />
@@ -535,17 +549,17 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
           )}
         </div>
 
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/75 px-5 py-6">
+        <div className="rounded-3xl border border-border bg-card px-5 py-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-white">Overdue tasks</h2>
-              <p className="text-sm text-slate-400">Tasks that need attention across every project.</p>
+              <h2 className="text-lg font-semibold text-foreground">Overdue tasks</h2>
+              <p className="text-sm text-muted-foreground">Tasks that need attention across every project.</p>
             </div>
-            <AlertTriangle className="h-5 w-5 text-red-300" />
+            <AlertTriangle className="h-5 w-5 text-destructive" />
           </div>
 
           {overdueTasks.length === 0 ? (
-            <p className="mt-6 text-sm text-slate-500">
+            <p className="mt-6 rounded-3xl border border-white/10 bg-[hsl(var(--sidebar-background))] px-4 py-3 text-sm text-primary/75">
               Great news! Nothing is overdue right now.
             </p>
           ) : (
@@ -553,17 +567,17 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
               {overdueTasks.map(({ task, dueDate }) => (
                 <li
                   key={task.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/85 px-4 py-3 text-sm text-white transition hover:border-red-500/40 hover:bg-slate-900"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-foreground transition hover:border-destructive/30 hover:bg-muted/60 dark:border-white/10 dark:bg-[hsl(var(--sidebar-background))] dark:text-primary"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-semibold">{task.title}</p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="truncate font-semibold text-foreground dark:text-primary">{task.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground dark:text-primary/70">
                       {task.stage?.name ?? "Stage"} · {SHORT_DATE_FORMATTER.format(dueDate)} · {formatRelativeToToday(dueDate)}
                     </p>
                   </div>
                   <Link
                     to={`/projects/${task.project_id}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 transition hover:text-blue-200"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary transition hover:text-primary/80"
                   >
                     View
                     <ArrowUpRight className="h-4 w-4" />

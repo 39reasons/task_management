@@ -2,6 +2,7 @@ import { Plus, Clock, Calendar, X } from "lucide-react";
 import type { AuthUser } from "@shared/types";
 import { getFullName, getInitials } from "../../utils/user";
 import { DEFAULT_AVATAR_COLOR } from "../../constants/colors";
+import { Button } from "../ui";
 
 interface TaskMetaSectionProps {
   hasTags: boolean;
@@ -34,133 +35,149 @@ export function TaskMetaSection({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         {!hasTags && (
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="outline"
             onClick={onAddTag}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
+            className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
           >
-            <Plus size={14} />
+            <Plus className="h-3.5 w-3.5" />
             Tags
-          </button>
+          </Button>
         )}
         {!hasAssignees && (
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="outline"
             onClick={onAddMember}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-600 bg-gray-900 text-sm text-white hover:border-gray-400"
+            className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
           >
-            <Plus size={14} />
+            <Plus className="h-3.5 w-3.5" />
             Members
-          </button>
+          </Button>
         )}
         {!dueDate && (
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="outline"
             onClick={onAddDueDate}
-            className="flex items-center gap-1 rounded-md border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white hover:border-gray-400"
+            className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
           >
-            <Clock size={14} />
+            <Clock className="h-3.5 w-3.5" />
             Due date
-          </button>
+          </Button>
         )}
       </div>
 
       {hasTags && (
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Tags</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Tags</p>
           <div className="flex flex-wrap items-center gap-2">
             {tags.map((tag) => (
               <div
                 key={tag.id}
-                className="flex items-center gap-2 rounded-full bg-gray-700/80 px-3 py-1.5 text-xs text-white"
+                className="flex items-center gap-2 rounded-full border border-transparent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary-foreground shadow-sm"
                 style={{ backgroundColor: tag.color ?? undefined }}
               >
-                <span className="font-semibold uppercase tracking-wide">
-                  {tag.name}
-                </span>
-                <button
+                <span>{tag.name}</span>
+                <Button
                   type="button"
+                  size="icon"
+                  variant="ghost"
                   onClick={() => onRemoveTag(tag.id)}
-                  className="ml-1 flex h-5 w-5 items-center justify-center rounded-full border border-white/50 text-white/80 transition hover:border-red-300 hover:text-red-100"
+                  className="h-5 w-5 rounded-full border border-white/30 bg-[hsl(var(--card))] text-primary-foreground hover:border-primary/40 hover:bg-primary/10"
                   aria-label={`Remove ${tag.name}`}
                 >
                   <X size={12} strokeWidth={2} />
-                </button>
+                </Button>
               </div>
             ))}
-            <button
+            <Button
               type="button"
+              size="icon"
+              variant="ghost"
               onClick={onAddTag}
-              className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-gray-500 text-gray-200 transition hover:border-blue-400 hover:text-blue-200"
+              className="h-6 w-6 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
               aria-label="Add tag"
             >
               <Plus size={12} />
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {hasAssignees && (
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Assignees</p>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-white">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Assignees</p>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
             {assignees.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center gap-2 rounded-full bg-gray-700/70 px-3 py-1.5 text-xs text-white"
+                className="flex items-center gap-2 rounded-full border border-border bg-[hsl(var(--card))] px-3 py-1.5 text-xs text-foreground"
               >
                 <span
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold uppercase text-white"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold uppercase text-primary"
                   style={{ backgroundColor: member.avatar_color || DEFAULT_AVATAR_COLOR }}
                 >
                   {getInitials(member)}
                 </span>
                 <div className="flex flex-col leading-tight">
-                  <span className="font-semibold">{getFullName(member)}</span>
-                  <span className="text-[10px] text-gray-300">@{member.username}</span>
+                  <span className="font-semibold text-foreground">{getFullName(member)}</span>
+                  <span className="text-[10px] text-muted-foreground">@{member.username}</span>
                 </div>
-                <button
+                <Button
                   type="button"
+                  size="icon"
+                  variant="ghost"
                   onClick={() => onRemoveMember(member.id)}
-                  className="ml-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-500 text-gray-300 transition hover:border-red-400 hover:text-red-300"
+                  className="ml-1 h-5 w-5 rounded-full border border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive"
                   aria-label={`Remove ${getFullName(member)}`}
                 >
                   <X size={12} />
-                </button>
+                </Button>
               </div>
             ))}
-            <button
+            <Button
               type="button"
+              size="icon"
+              variant="ghost"
               onClick={onAddMember}
-              className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-gray-500 text-gray-200 transition hover:border-blue-400 hover:text-blue-200"
+              className="h-6 w-6 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
               aria-label="Add member"
             >
               <Plus size={12} />
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {dueDate ? (
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Due Date</p>
-          <div className="relative inline-flex items-center rounded-full border border-gray-600/70 bg-gray-800/70 pr-6 text-xs text-white">
-            <button
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Due Date</p>
+          <div className="flex items-center gap-2">
+            <Button
               type="button"
+              size="sm"
+              variant="outline"
               onClick={onAddDueDate}
-              className="flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-white transition hover:bg-gray-700/70"
+              className="gap-2 border-border/60 text-sm text-foreground hover:border-primary/40 hover:text-primary"
             >
-              <Calendar size={14} className="text-gray-300" />
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
               <span>{dueDate}</span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="icon"
+              variant="ghost"
               onClick={onClearDueDate}
-              className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-500 bg-gray-900 text-gray-300 transition hover:border-red-400 hover:text-red-200"
+              className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive"
               aria-label="Remove due date"
             >
-              <X size={12} />
-            </button>
+              <X size={14} />
+            </Button>
           </div>
         </div>
       ) : null}

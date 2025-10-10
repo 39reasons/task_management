@@ -17,11 +17,22 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { WheelEvent as ReactWheelEvent } from "react";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanOverlay } from "./KanbanOverlay";
 import { useModal } from "../ModalStack";
 import { Plus, CornerDownLeft } from "lucide-react";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 
 const STAGE_NAME_MAX_LENGTH = 512;
 
@@ -191,6 +202,7 @@ export function KanbanBoard({
   );
   const previousStageCountRef = useRef(stages.length);
   const [displayStages, setDisplayStages] = useState(() => cloneStages(stages));
+  const [columnHeight, setColumnHeight] = useState<number | null>(null);
 
   useEffect(() => {
     if (!areStagesEquivalent(stages, displayStages)) {
@@ -375,41 +387,55 @@ export function KanbanBoard({
   }, [isAddingStage]);
 
   useEffect(() => {
-    if (displayStages.length > previousStageCountRef.current && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({
-        left: scrollContainerRef.current.scrollWidth,
-        behavior: "smooth",
-      });
-    }
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const shouldScroll = displayStages.length > previousStageCountRef.current;
     previousStageCountRef.current = displayStages.length;
+
+    if (!shouldScroll) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const node = scrollContainerRef.current;
+      if (!node) return;
+      const maxScroll = node.scrollWidth - node.clientWidth;
+      if (maxScroll > 0) {
+        node.scrollTo({
+          left: maxScroll,
+          behavior: "smooth",
+        });
+      }
+    });
   }, [displayStages.length]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-      const handlePointerDown = (event: PointerEvent) => {
-        if (event.button !== 0) return;
-        container.classList.add("dragging");
-        dragStateRef.current = {
-          isDragging: true,
-          startX: event.clientX,
-          scrollLeft: container.scrollLeft,
-        };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      container.classList.add("dragging");
+      dragStateRef.current = {
+        isDragging: true,
+        startX: event.clientX,
+        scrollLeft: container.scrollLeft,
       };
+    };
 
-      const handlePointerMove = (event: PointerEvent) => {
-        if (!dragStateRef.current?.isDragging) return;
-        const deltaX = event.clientX - dragStateRef.current.startX;
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!dragStateRef.current?.isDragging) return;
+      const deltaX = event.clientX - dragStateRef.current.startX;
       container.scrollLeft = dragStateRef.current.scrollLeft - deltaX;
     };
 
-      const handlePointerUp = () => {
-        if (dragStateRef.current?.isDragging) {
-          container.classList.remove("dragging");
-        }
-        dragStateRef.current = null;
-      };
+    const handlePointerUp = () => {
+      if (dragStateRef.current?.isDragging) {
+        container.classList.remove("dragging");
+      }
+      dragStateRef.current = null;
+    };
 
     container.addEventListener("pointerdown", handlePointerDown);
     container.addEventListener("pointermove", handlePointerMove);
@@ -422,20 +448,97 @@ export function KanbanBoard({
       container.removeEventListener("pointerup", handlePointerUp);
       container.removeEventListener("pointerleave", handlePointerUp);
     };
-  }, [scrollContainerRef]);
+  }, [displayStages.length]);
+
+  const handleHorizontalScroll = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    if (event.ctrlKey) return;
+
+    const { deltaX, deltaY } = event;
+    const horizontalIntent = Math.abs(deltaX) > Math.abs(deltaY);
+
+    const allowVerticalScroll = () => {
+      let node = event.target as HTMLElement | null;
+      while (node && node !== event.currentTarget) {
+        const style = window.getComputedStyle(node);
+        const canScrollVertically =
+          node.scrollHeight > node.clientHeight &&
+          (style.overflowY === "auto" || style.overflowY === "scroll");
+        if (canScrollVertically) {
+          return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    };
+
+    if (horizontalIntent) {
+      if (deltaX === 0) return;
+      event.currentTarget.scrollLeft += deltaX;
+      event.preventDefault();
+      return;
+    }
+
+    if (deltaY === 0) {
+      return;
+    }
+
+    if (allowVerticalScroll()) {
+      return;
+    }
+
+    event.currentTarget.scrollLeft += deltaY;
+    event.preventDefault();
+  }, []);
+
+  const updateColumnHeight = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const rect = container.getBoundingClientRect();
+    const spacingBelow = 48; // leave breathing room for page padding
+    const available = viewportHeight - rect.top - spacingBelow;
+    if (!Number.isFinite(available)) {
+      return;
+    }
+    const nextHeight = available > 0 ? Math.floor(available) : null;
+    setColumnHeight((previous) => {
+      if (previous === nextHeight) {
+        return previous;
+      }
+      return nextHeight;
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    updateColumnHeight();
+    const handleResize = () => updateColumnHeight();
+    window.addEventListener("resize", handleResize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleResize);
+    }
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(() => updateColumnHeight());
+      if (document.body) {
+        observer.observe(document.body);
+      }
+      if (scrollContainerRef.current) {
+        observer.observe(scrollContainerRef.current);
+      }
+    }
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleResize);
+      }
+      observer?.disconnect();
+    };
+  }, [updateColumnHeight]);
 
   useEffect(() => {
-    if (
-      displayStages.length > previousStageCountRef.current &&
-      scrollContainerRef.current
-    ) {
-      scrollContainerRef.current.scrollTo({
-        left: scrollContainerRef.current.scrollWidth,
-        behavior: "smooth",
-      });
-    }
-    previousStageCountRef.current = displayStages.length;
-  }, [displayStages.length]);
+    const animation = requestAnimationFrame(updateColumnHeight);
+    return () => cancelAnimationFrame(animation);
+  }, [updateColumnHeight, displayStages.length, isAddingStage]);
 
   const submitNewStage = async () => {
     if (!onAddStage) return;
@@ -445,6 +548,16 @@ export function KanbanBoard({
     await Promise.resolve(onAddStage(value));
     setNewStageName("");
     setIsAddingStage(false);
+    if (scrollContainerRef.current) {
+      requestAnimationFrame(() => {
+        const containerNode = scrollContainerRef.current;
+        if (!containerNode) return;
+        const maxScroll = containerNode.scrollWidth - containerNode.clientWidth;
+        if (maxScroll > 0) {
+          containerNode.scrollTo({ left: maxScroll, behavior: "smooth" });
+        }
+      });
+    }
   };
 
   const handleAddStageSubmit = async (e: FormEvent) => {
@@ -471,10 +584,11 @@ export function KanbanBoard({
       }}
     >
       <div
+        className="w-full max-w-full overflow-x-auto pb-6 styled-scrollbars overscroll-x-contain"
         ref={scrollContainerRef}
-        className="flex select-none items-start gap-6 overflow-x-auto pb-6"
-        style={{ scrollbarGutter: "stable both-edges" }}
+        onWheelCapture={handleHorizontalScroll}
       >
+        <div className="flex w-max min-h-full select-none items-start gap-6">
         <SortableContext
           items={displayStages.map((stage) => stage.id)}
           strategy={horizontalListSortingStrategy}
@@ -492,76 +606,76 @@ export function KanbanBoard({
                   onAddTask={user && onAddTask ? onAddTask : undefined}
                   onDeleteStage={user && onDeleteStage ? onDeleteStage : undefined}
                   dragHandleProps={dragHandleProps}
+                  columnHeight={columnHeight}
                 />
               )}
             </SortableStageWrapper>
           ))}
         </SortableContext>
 
-        {user && onAddStage && (
+        {user && onAddStage ? (
           <div className="flex min-w-[280px] flex-col gap-3">
             {!isAddingStage ? (
-              <button
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={() => setIsAddingStage(true)}
-                className="group w-full rounded-2xl border border-dashed border-gray-600/60 bg-slate-900/70 px-4 py-3 text-left transition hover:border-blue-500 hover:bg-slate-900/85 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                className="flex w-full items-center justify-start gap-3 rounded-2xl border border-dashed border-border/60 bg-transparent px-5 py-8 text-left transition hover:border-primary/40 hover:bg-muted/20"
               >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15 text-blue-300">
-                    <Plus className="h-4 w-4" />
+                <span className="flex h-5 w-5 items-center justify-center text-primary">
+                  <Plus className="h-4 w-4" strokeWidth={1.5} />
+                </span>
+                <span className="flex flex-col text-left">
+                  <span className="text-sm font-semibold text-foreground">Add stage</span>
+                  <span className="text-xs text-muted-foreground">
+                    Create a new column for this workflow
                   </span>
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-white">Add stage</p>
-                    <p className="text-xs text-slate-400">Create a new column for this workflow</p>
-                  </div>
-                </div>
-              </button>
+                </span>
+              </Button>
             ) : (
               <div ref={addStageContainerRef} className="w-full">
                 <form
                   onPointerDown={(e) => e.stopPropagation()}
                   onSubmit={handleAddStageSubmit}
-                  className="group w-full rounded-2xl border border-dashed border-blue-500/70 bg-slate-900/80 px-4 py-3 text-left shadow focus-within:border-blue-500"
+                  className="flex items-center gap-2 rounded-lg border border-primary/40 bg-muted/30 px-3 py-2 shadow-sm focus-within:border-primary"
                 >
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={addStageInputRef}
-                      value={newStageName}
-                      onChange={(e) =>
-                        setNewStageName(e.target.value.slice(0, STAGE_NAME_MAX_LENGTH))
+                  <Input
+                    ref={addStageInputRef}
+                    value={newStageName}
+                    onChange={(e) => setNewStageName(e.target.value.slice(0, STAGE_NAME_MAX_LENGTH))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setIsAddingStage(false);
+                        setNewStageName("");
                       }
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          setIsAddingStage(false);
-                          setNewStageName("");
-                        }
-                      }}
-                      placeholder="Add stage title..."
-                      className="w-full border-0 bg-transparent text-sm text-white placeholder-slate-500 focus:border-0 focus:outline-none"
-                      maxLength={STAGE_NAME_MAX_LENGTH}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (newStageName.trim()) {
-                          void submitNewStage();
-                        }
-                      }}
-                      disabled={!newStageName.trim()}
-                      className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
-                        newStageName.trim()
-                          ? "border-transparent text-blue-400 hover:bg-blue-500/10"
-                          : "border-transparent text-slate-600"
-                      }`}
-                      aria-label="Add stage"
-                    >
-                      <CornerDownLeft size={16} />
-                    </button>
-                  </div>
+                    }}
+                    placeholder="Add stage title..."
+                    className="border-0 bg-transparent text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+                    maxLength={STAGE_NAME_MAX_LENGTH}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      if (newStageName.trim()) {
+                        void submitNewStage();
+                      }
+                    }}
+                    disabled={!newStageName.trim()}
+                    className={`h-8 w-8 rounded-full text-muted-foreground ${
+                      newStageName.trim() ? "text-primary hover:bg-primary/10" : ""
+                    }`}
+                    aria-label="Add stage"
+                  >
+                    <CornerDownLeft className="h-4 w-4" />
+                  </Button>
                 </form>
               </div>
             )}
           </div>
-        )}
+        ) : null}
+        </div>
       </div>
 
       <DragOverlay>

@@ -7,6 +7,8 @@ import {
   X,
   Calendar,
 } from "lucide-react";
+import { Button } from "./ui";
+import { cn } from "../lib/utils";
 
 interface DateCalendarProps {
   selectedDate?: string | null;
@@ -69,65 +71,68 @@ export function DateCalendar({ selectedDate, onSelect, onClose, title = "Dates" 
   const today = formatDate(new Date());
 
   return (
-    <div className="w-full max-w-sm rounded-3xl bg-gray-900 text-white shadow-2xl">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
-          <Calendar size={16} className="text-blue-300" />
+    <div className="w-full rounded-xl border border-border bg-card text-card-foreground shadow-lg">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <Calendar size={16} className="text-primary" />
           <span>{title}</span>
         </div>
         {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 text-gray-400 transition hover:bg-gray-800 hover:text-gray-200"
-            aria-label="Close calendar"
-          >
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close calendar">
             <X size={16} />
-          </button>
+          </Button>
         )}
       </div>
 
-      <div className="flex items-center justify-between px-4 pb-3">
+      <div className="flex items-center justify-between px-4 pb-3 pt-3">
         <div className="flex items-center gap-1">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon"
             onClick={() => goToMonth(-12)}
-            className="rounded-lg border border-gray-700 p-1 text-gray-300 transition hover:border-gray-500 hover:text-gray-100"
             aria-label="Previous year"
+        className="h-8 w-8 border-border text-muted-foreground"
           >
             <ChevronsLeft size={16} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="icon"
             onClick={() => goToMonth(-1)}
-            className="rounded-lg border border-gray-700 p-1 text-gray-300 transition hover:border-gray-500 hover:text-gray-100"
             aria-label="Previous month"
+        className="h-8 w-8 border-border text-muted-foreground"
           >
             <ChevronLeft size={16} />
-          </button>
+          </Button>
         </div>
-        <div className="text-base font-semibold">{monthLabel}</div>
+        <div className="text-sm font-semibold text-foreground">{monthLabel}</div>
         <div className="flex items-center gap-1">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon"
             onClick={() => goToMonth(1)}
-            className="rounded-lg border border-gray-700 p-1 text-gray-300 transition hover:border-gray-500 hover:text-gray-100"
             aria-label="Next month"
+        className="h-8 w-8 border-border text-muted-foreground"
           >
             <ChevronRight size={16} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="icon"
             onClick={() => goToMonth(12)}
-            className="rounded-lg border border-gray-700 p-1 text-gray-300 transition hover:border-gray-500 hover:text-gray-100"
             aria-label="Next year"
+        className="h-8 w-8 border-border text-muted-foreground"
           >
             <ChevronsRight size={16} />
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 px-4 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+      <div className="grid grid-cols-7 gap-1 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {WEEKDAYS.map((label) => (
           <div key={label} className="py-1 text-center">
             {label}
@@ -143,22 +148,27 @@ export function DateCalendar({ selectedDate, onSelect, onClose, title = "Dates" 
           const isToday = today === dateValue;
 
           return (
-            <button
+            <Button
               key={dateValue}
               type="button"
+              variant="ghost"
               onClick={() => onSelect(dateValue)}
-              className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition focus:outline-none
-                ${isSelected ? "bg-blue-600 text-white shadow-lg" : ""}
-                ${!isSelected && isToday ? "border border-blue-500/60 text-white" : ""}
-                ${!isSelected && !isToday ? "text-gray-200" : ""}
-                ${!isCurrentMonth ? "text-gray-500" : ""}
-                hover:bg-blue-500/40 hover:text-white`}
+              className={cn(
+                "relative flex h-10 w-10 items-center justify-center rounded-lg text-sm font-medium transition",
+                isSelected
+                  ? "bg-primary text-primary-foreground shadow"
+                  : isToday
+                  ? "border border-primary/50 text-primary"
+                  : "text-muted-foreground",
+                !isCurrentMonth && "text-muted-foreground/60",
+                "hover:bg-primary/20 hover:text-primary"
+              )}
             >
               <span>{date.getDate()}</span>
-              {isSelected && (
-                <span className="absolute bottom-1 left-1/2 h-0.5 w-5 -translate-x-1/2 rounded-full bg-white" />
-              )}
-            </button>
+              {isSelected ? (
+                <span className="absolute bottom-1 left-1/2 h-0.5 w-5 -translate-x-1/2 rounded-full bg-primary-foreground" />
+              ) : null}
+            </Button>
           );
         })}
       </div>

@@ -19,13 +19,13 @@ export function Dropdown({ value, options, onChange }: DropdownProps) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-600 text-left"
+        className="w-full rounded-md border border-border bg-card px-3 py-2 text-left text-sm text-foreground shadow-sm transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         {value ?? "Select..."}
       </button>
 
       {open && (
-        <ul className="absolute mt-1 w-full bg-gray-800 border border-gray-600 rounded-md shadow-lg z-10">
+        <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-border bg-popover shadow-lg">
           {options.map((option, idx) => (
             <li
               key={option}
@@ -33,8 +33,10 @@ export function Dropdown({ value, options, onChange }: DropdownProps) {
                 onChange(option);
                 setOpen(false);
               }}
-              className={`px-3 py-2 cursor-pointer ${
-                idx === highlightIndex ? "bg-blue-600 text-white" : "text-gray-200"
+              className={`cursor-pointer px-3 py-2 text-sm ${
+                idx === highlightIndex
+                  ? "bg-primary/10 text-primary"
+                  : "text-foreground hover:bg-muted/50"
               }`}
             >
               {option}

@@ -5,12 +5,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import type { DraggableAttributes } from "@dnd-kit/core";
-import type {
-  SyntheticListenerMap,
-} from "@dnd-kit/core/dist/hooks/utilities";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
+import type { CSSProperties } from "react";
 import { KanbanTask } from "./KanbanTask";
 import { TaskForm } from "../TaskForm";
 import { X } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Button } from "../ui/button";
 
 interface KanbanColumnProps {
   stage: Stage & { tasks: Task[] };
@@ -23,6 +24,7 @@ interface KanbanColumnProps {
     listeners?: SyntheticListenerMap;
     setActivatorNodeRef?: (node: HTMLElement | null) => void;
   };
+  columnHeight?: number | null;
 }
 
 export function KanbanColumn({
@@ -32,59 +34,78 @@ export function KanbanColumn({
   onAddTask,
   onDeleteStage,
   dragHandleProps,
+  columnHeight,
 }: KanbanColumnProps) {
   const { setNodeRef } = useDroppable({ id: stage.id });
   const orderedTasks = [...stage.tasks].sort(
     (a, b) => (a.position ?? 0) - (b.position ?? 0)
   );
+  const cardStyle: CSSProperties | undefined =
+    typeof columnHeight === "number"
+      ? {
+          height: columnHeight,
+          maxHeight: columnHeight,
+        }
+      : undefined;
 
   return (
-    <div
+    <Card
       ref={setNodeRef}
-      className="min-w-[280px] w-[280px] flex-shrink-0 bg-gray-800 rounded-lg p-4 shadow border border-gray-700"
+      style={cardStyle}
+      className="flex min-h-[18rem] max-h-[calc(100vh-12rem)] min-w-[280px] w-[280px] flex-shrink-0 flex-col overflow-hidden border border-border bg-card shadow-sm"
     >
-      <div className="flex items-start justify-between mb-3 gap-2">
-        <button
-          type="button"
-          ref={dragHandleProps?.setActivatorNodeRef}
-          {...(dragHandleProps?.attributes ?? {})}
-          {...(dragHandleProps?.listeners ?? {})}
-          className="flex-1 min-w-0 overflow-hidden break-all text-left text-sm font-semibold text-white leading-snug cursor-grab"
-          aria-label={`Move ${stage.name}`}
-        >
-          {stage.name}
-        </button>
-        {onDeleteStage && (
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 p-4 pb-2">
+        <CardTitle className="flex-1 min-w-0 text-sm font-semibold text-foreground">
           <button
             type="button"
-            aria-label={`Delete ${stage.name}`}
-            className="text-gray-400 hover:text-red-400 flex-shrink-0"
+            ref={dragHandleProps?.setActivatorNodeRef}
+            {...(dragHandleProps?.attributes ?? {})}
+            {...(dragHandleProps?.listeners ?? {})}
+            className="flex w-full cursor-grab items-center justify-between text-left"
+            aria-label={`Move ${stage.name}`}
+          >
+            <span className="truncate">{stage.name}</span>
+          </button>
+        </CardTitle>
+        {onDeleteStage ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
             onClick={() => onDeleteStage(stage.id)}
+            aria-label={`Delete ${stage.name}`}
           >
             <X size={16} />
-          </button>
-        )}
-      </div>
+          </Button>
+        ) : null}
+      </CardHeader>
 
-      <SortableContext
-        items={orderedTasks.map((task) => String(task.id))}
-        strategy={verticalListSortingStrategy}
-      >
-        <div>
-          {orderedTasks.map((task) => (
-            <KanbanTask
-              key={task.id}
-              task={task}
-              onDelete={onDelete}
-              onClick={onTaskClick}
-            />
-          ))}
+      <CardContent className="flex flex-1 min-h-0 flex-col overflow-hidden p-0">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 pt-0 styled-scrollbars">
+          <SortableContext
+            items={orderedTasks.map((task) => String(task.id))}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-3 pb-6">
+              {orderedTasks.map((task) => (
+                <KanbanTask
+                  key={task.id}
+                  task={task}
+                  onDelete={onDelete}
+                  onClick={onTaskClick}
+                />
+              ))}
+            </div>
+          </SortableContext>
         </div>
-      </SortableContext>
 
-      {onAddTask && (
-        <TaskForm stageId={stage.id} onAdd={onAddTask} />
-      )}
-    </div>
+        {onAddTask ? (
+          <div className="border-t border-border/60 px-4 pb-4 pt-3 [&>div]:mt-0">
+            <TaskForm stageId={stage.id} onAdd={onAddTask} />
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

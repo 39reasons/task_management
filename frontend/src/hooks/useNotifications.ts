@@ -3,7 +3,6 @@ import {
   GET_NOTIFICATIONS,
   RESPOND_NOTIFICATION,
   MARK_NOTIFICATION_READ,
-  GET_PROJECTS,
   DELETE_NOTIFICATION,
   NOTIFICATION_EVENTS,
 } from "../graphql";
@@ -13,7 +12,8 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
   const { data, loading, error, refetch } = useQuery<{ notifications: Notification[] }>(
     GET_NOTIFICATIONS,
     {
-      fetchPolicy: "cache-and-network",
+      fetchPolicy: "no-cache",
+      errorPolicy: "all",
       skip: !enabled,
     }
   );
@@ -33,7 +33,7 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
   const respond = async (id: string, accept: boolean) => {
     await respondMutation({
       variables: { id, accept },
-      refetchQueries: [{ query: GET_NOTIFICATIONS }, { query: GET_PROJECTS }],
+      refetchQueries: [{ query: GET_NOTIFICATIONS }],
     });
   };
 

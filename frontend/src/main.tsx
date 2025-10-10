@@ -1,8 +1,4 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
-import "./index.css";
-
 import {
   ApolloClient,
   InMemoryCache,
@@ -10,6 +6,10 @@ import {
   HttpLink,
   split,
 } from "@apollo/client";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
+import { ThemeProvider } from "./components/theme-provider";
 import { setContext } from "@apollo/client/link/context";
 import { BrowserRouter } from "react-router-dom";
 import { getClientId } from "./utils/clientId";
@@ -84,10 +84,12 @@ const client = new ApolloClient({
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ApolloProvider client={client}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </ApolloProvider>
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <ApolloProvider client={client}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ApolloProvider>
+    </ThemeProvider>
   </React.StrictMode>
 );

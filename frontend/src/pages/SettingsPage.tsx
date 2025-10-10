@@ -4,6 +4,19 @@ import type { AuthUser } from "@shared/types";
 import { CURRENT_USER, UPDATE_USER_PROFILE } from "../graphql";
 import { COLOR_WHEEL, DEFAULT_AVATAR_COLOR } from "../constants/colors";
 import { getFullName, getInitials } from "../utils/user";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+} from "../components/ui";
+import { Loader2 } from "lucide-react";
+import { cn } from "../lib/utils";
 
 interface SettingsPageProps {
   onProfileUpdate: (user: AuthUser) => void;
@@ -15,7 +28,12 @@ const NAME_PATTERN = /^[A-Za-z]+$/;
 const USERNAME_PATTERN = /^(?!.*[-_]{2})[A-Za-z0-9_-]+$/;
 
 export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
-  const { data, loading, refetch } = useQuery(CURRENT_USER);
+  const { data, loading, refetch } = useQuery(CURRENT_USER, {
+    fetchPolicy: "network-only",
+    nextFetchPolicy: "cache-first",
+    errorPolicy: "all",
+    returnPartialData: true,
+  });
   const [updateProfile, { loading: saving }] = useMutation(UPDATE_USER_PROFILE);
 
   const currentUser = data?.currentUser as AuthUser | undefined;
@@ -45,8 +63,8 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
     return `${firstChar.toUpperCase()}${rest.join("")}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setMessage(null);
     setError(null);
 
@@ -107,150 +125,156 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
           avatar_color: updated.avatar_color ?? null,
         });
         setMessage("Profile updated successfully.");
-        refetch();
+        void refetch();
       }
-    } catch (err: any) {
-      setError(err.message ?? "Failed to update profile");
+    } catch (err) {
+      setError((err as Error).message ?? "Failed to update profile");
     }
   };
 
   if (loading && !currentUser) {
-    return <div className="p-6 text-white">Loading settings…</div>;
+    return <div className="p-6 text-muted-foreground">Loading settings…</div>;
   }
 
   if (!currentUser) {
-    return <div className="p-6 text-white">Unable to load user profile.</div>;
+    return <div className="p-6 text-destructive">Unable to load user profile.</div>;
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-6 p-6 text-white">
-      <div className="rounded-xl border border-gray-700 bg-gray-900/80 p-6 shadow">
-        <div className="flex items-center gap-4">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 pb-10 pt-6 sm:px-6">
+      <Card>
+        <CardContent className="flex items-center gap-4 py-6">
           <div
-            className="flex h-14 w-14 items-center justify-center rounded-full text-lg font-semibold"
+            className="flex h-14 w-14 items-center justify-center rounded-full text-lg font-semibold text-primary-foreground"
             style={{ backgroundColor: avatarColor || DEFAULT_AVATAR_COLOR }}
           >
             {initials}
           </div>
           <div>
-            <p className="text-lg font-semibold">{getFullName({ first_name: firstName, last_name: lastName })}</p>
-            <p className="text-sm text-gray-400">@{username}</p>
+            <p className="text-lg font-semibold text-foreground">
+              {getFullName({ first_name: firstName, last_name: lastName })}
+            </p>
+            <p className="text-sm text-muted-foreground">@{username}</p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border border-gray-700 bg-gray-900/80 p-6 shadow">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-2 text-sm">
-            <span className="font-semibold text-gray-200">First name</span>
-            <input
-              value={firstName}
-              onChange={(e) =>
-                setFirstName(
-                  e.target.value
-                    .replace(/[^A-Za-z]/g, "")
-                    .slice(0, MAX_NAME_LENGTH)
-                )
-              }
-              onBlur={() => setFirstName(normalizeName(firstName))}
-              className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              required
-              maxLength={MAX_NAME_LENGTH}
-            />
-          </label>
-          <label className="space-y-2 text-sm">
-            <span className="font-semibold text-gray-200">Last name</span>
-            <input
-              value={lastName}
-              onChange={(e) =>
-                setLastName(
-                  e.target.value
-                    .replace(/[^A-Za-z]/g, "")
-                    .slice(0, MAX_NAME_LENGTH)
-                )
-              }
-              onBlur={() => setLastName(normalizeName(lastName))}
-              className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              required
-              maxLength={MAX_NAME_LENGTH}
-            />
-          </label>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile details</CardTitle>
+          <CardDescription>Edit your name, username, and avatar color.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="first-name">First name</Label>
+                <Input
+                  id="first-name"
+                  value={firstName}
+                  onChange={(event) =>
+                    setFirstName(
+                      event.target.value
+                        .replace(/[^A-Za-z]/g, "")
+                        .slice(0, MAX_NAME_LENGTH)
+                    )
+                  }
+                  onBlur={() => setFirstName(normalizeName(firstName))}
+                  maxLength={MAX_NAME_LENGTH}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  {firstName.length}/{MAX_NAME_LENGTH}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last-name">Last name</Label>
+                <Input
+                  id="last-name"
+                  value={lastName}
+                  onChange={(event) =>
+                    setLastName(
+                      event.target.value
+                        .replace(/[^A-Za-z]/g, "")
+                        .slice(0, MAX_NAME_LENGTH)
+                    )
+                  }
+                  onBlur={() => setLastName(normalizeName(lastName))}
+                  maxLength={MAX_NAME_LENGTH}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  {lastName.length}/{MAX_NAME_LENGTH}
+                </p>
+              </div>
+            </div>
 
-        <label className="space-y-2 text-sm">
-          <span className="font-semibold text-gray-200">Username</span>
-          <input
-            value={username}
-            onChange={(e) =>
-              setUsername(
-                e.target.value
-                  .replace(/[^A-Za-z0-9_-]/g, "")
-                  .replace(/([-_])\1+/g, "$1")
-                  .slice(0, MAX_USERNAME_LENGTH)
-              )
-            }
-            className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            required
-            maxLength={MAX_USERNAME_LENGTH}
-          />
-        </label>
-
-        <div className="space-y-2 text-sm">
-          <span className="font-semibold text-gray-200">Avatar color</span>
-          <div className="flex flex-wrap gap-3">
-            {COLOR_WHEEL.map((color) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => setAvatarColor(color)}
-                className={`h-9 w-9 rounded-full border-2 transition ${
-                  avatarColor === color ? "border-white" : "border-transparent"
-                }`}
-                style={{ backgroundColor: color }}
-                aria-label={`Select color ${color}`}
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                value={username}
+                onChange={(event) =>
+                  setUsername(
+                    event.target.value
+                      .replace(/[^A-Za-z0-9_-]/g, "")
+                      .replace(/([-_])\1+/g, "$1")
+                      .slice(0, MAX_USERNAME_LENGTH)
+                  )
+                }
+                maxLength={MAX_USERNAME_LENGTH}
+                required
               />
-            ))}
-            <label className="flex items-center gap-2 rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-300">
-              <span>Custom</span>
-              <input
-                type="color"
-                value={avatarColor}
-                onChange={(e) => setAvatarColor(e.target.value)}
-                className="h-6 w-6 cursor-pointer rounded-full border-none bg-transparent p-0"
-              />
-            </label>
-          </div>
-        </div>
+              <p className="text-xs text-muted-foreground">
+                {username.length}/{MAX_USERNAME_LENGTH}
+              </p>
+            </div>
 
-        {message && <p className="text-sm text-green-400">{message}</p>}
-        {error && <p className="text-sm text-red-400">{error}</p>}
+            <div className="space-y-3">
+              <Label>Avatar color</Label>
+              <div className="flex flex-wrap gap-3">
+                {COLOR_WHEEL.map((color) => {
+                  const isActive = color === avatarColor;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setAvatarColor(color)}
+                      className={cn(
+                        "h-10 w-10 rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                        isActive ? "border-primary" : "border-transparent"
+                      )}
+                      style={{ backgroundColor: color }}
+                      aria-pressed={isActive}
+                    />
+                  );
+                })}
+              </div>
+              <Badge variant="outline" className="border-border/60 text-xs text-muted-foreground">
+                Current: {avatarColor.toUpperCase()}
+              </Badge>
+            </div>
 
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              if (currentUser) {
-                setFirstName(currentUser.first_name);
-                setLastName(currentUser.last_name);
-                setUsername(currentUser.username);
-                setAvatarColor(currentUser.avatar_color ?? DEFAULT_AVATAR_COLOR);
-              }
-              setMessage(null);
-              setError(null);
-            }}
-            className="rounded-lg px-4 py-2 text-sm text-gray-300 transition hover:bg-gray-800 hover:text-gray-100"
-          >
-            Reset
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
-          >
-            {saving ? "Saving…" : "Save changes"}
-          </button>
-        </div>
-      </form>
+            {error ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
+            ) : null}
+            {message ? (
+              <div className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">
+                {message}
+              </div>
+            ) : null}
+
+            <div className="flex justify-end gap-2">
+              <Button type="submit" disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save changes
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

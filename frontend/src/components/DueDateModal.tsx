@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import type { Task } from "@shared/types";
 import { useModal } from "./ModalStack";
 import { DateCalendar } from "./DateCalendar";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui";
 
 interface DueDateModalProps {
   task: Task | null;
@@ -23,17 +32,6 @@ export function DueDateModal({ task, currentDueDate, onSave }: DueDateModalProps
     setDateValue(initial);
     setError(null);
   }, [isOpen, currentDueDate]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      closeModal("due-date");
-    };
-    document.addEventListener("keydown", handler, true);
-    return () => document.removeEventListener("keydown", handler, true);
-  }, [isOpen, closeModal]);
 
   const hasSelection = Boolean(dateValue);
   const hasChanges = useMemo(() => dateValue !== (currentDueDate ?? ""), [dateValue, currentDueDate]);
@@ -57,45 +55,40 @@ export function DueDateModal({ task, currentDueDate, onSave }: DueDateModalProps
     }
   };
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      handleClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={(e) => {
-          e.stopPropagation();
-          handleClose();
-        }}
-      />
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
+      <DialogContent className="w-full max-w-sm space-y-4 overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6">
+          <DialogTitle>Set due date</DialogTitle>
+          <DialogDescription>Select a target shipped date for this task.</DialogDescription>
+        </DialogHeader>
 
-      <div className="relative z-10 w-full max-w-sm space-y-4 rounded-3xl bg-transparent p-0">
-        <DateCalendar
-          selectedDate={dateValue || null}
-          onSelect={(value) => setDateValue(value)}
-          onClose={handleClose}
-          title="Dates"
-        />
-
-        {error && <p className="px-6 text-sm text-red-400">{error}</p>}
-
-        <div className="flex justify-end gap-2 px-6 pb-6">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-lg px-3 py-1.5 text-sm text-gray-300 transition hover:bg-gray-800 hover:text-gray-100"
-            disabled={isSaving}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
-            disabled={isSaving || !hasSelection || !hasChanges}
-          >
-            {isSaving ? "Saving..." : "Save"}
-          </button>
+        <div className="px-6">
+          <DateCalendar
+            selectedDate={dateValue || null}
+            onSelect={(value) => setDateValue(value)}
+            onClose={handleClose}
+            title="Dates"
+          />
         </div>
-      </div>
-    </div>
+
+        {error ? <p className="px-6 text-sm text-destructive">{error}</p> : null}
+
+        <DialogFooter className="gap-2 px-6 pb-6">
+          <Button type="button" variant="ghost" onClick={handleClose} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={isSaving || !hasSelection || !hasChanges}>
+            {isSaving ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

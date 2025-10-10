@@ -8,6 +8,45 @@ export const GET_PROJECTS = gql`
       description
       is_public
       viewer_is_owner
+      created_at
+      updated_at
+      members {
+        id
+        first_name
+        last_name
+        username
+        avatar_color
+      }
+      workflows {
+        id
+        name
+        stages {
+          id
+          name
+          position
+          tasks {
+            id
+            title
+            due_date
+            priority
+            stage_id
+            project_id
+            position
+            assignees {
+              id
+              first_name
+              last_name
+              username
+              avatar_color
+            }
+            tags {
+              id
+              name
+              color
+            }
+          }
+        }
+      }
     }
   }
 `;
@@ -20,6 +59,45 @@ export const ADD_PROJECT = gql`
       description
       is_public
       viewer_is_owner
+      created_at
+      updated_at
+      members {
+        id
+        first_name
+        last_name
+        username
+        avatar_color
+      }
+      workflows {
+        id
+        name
+        stages {
+          id
+          name
+          position
+          tasks {
+            id
+            title
+            due_date
+            priority
+            stage_id
+            project_id
+            position
+            assignees {
+              id
+              first_name
+              last_name
+              username
+              avatar_color
+            }
+            tags {
+              id
+              name
+              color
+            }
+          }
+        }
+      }
     }
   }
 `;
@@ -32,6 +110,45 @@ export const UPDATE_PROJECT = gql`
       description
       is_public
       viewer_is_owner
+      created_at
+      updated_at
+      members {
+        id
+        first_name
+        last_name
+        username
+        avatar_color
+      }
+      workflows {
+        id
+        name
+        stages {
+          id
+          name
+          position
+          tasks {
+            id
+            title
+            due_date
+            priority
+            stage_id
+            project_id
+            position
+            assignees {
+              id
+              first_name
+              last_name
+              username
+              avatar_color
+            }
+            tags {
+              id
+              name
+              color
+            }
+          }
+        }
+      }
     }
   }
 `;

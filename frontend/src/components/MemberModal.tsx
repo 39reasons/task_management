@@ -5,6 +5,20 @@ import type { Task, User } from "@shared/types";
 import { useModal } from "./ModalStack";
 import { getFullName, getInitials } from "../utils/user";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import {
+  Avatar,
+  AvatarFallback,
+  Button,
+  Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  ScrollArea,
+} from "./ui";
+import { cn } from "../lib/utils";
 
 interface MemberModalProps {
   task: Task | null;
@@ -26,16 +40,6 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [setTaskMembers] = useMutation(SET_TASK_MEMBERS);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        closeModal("member");
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, closeModal]);
 
   useEffect(() => {
     if (isOpen && task) {
@@ -73,87 +77,89 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
     closeModal("member");
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={() => closeModal("member")} />
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      closeModal("member");
+    }
+  };
 
-      <div className="relative bg-gray-800 rounded-xl shadow-lg w-full max-w-sm p-6 space-y-4">
-        <h3 className="text-lg font-semibold text-white">Assign Member</h3>
+  const clearAll = () => setSelectedIds([]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
+      <DialogContent className="max-w-md space-y-4">
+        <DialogHeader>
+          <DialogTitle>Assign members</DialogTitle>
+          <DialogDescription>Select teammates who should be attached to this task.</DialogDescription>
+        </DialogHeader>
 
         {loading ? (
-          <p className="text-sm text-gray-400">Loading members...</p>
+          <p className="text-sm text-muted-foreground">Loading members…</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-300">Select members to assign:</span>
-              <button
-                type="button"
-                onClick={() => setSelectedIds([])}
-                className="text-xs text-gray-400 hover:text-gray-200"
-              >
+              <span className="text-sm text-muted-foreground">Choose one or more members.</span>
+              <Button type="button" variant="ghost" size="sm" onClick={clearAll} className="text-xs">
                 Clear all
-              </button>
+              </Button>
             </div>
 
             {members.length === 0 ? (
-              <p className="text-xs text-gray-500">No project members yet.</p>
+              <p className="text-sm text-muted-foreground">No project members yet.</p>
             ) : (
-              <div className="space-y-2">
-                {members.map((member) => {
-                  const isSelected = selectedIds.includes(member.id);
-                  return (
-                    <label
-                      key={member.id}
-                      className={`flex items-center justify-between px-3 py-2 rounded-md border transition cursor-pointer ${
-                        isSelected
-                          ? "border-blue-600 bg-blue-600/20"
-                          : "border-gray-700 bg-gray-900 hover:border-gray-500"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold uppercase text-white"
-                          style={{ backgroundColor: member.avatar_color || DEFAULT_AVATAR_COLOR }}
-                        >
-                          {getInitials(member)}
+              <ScrollArea className="max-h-72 rounded-md border border-border">
+                <div className="space-y-2 p-2">
+                  {members.map((member) => {
+                    const isSelected = selectedIds.includes(member.id);
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => toggleMember(member.id)}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2 text-left transition hover:border-primary/20 hover:bg-muted/40",
+                          isSelected && "border-primary/40 bg-primary/5"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8 border border-border/60">
+                            <AvatarFallback
+                              className="text-sm font-semibold text-primary"
+                              style={{ backgroundColor: member.avatar_color || DEFAULT_AVATAR_COLOR }}
+                            >
+                              {getInitials(member)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-foreground">
+                              {getFullName(member)}
+                            </span>
+                            <span className="text-xs text-muted-foreground">@{member.username}</span>
+                          </div>
                         </div>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-white">{getFullName(member)}</span>
-                          <span className="text-xs text-gray-300">@{member.username}</span>
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleMember(member.id)}
-                        className="h-4 w-4"
-                      />
-                    </label>
-                  );
-                })}
-              </div>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleMember(member.id)}
+                          aria-label={`Toggle ${getFullName(member)}`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             )}
           </div>
         )}
 
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => closeModal("member")}
-            className="px-3 py-1 rounded bg-gray-700 text-white hover:bg-gray-600"
-          >
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="ghost" onClick={() => closeModal("member")}>
             Close
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={loading}
-            className="ml-2 px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
-          >
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={loading}>
             Save
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

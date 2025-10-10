@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useMutation } from "@apollo/client";
 import { SIGN_UP } from "../../graphql";
 import InputField from "./InputField";
+import { Button } from "../ui";
+import { Loader2 } from "lucide-react";
 import type { AuthUser } from "@shared/types";
 
 interface SignupFormProps {
@@ -21,7 +23,7 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
-  
+
   const [signUp, { loading }] = useMutation(SIGN_UP);
 
   const normalizeName = (value: string) => {
@@ -108,10 +110,14 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
-      <div className="flex gap-3">
-        <div className="flex-1">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
           <InputField
             label="First Name"
             value={firstName}
@@ -127,7 +133,7 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
             maxLength={MAX_NAME_LENGTH}
           />
         </div>
-        <div className="flex-1">
+        <div>
           <InputField
             label="Last Name"
             value={lastName}
@@ -178,14 +184,16 @@ export default function SignupForm({ onSignUp }: SignupFormProps) {
         maxLength={MAX_PASSWORD_LENGTH}
       />
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 
-                   text-white font-semibold transition-colors disabled:opacity-50"
-      >
-        {loading ? "Signing up..." : "Sign Up"}
-      </button>
+      <Button type="submit" className="w-full font-semibold" disabled={loading}>
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Signing up…
+          </>
+        ) : (
+          "Sign Up"
+        )}
+      </Button>
     </form>
   );
 }

@@ -13,7 +13,7 @@ import {
   GENERATE_TASK_DRAFT,
   ADD_TAG_TO_TASK,
 } from "../../graphql";
-import { Sparkles } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useModal } from "../ModalStack";
 import { DueDateModal } from "../DueDateModal";
 import { TaskTitleEditor } from "./TaskTitleEditor";
@@ -22,6 +22,8 @@ import { TaskDescriptionSection } from "./TaskDescriptionSection";
 import { TaskCommentsPanel } from "./TaskCommentsPanel";
 import type { CommentWithUser, TaskDraftResponse } from "./types";
 import { TASK_FRAGMENT } from '../../graphql/tasks';
+import { Badge, Button, Dialog, DialogContent, ScrollArea, Separator } from "../ui";
+import { cn } from "../../lib/utils";
 
 const TASK_TITLE_MAX_LENGTH = 512;
 
@@ -458,21 +460,26 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     }
   }, [task, title, initialTitle, description, initialDescription, dueDate, priority, mutateTask]);
 
-  useEffect(() => {
-    const handler = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape" && isOpen) {
-        event.stopPropagation();
-        void (async () => {
-          await saveAllChanges();
-          closeModal("task");
-        })();
+  const handleClose = useCallback(async () => {
+    await saveAllChanges();
+    closeModal("task");
+  }, [saveAllChanges, closeModal]);
+
+  const handleDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        void handleClose();
       }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, saveAllChanges, closeModal]);
+    },
+    [handleClose]
+  );
 
   if (!isOpen || !task) return null;
+
+  const stageName =
+    (task as Task & { stage?: { name?: string | null } }).stage?.name ?? null;
+  const priorityLabel = priority ? priority.charAt(0).toUpperCase() + priority.slice(1) : null;
+  const shortTaskId = task.id.slice(0, 8);
 
   const cancelTitleEdit = () => {
     setTitle(initialTitle);
@@ -621,118 +628,141 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
 
   return (
     <Fragment>
-      <div className="fixed inset-0 z-40 flex items-start justify-center pt-16">
-        <div
-          className="absolute inset-0 bg-black/50"
-          onClick={() => {
-            void (async () => {
-              await saveAllChanges();
-              closeModal("task");
-            })();
-          }}
-        />
-
-        <div
-          id="task-modal-root"
-          className="
-            relative rounded-xl shadow-lg w-full max-w-4xl
-            max-h-[80vh] overflow-hidden
-            grid grid-cols-1 gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:gap-0 md:items-stretch
-            bg-gray-800
-          "
+      <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
+        <DialogContent
+          className="task-modal-theme max-w-[1100px] overflow-hidden border border-border bg-[hsl(var(--modal-background))] p-0 text-[hsl(var(--modal-foreground))] shadow-2xl"
+          onOpenAutoFocus={(event) => event.preventDefault()}
         >
-          <div className="task-modal__main styled-scrollbars flex h-full max-h-[80vh] min-h-0 flex-col overflow-y-auto border-r border-gray-700/70">
-            <div className="flex flex-col px-6 pb-6">
-              <TaskTitleEditor
-                title={title}
-                isEditing={isEditingTitle}
-                canCommit={Boolean(title.trim())}
-                maxLength={TASK_TITLE_MAX_LENGTH}
-                onStartEdit={() => setIsEditingTitle(true)}
-                onChange={(value) => setTitle(value.slice(0, TASK_TITLE_MAX_LENGTH))}
-                onCommit={commitTitle}
-                onCancel={cancelTitleEdit}
-              />
-
-              <div className="mt-4 space-y-3">
-                <TaskMetaSection
-                  hasTags={hasTags}
-                  hasAssignees={hasAssignees}
-                  tags={tags}
-                  assignees={assignees}
-                  dueDate={dueDate}
-                  onAddTag={() => openModal("tag")}
-                  onAddMember={() => openModal("member")}
-                  onAddDueDate={() => openModal("due-date")}
-                  onRemoveTag={handleRemoveTag}
-                  onRemoveMember={handleRemoveMember}
-                  onClearDueDate={clearDueDate}
-                />
-
-                <TaskDescriptionSection
-                  description={description}
-                  initialDescription={initialDescription}
-                  isEditing={isEditingDescription}
-                  onChange={setDescription}
-                  onStartEdit={(reset) => {
-                    if (reset) setDescription("");
-                    setIsEditingDescription(true);
-                  }}
-                  onSave={commitDescription}
-                  onCancel={cancelDescriptionEdit}
-                  isDraftPromptVisible={isDraftPromptVisible}
-                  draftPrompt={draftPrompt}
-                  draftError={draftError}
-                  isGeneratingDraft={isGeneratingDraft}
-                  onToggleDraftPrompt={toggleDraftPrompt}
-                  onDraftPromptChange={setDraftPrompt}
-                  onGenerateDraft={() => void handleGenerateDraft()}
-                  onCancelDraftPrompt={cancelDraftPrompt}
-                  isExpanded={isDescriptionExpanded}
-                  onToggleExpand={() => setIsDescriptionExpanded((prev) => !prev)}
-                />
-
-                {subtaskSuggestions.length > 0 ? (
-                  <div className="space-y-2 rounded-xl border border-dashed border-blue-500/40 bg-blue-500/10 p-4 text-sm text-blue-100">
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-blue-200/80">
-                      <Sparkles size={14} />
-                      <span>AI suggested subtasks</span>
-                    </div>
-                    <ul className="list-outside space-y-1 pl-4">
-                      {subtaskSuggestions.map((suggestion) => (
-                        <li key={suggestion} className="list-disc">
-                          {suggestion}
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="text-[11px] text-blue-200/70">
-                      Add the ones you like as separate tasks or checklist items.
-                    </p>
-                  </div>
-                ) : null}
+          <div className="flex h-[80vh] min-h-[560px] flex-col bg-[hsl(var(--background))]">
+            <div className="flex items-start justify-between gap-4 border-b border-border/60 bg-[hsl(var(--background))] px-6 py-4">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Task details
+                </p>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {stageName ? <Badge variant="outline">{stageName}</Badge> : null}
+                  {priorityLabel ? (
+                    <Badge
+                      variant={
+                        priority === "high" ? "destructive" : priority === "medium" ? "secondary" : "outline"
+                      }
+                      className={cn("capitalize", priority === "low" && "border-primary/40 text-primary")}
+                    >
+                      {priorityLabel}
+                    </Badge>
+                  ) : null}
+                  <span className="text-muted-foreground/80">Task · #{shortTaskId}</span>
+                </div>
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => void handleClose()}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="grid flex-1 gap-0 bg-[hsl(var(--background))] md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+              <ScrollArea className="h-full min-h-0 border-b border-border/60 bg-[hsl(var(--background))] md:border-b-0 md:border-r">
+                <div className="flex flex-col gap-4 px-6 py-5">
+                  <TaskTitleEditor
+                    title={title}
+                    isEditing={isEditingTitle}
+                    canCommit={Boolean(title.trim())}
+                    maxLength={TASK_TITLE_MAX_LENGTH}
+                    onStartEdit={() => setIsEditingTitle(true)}
+                    onChange={(value) => setTitle(value.slice(0, TASK_TITLE_MAX_LENGTH))}
+                    onCommit={commitTitle}
+                    onCancel={cancelTitleEdit}
+                  />
+
+                  <TaskMetaSection
+                    hasTags={hasTags}
+                    hasAssignees={hasAssignees}
+                    tags={tags}
+                    assignees={assignees}
+                    dueDate={dueDate}
+                    onAddTag={() => openModal("tag")}
+                    onAddMember={() => openModal("member")}
+                    onAddDueDate={() => openModal("due-date")}
+                    onRemoveTag={handleRemoveTag}
+                    onRemoveMember={handleRemoveMember}
+                    onClearDueDate={clearDueDate}
+                  />
+
+                  <Separator />
+
+                  <TaskDescriptionSection
+                    description={description}
+                    initialDescription={initialDescription}
+                    isEditing={isEditingDescription}
+                    onChange={setDescription}
+                    onStartEdit={(reset) => {
+                      if (reset) setDescription("");
+                      setIsEditingDescription(true);
+                    }}
+                    onSave={commitDescription}
+                    onCancel={cancelDescriptionEdit}
+                    isDraftPromptVisible={isDraftPromptVisible}
+                    draftPrompt={draftPrompt}
+                    draftError={draftError}
+                    isGeneratingDraft={isGeneratingDraft}
+                    onToggleDraftPrompt={toggleDraftPrompt}
+                    onDraftPromptChange={setDraftPrompt}
+                    onGenerateDraft={() => void handleGenerateDraft()}
+                    onCancelDraftPrompt={cancelDraftPrompt}
+                    isExpanded={isDescriptionExpanded}
+                    onToggleExpand={() => setIsDescriptionExpanded((prev) => !prev)}
+                  />
+
+                  {subtaskSuggestions.length > 0 ? (
+                    <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                        <Sparkles className="h-4 w-4" />
+                        <span>AI suggested subtasks</span>
+                      </div>
+                      <ul className="list-outside space-y-1 pl-4 text-muted-foreground">
+                        {subtaskSuggestions.map((suggestion) => (
+                          <li key={suggestion} className="list-disc">
+                            {suggestion}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-[11px] text-muted-foreground/80">
+                        Add the ones you like as separate tasks or checklist items.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              </ScrollArea>
+
+              <ScrollArea className="h-full min-h-0 bg-[hsl(var(--background))]">
+                <div className="flex h-full flex-col px-6 py-5">
+                  <TaskCommentsPanel
+                    comments={comments}
+                    loading={loading}
+                    commentText={commentText}
+                    onCommentTextChange={setCommentText}
+                    onSubmitComment={submitComment}
+                    editingCommentId={editingCommentId}
+                    editingCommentText={editingCommentText}
+                    onEditCommentTextChange={setEditingCommentText}
+                    onStartEditComment={handleStartEditComment}
+                    onCancelEditComment={handleCancelCommentEdit}
+                    onSubmitEditComment={handleSubmitCommentEdit}
+                    onDeleteComment={handleDeleteComment}
+                    currentUserId={currentUserId}
+                  />
+                </div>
+              </ScrollArea>
             </div>
           </div>
-
-          <div className="task-modal__comments styled-scrollbars flex h-full max-h-[80vh] min-h-0 flex-col overflow-y-auto px-6 pb-6">
-            <TaskCommentsPanel
-              comments={comments}
-              loading={loading}
-              commentText={commentText}
-              onCommentTextChange={setCommentText}
-              onSubmitComment={submitComment}
-              editingCommentId={editingCommentId}
-              editingCommentText={editingCommentText}
-              onEditCommentTextChange={setEditingCommentText}
-              onStartEditComment={handleStartEditComment}
-              onCancelEditComment={handleCancelCommentEdit}
-              onSubmitEditComment={handleSubmitCommentEdit}
-              onDeleteComment={handleDeleteComment}
-              currentUserId={currentUserId}
-            />
-          </div>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
       <DueDateModal task={task} currentDueDate={dueDate} onSave={handleDueDateSave} />
     </Fragment>
   );

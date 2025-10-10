@@ -1,11 +1,26 @@
-import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, ChevronDown, LogIn, LogOut, Settings } from "lucide-react";
+import { Bell, LogIn, LogOut, Settings } from "lucide-react";
 import { useModal } from "./ModalStack";
 import { useNotifications } from "../hooks/useNotifications";
 import { getFullName, getInitials } from "../utils/user";
 import type { AuthUser } from "@shared/types";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import {
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui";
 
 interface NavbarProps {
   user: AuthUser | null;
@@ -16,112 +31,115 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
   const { openModal } = useModal();
   const { notifications } = useNotifications(!!user, user?.id ?? null);
   const unreadCount = notifications.filter((n) => !n.is_read && n.status === "pending").length;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", handleClickOutside);
-    return () => window.removeEventListener("mousedown", handleClickOutside);
-  }, [menuOpen]);
 
   return (
-    <nav className="relative z-40 flex items-center justify-between border-b border-white/12 bg-slate-950/85 p-4 shadow-md backdrop-blur-md">
-      {menuOpen && (
-        <div
-          aria-hidden="true"
-          className="fixed inset-0 z-40"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-      <h1 className="text-xl font-bold">
+    <nav className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/65">
+      <div className="flex h-16 w-full items-center justify-between px-4 sm:px-6">
         <Link
           to="/"
-          className="text-white transition-colors hover:text-blue-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+          className="text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary sm:text-lg"
         >
-          Task Manager
+          <span className="text-primary">Task</span> Manager
         </Link>
-      </h1>
 
-      {user ? (
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => openModal("notifications")}
-            className="relative p-2 rounded-full bg-gray-800 text-gray-200 hover:bg-gray-700"
-            aria-label="Notifications"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 min-w-[1rem] px-1 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              className="group flex items-center gap-2 rounded-full border border-transparent bg-white/5 px-1.5 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 hover:border-blue-400/40 hover:bg-blue-500/10"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-            >
-              <div
-                className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold uppercase text-white shadow-inner shadow-black/20 transition group-hover:shadow-[0_0_0_2px_rgba(56,189,248,0.45)]"
-                style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
-              >
-                {getInitials(user)}
-              </div>
-              <ChevronDown size={16} className="text-gray-300 transition group-hover:text-white" />
-            </button>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {user ? (
+            <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="relative"
+                      onClick={() => openModal("notifications")}
+                      aria-label="Notifications"
+                    >
+                      <Bell className="h-5 w-5" />
+                      {unreadCount > 0 ? (
+                        <Badge
+                          variant="destructive"
+                          className="absolute -right-1.5 -top-1 h-4 min-w-[1.3rem] justify-center px-1 text-[10px]"
+                        >
+                          {Math.min(unreadCount, 99)}
+                        </Badge>
+                      ) : null}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Notifications</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            {menuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 mt-2 w-48 rounded-lg bg-gray-800 border border-gray-700 shadow-lg overflow-hidden z-50"
-              >
-                <div className="px-4 py-3 border-b border-gray-700">
-                  <p className="text-sm font-semibold text-white">{getFullName(user)}</p>
-                  <p className="text-xs text-gray-400">@{user.username}</p>
-                </div>
-                <Link
-                  to="/settings"
-                  role="menuitem"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                >
-                  <Settings size={16} />
-                  Settings
-                </Link>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onLogout();
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="flex items-center gap-3 rounded-full px-2.5 py-1.5 hover:bg-accent"
+                  >
+                    <Avatar className="h-9 w-9 border border-border/80 shadow-inner">
+                      <AvatarFallback
+                        className="text-sm font-semibold uppercase text-primary-foreground"
+                        style={{ backgroundColor: user.avatar_color ?? DEFAULT_AVATAR_COLOR }}
+                      >
+                        {getInitials(user)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden flex-col items-start text-left text-xs font-medium leading-tight sm:flex">
+                      <span className="text-foreground">{getFullName(user)}</span>
+                      <span className="text-muted-foreground">@{user.username}</span>
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={12}
+                  className="w-56 border border-border p-1.5 shadow-xl"
+                  style={{
+                    backgroundColor: "hsl(var(--card))",
+                    color: "hsl(var(--card-foreground))",
+                    backdropFilter: "none",
+                    WebkitBackdropFilter: "none",
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
                 >
-                  <LogOut size={16} />
-                  Sign Out
-                </button>
-              </div>
-            )}
-          </div>
+                  <DropdownMenuLabel className="flex flex-col gap-0.5">
+                    <span className="text-xs font-normal text-muted-foreground">Signed in as</span>
+                    <span className="text-sm font-semibold text-foreground">{getFullName(user)}</span>
+                    <span className="text-xs text-muted-foreground">@{user.username}</span>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/settings"
+                      className="flex w-full items-center gap-2 text-sm text-foreground"
+                    >
+                      <Settings className="h-4 w-4 text-muted-foreground" />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      onLogout();
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <Button asChild className="gap-2">
+              <Link to="/signin">
+                <LogIn className="h-4 w-4" />
+                Sign In
+              </Link>
+            </Button>
+          )}
         </div>
-      ) : (
-        <Link
-          to="/signin"
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-500"
-        >
-          <LogIn size={16} />
-          Sign In
-        </Link>
-      )}
+      </div>
     </nav>
   );
 }

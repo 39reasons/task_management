@@ -1,13 +1,27 @@
 import { useEffect } from "react";
-import { useNotifications } from "../hooks/useNotifications";
-import { useModal } from "./ModalStack";
 import type { AuthUser, Notification } from "@shared/types";
+import { useModal } from "./ModalStack";
+import { useNotifications } from "../hooks/useNotifications";
 import { getFullName } from "../utils/user";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  ScrollArea,
+} from "./ui";
 
 export function NotificationInbox({ currentUser }: { currentUser: AuthUser | null }) {
   const { modals, closeModal } = useModal();
   const isOpen = modals.includes("notifications");
-  const enableNotifications = !!currentUser;
+  const enableNotifications = Boolean(currentUser);
+
   const { notifications, loading, respond, markRead, remove } = useNotifications(
     enableNotifications,
     currentUser?.id ?? null
@@ -16,61 +30,81 @@ export function NotificationInbox({ currentUser }: { currentUser: AuthUser | nul
   useEffect(() => {
     if (!isOpen) return;
     const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         event.preventDefault();
-        closeModal('notifications');
+        closeModal("notifications");
       }
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, [isOpen, closeModal]);
 
   useEffect(() => {
     if (!isOpen) return;
-    const unread = notifications.filter((notif) => !notif.is_read);
-    if (unread.length === 0) return;
-    Promise.all(unread.map((n) => markRead(n.id, true))).catch(() => {});
+    const unread = notifications.filter((notification) => !notification.is_read);
+    if (!unread.length) return;
+    void Promise.all(unread.map((notification) => markRead(notification.id, true))).catch(() => {});
   }, [isOpen, notifications, markRead]);
 
   if (!isOpen) return null;
 
-  const pendingNotifications = notifications.filter((n) => n.status === "pending");
+  const pendingNotifications = notifications.filter((notification) => notification.status === "pending");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
-      <div className="absolute inset-0 bg-black/50" onClick={() => closeModal("notifications")} />
-      <div className="relative bg-gray-800 rounded-xl shadow-lg w-full max-w-md max-h-[70vh] overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Notifications</h3>
-          <button
-            onClick={() => closeModal("notifications")}
-            className="text-gray-400 hover:text-gray-200"
-          >
-            ✕
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-          {loading ? (
-            <p className="text-sm text-gray-400">Loading…</p>
-          ) : notifications.length === 0 ? (
-            <p className="text-sm text-gray-400">No notifications.</p>
-          ) : (
-            notifications.map((notification) => (
-              <NotificationItem
-                key={notification.id}
-                notification={notification}
-                onRespond={respond}
-                onDelete={remove}
-              />
-            ))
-          )}
-        </div>
-        {pendingNotifications.length > 0 && (
-          <div className="px-4 py-2 text-xs text-gray-400 border-t border-gray-700">
-            Pending invites: {pendingNotifications.length}
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 px-4 pt-20 transition-opacity dark:bg-black/80"
+      onClick={() => closeModal("notifications")}
+      role="presentation"
+    >
+      <Card
+        className="relative flex h-[70vh] w-full max-w-md flex-col border border-border bg-[hsl(var(--modal-background))] text-[hsl(var(--modal-foreground))] shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div>
+            <CardTitle>Notifications</CardTitle>
+            <CardDescription>Stay up to date on invites and project activity.</CardDescription>
           </div>
-        )}
-      </div>
+          <Button variant="ghost" size="icon" onClick={() => closeModal("notifications")}>✕</Button>
+        </CardHeader>
+        <CardContent className="flex flex-1 flex-col gap-3 p-0">
+          <ScrollArea className="flex-1 px-4 py-3">
+            {loading ? (
+              <Alert variant="info">
+                <AlertTitle>Checking for updates…</AlertTitle>
+                <AlertDescription>Fetching the latest notifications for your account.</AlertDescription>
+              </Alert>
+            ) : notifications.length === 0 ? (
+              <Alert>
+                <AlertTitle>No notifications</AlertTitle>
+                <AlertDescription>You’re all caught up. Invites and project updates will appear here.</AlertDescription>
+              </Alert>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map((notification) => (
+                  <NotificationItem
+                    key={notification.id}
+                    notification={notification}
+                    onRespond={respond}
+                    onDelete={remove}
+                  />
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+          {pendingNotifications.length > 0 ? (
+            <div className="border-t border-border px-4 py-3">
+              <Alert variant="warning" className="border-none bg-transparent p-0 text-xs">
+                <AlertTitle>Pending invites</AlertTitle>
+                <AlertDescription className="text-xs">
+                  {pendingNotifications.length} invite{pendingNotifications.length === 1 ? "" : "s"} awaiting
+                  your response.
+                </AlertDescription>
+              </Alert>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -87,52 +121,62 @@ function NotificationItem({
   const isPending = notification.status === "pending";
 
   return (
-    <div className="border border-gray-700 rounded-lg p-3 bg-gray-900 flex flex-col gap-2">
-      <div className="flex justify-between text-xs text-gray-400 items-center gap-2">
-        <span>{formatTimestamp(notification.created_at)}</span>
-        <div className="flex items-center gap-2">
-          <span className={`font-semibold ${isPending ? "text-yellow-400" : notification.status === "accepted" ? "text-green-400" : "text-red-400"}`}>
-            {notification.status.toUpperCase()}
-          </span>
-          <button
-            onClick={() => onDelete(notification.id)}
-            className="text-gray-400 hover:text-red-400 text-sm"
-            aria-label="Delete notification"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-      <div className="text-sm text-white whitespace-pre-wrap">{notification.message}</div>
-      <div className="text-xs text-gray-300">
-        {notification.sender && (
-          <div>
-            From <span className="font-semibold">{getFullName(notification.sender)}</span> (@{notification.sender.username})
+    <Card className="bg-card text-card-foreground">
+      <CardContent className="flex flex-col gap-2 py-4 text-sm text-foreground">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{formatTimestamp(notification.created_at)}</span>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className={
+                isPending
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : notification.status === "accepted"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-destructive/40 bg-destructive/10 text-destructive"
+              }
+            >
+              {notification.status.toUpperCase()}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(notification.id)}
+              aria-label="Delete notification"
+            >
+              ✕
+            </Button>
           </div>
-        )}
-        {notification.project && (
-          <div>
-            Project: <span className="font-semibold">{notification.project.name}</span>
-          </div>
-        )}
-      </div>
-      {isPending && (
-        <div className="flex gap-2">
-          <button
-            onClick={() => onRespond(notification.id, true)}
-            className="flex-1 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
-          >
-            Accept
-          </button>
-          <button
-            onClick={() => onRespond(notification.id, false)}
-            className="flex-1 px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm"
-          >
-            Decline
-          </button>
         </div>
-      )}
-    </div>
+        <div className="text-sm text-foreground whitespace-pre-wrap">
+          {notification.message}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {notification.sender ? (
+            <div>
+              From <span className="font-semibold text-foreground">{getFullName(notification.sender)}</span> (@
+              {notification.sender.username})
+            </div>
+          ) : null}
+          {notification.project ? (
+            <div>
+              Project: <span className="font-semibold text-foreground">{notification.project.name}</span>
+            </div>
+          ) : null}
+        </div>
+        {isPending ? (
+          <div className="flex gap-2">
+            <Button variant="default" className="flex-1" onClick={() => onRespond(notification.id, true)}>
+              Accept
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => onRespond(notification.id, false)}>
+              Decline
+            </Button>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

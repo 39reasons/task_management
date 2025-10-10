@@ -1,7 +1,12 @@
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useMutation } from "@apollo/client";
+import { Loader2 } from "lucide-react";
 import { ADD_TAG } from "../graphql";
 import { COLOR_WHEEL } from "../constants/colors";
+import { cn } from "../lib/utils";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 export function TagForm({ onCreated }: { onCreated?: () => void }) {
   const [name, setName] = useState("");
@@ -15,59 +20,60 @@ export function TagForm({ onCreated }: { onCreated?: () => void }) {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
     if (!name.trim() || !color) return;
     addTag({ variables: { name: name.trim(), color } });
   };
 
+  const isDisabled = !name.trim() || !color || loading;
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Tag Name
-        </label>
-        <input
-          type="text"
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="space-y-2">
+        <Label htmlFor="tag-name">Tag name</Label>
+        <Input
+          id="tag-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleSubmit(e as any);
-            }
-          }}
-          className="w-full rounded-md border border-gray-600 bg-gray-900 text-white px-3 py-2"
           placeholder="Enter tag name"
+          maxLength={40}
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Color
-        </label>
+      <div className="space-y-2">
+        <Label>Color</Label>
         <div className="flex flex-wrap gap-2">
-          {COLOR_WHEEL.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setColor(c)}
-              className={`w-8 h-8 rounded-full border-2 ${
-                color === c ? "border-white" : "border-transparent"
-              }`}
-              style={{ backgroundColor: c }}
-            />
-          ))}
+          {COLOR_WHEEL.map((value) => {
+            const isSelected = color === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setColor(value)}
+                className={cn(
+                  "h-8 w-8 rounded-full border border-transparent transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  isSelected ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background" : "hover:border-border"
+                )}
+                style={{ backgroundColor: value }}
+              >
+                <span className="sr-only">Select color {value}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={!name.trim() || !color || loading}
-        className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-semibold disabled:opacity-50"
-      >
-        {loading ? "Creating..." : "Create Tag"}
-      </button>
+      <Button type="submit" disabled={isDisabled} className="gap-2">
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Creating…
+          </>
+        ) : (
+          "Create tag"
+        )}
+      </Button>
     </form>
   );
 }

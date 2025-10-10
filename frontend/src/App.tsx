@@ -16,6 +16,7 @@ import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import SettingsPage from "./pages/SettingsPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
+import { GET_PROJECTS, GET_PROJECTS_OVERVIEW, GET_TASKS } from "./graphql";
 
 function AppContent() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -35,9 +36,21 @@ function AppContent() {
     navigate("/");
   };
 
-  const handleAuthSuccess = (authUser: AuthUser, _token: string) => {
+  const handleAuthSuccess = async (authUser: AuthUser, _token: string) => {
     setUser({ ...authUser, avatar_color: authUser.avatar_color ?? null });
-    client.resetStore().catch(() => {});
+    try {
+      await client.clearStore();
+      client.cache.writeQuery({ query: GET_PROJECTS, data: { projects: [] } });
+      client.cache.writeQuery({ query: GET_PROJECTS_OVERVIEW, data: { projects: [] } });
+      client.cache.writeQuery({ query: GET_TASKS, data: { tasks: [] } });
+      await Promise.all([
+        client.query({ query: GET_PROJECTS, fetchPolicy: "network-only" }),
+        client.query({ query: GET_PROJECTS_OVERVIEW, fetchPolicy: "network-only" }),
+        client.query({ query: GET_TASKS, fetchPolicy: "network-only" }),
+      ]);
+    } catch {
+      // ignore hydration errors; UI will refetch as needed
+    }
   };
 
   useEffect(() => {
@@ -60,16 +73,16 @@ function AppContent() {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       {/* Navbar */}
       <Navbar user={user} onLogout={handleLogout} />
 
       {/* Layout */}
-      <div className="flex flex-1">
+      <div className="flex min-w-0 flex-1 overflow-x-hidden">
         {!isAuthRoute && <Sidebar user={user} />}
 
-        <main className={isAuthRoute ? "flex-1" : "flex-1 p-6"}>
-          <div className={isAuthRoute ? "" : "max-w-6xl mx-auto"}>
+        <main className={isAuthRoute ? "flex-1 min-w-0" : "flex-1 min-w-0 px-4 py-6 sm:px-6"}>
+          <div className={isAuthRoute ? "min-w-0" : "mx-auto w-full min-w-0"}>
             <Routes>
               <Route
                 path="/signin"

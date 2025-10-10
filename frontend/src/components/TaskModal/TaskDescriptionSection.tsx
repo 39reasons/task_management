@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AlignLeft, Sparkles, Loader2 } from "lucide-react";
+import { Button, Textarea } from "../ui";
+import { cn } from "../../lib/utils";
 
 interface TaskDescriptionSectionProps {
   description: string;
@@ -58,95 +60,79 @@ export function TaskDescriptionSection({
   }, [isDraftPromptVisible]);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-white">
-          <AlignLeft className="h-4 w-4 text-gray-400" />
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <AlignLeft className="h-4 w-4 text-muted-foreground" />
           <span>Description</span>
         </div>
-        <button
+        <Button
           type="button"
+          size="sm"
+          variant="outline"
           onClick={onToggleDraftPrompt}
-          className="inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:border-blue-400 hover:bg-blue-500/20"
+          className="gap-2 border-primary/40 text-xs font-semibold uppercase tracking-wide text-primary hover:bg-primary/10"
         >
-          <Sparkles size={14} className="text-blue-200" />
+          <Sparkles className="h-3.5 w-3.5" />
           {isDraftPromptVisible ? "Close AI draft" : "Draft with AI"}
-        </button>
+        </Button>
       </div>
 
       {isDraftPromptVisible ? (
-        <div className="space-y-3 rounded-xl border border-blue-500/40 bg-blue-500/10 p-4">
+        <div className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 px-4 py-4">
           <div className="space-y-1">
-            <p className="text-sm font-semibold text-blue-100">Describe the task</p>
-            <p className="text-xs text-blue-200/80">
+            <p className="text-sm font-semibold text-primary">Describe the task</p>
+            <p className="text-xs text-primary/80">
               Share goals, constraints, or expected outcomes. The assistant will draft a title,
               description, and suggested tags.
             </p>
           </div>
-          <textarea
+          <Textarea
             ref={promptRef}
             id="ai-draft-prompt"
             value={draftPrompt}
             onChange={(event) => onDraftPromptChange(event.target.value)}
-            className="min-h-[100px] w-full rounded-lg border border-blue-500/40 bg-blue-500/5 px-3 py-2 text-sm text-blue-50 placeholder-blue-200/60 focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+            className="min-h-[120px] border-primary/40 bg-background text-sm text-foreground placeholder:text-primary/60"
             placeholder="e.g. Plan the QA checklist for the upcoming mobile release"
           />
-          {draftError ? <p className="text-sm text-red-300">{draftError}</p> : null}
+          {draftError ? <p className="text-sm text-destructive">{draftError}</p> : null}
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onGenerateDraft}
-              disabled={isGeneratingDraft}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            <Button type="button" onClick={onGenerateDraft} disabled={isGeneratingDraft} className="gap-2">
               {isGeneratingDraft ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating...
+                  Generating…
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} />
+                  <Sparkles className="h-4 w-4" />
                   Generate draft
                 </>
               )}
-            </button>
-            <button
-              type="button"
-              onClick={onCancelDraftPrompt}
-              className="rounded-lg px-4 py-2 text-sm text-blue-100 transition hover:bg-blue-500/20"
-            >
+            </Button>
+            <Button type="button" variant="ghost" onClick={onCancelDraftPrompt}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
 
       {isEditing ? (
         <div className="space-y-2">
-          <textarea
+          <Textarea
             value={description}
             autoFocus
             onChange={(event) => onChange(event.target.value)}
             placeholder="Add a more detailed description..."
-            className="min-h-[140px] w-full resize-vertical rounded-xl border border-gray-600 bg-gray-900/80 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="min-h-[140px] resize-vertical"
           />
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onSave}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
-              disabled={trimmedCurrent === trimmedInitial}
-            >
+            <Button type="button" onClick={onSave} disabled={trimmedCurrent === trimmedInitial}>
               Save
-            </button>
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-lg px-4 py-2 text-sm text-gray-300 transition hover:bg-gray-800 hover:text-gray-100"
-            >
+            </Button>
+            <Button type="button" variant="ghost" onClick={onCancel}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : hasContent ? (
@@ -162,32 +148,40 @@ export function TaskDescriptionSection({
             }
           }}
         >
-          <div className="rounded-xl border border-gray-600 bg-gray-900/60 px-4 py-3 text-sm text-gray-200 transition group-hover:border-blue-500 group-hover:text-blue-200">
-            <div className={`whitespace-pre-wrap ${isExpanded ? "" : "line-clamp-5"}`}>
+          <div className="rounded-lg border border-border bg-[hsl(var(--card))] px-4 py-3 transition group-hover:border-primary/40 group-hover:bg-muted/40">
+            <div
+              className={cn(
+                "whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground",
+                !isExpanded && "line-clamp-5"
+              )}
+            >
               {initialDescription}
             </div>
             {shouldShowToggle ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={(event) => {
                   event.stopPropagation();
                   onToggleExpand();
                 }}
-                className="mt-3 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-300 transition hover:text-blue-200"
+                className="mt-3 h-auto px-0 text-xs font-semibold uppercase tracking-wide text-primary hover:text-primary/80"
               >
                 {isExpanded ? "Show less" : "Show more"}
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => onStartEdit(true)}
-          className="w-full rounded-xl border border-dashed border-gray-600 px-4 py-6 text-sm text-left text-gray-400 hover:border-blue-500 hover:text-blue-300"
+          className="w-full justify-start border-dashed border-border/60 px-4 py-6 text-left text-sm text-muted-foreground hover:border-primary/40 hover:text-primary"
         >
-          Add a more detailed description...
-        </button>
+          Add a more detailed description…
+        </Button>
       )}
     </div>
   );

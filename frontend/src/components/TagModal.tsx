@@ -11,6 +11,21 @@ import {
 import { useProjectTags } from "../hooks/useProjectTags";
 import { useModal } from "./ModalStack";
 import { COLOR_WHEEL } from "../constants/colors";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  ScrollArea,
+} from "./ui";
+import { cn } from "../lib/utils";
 
 interface TagModalProps {
   task: Task | null;
@@ -74,23 +89,6 @@ export function TagModal({ task }: TagModalProps) {
       setSelectedTagIds(new Set());
     }
   }, [isOpen, taskTagsData]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || !isOpen) return;
-      const topModal = modals[modals.length - 1];
-      if (topModal === "tag") {
-        e.preventDefault();
-        e.stopPropagation();
-        if (typeof e.stopImmediatePropagation === "function") {
-          e.stopImmediatePropagation();
-        }
-        closeTagModal();
-      }
-    };
-    document.addEventListener("keydown", handler, true);
-    return () => document.removeEventListener("keydown", handler, true);
-  }, [isOpen, modals, closeTagModal]);
 
   useEffect(() => {
     if (!isOpen || !projectId) return;
@@ -176,113 +174,130 @@ export function TagModal({ task }: TagModalProps) {
 
   if (!shouldRender || !task || !projectId) return null;
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      closeTagModal();
+    }
+  };
+
+  const isEditorOpen = modals.includes("tag-editor") && Boolean(editorState);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={(e) => {
-          e.stopPropagation();
-          closeTagModal();
-        }}
-      />
+    <>
+      <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
+        <DialogContent className="max-w-lg space-y-4">
+          <DialogHeader>
+            <DialogTitle>Manage tags</DialogTitle>
+            <DialogDescription>
+              Apply existing tags to this task or create a new one.
+            </DialogDescription>
+          </DialogHeader>
 
-      <div className="relative z-10 w-full max-w-lg rounded-xl bg-gray-800 p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">Manage Tags</h3>
-          <button
-            type="button"
-            onClick={() => openEditor({ mode: "create" })}
-            className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-600 text-gray-200 hover:border-gray-400"
-          >
-            New Tag
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 p-3 space-y-2">
-            {loadingProjectTags ? (
-              <p className="text-sm text-gray-400">Loading tags…</p>
-            ) : projectTags.length ? (
-              projectTags.map((tag) => {
-                const displayColor = tag.color || DEFAULT_COLOR;
-                const isChecked = selectedTagIds.has(tag.id);
-
-                return (
-                  <div
-                    key={tag.id}
-                    className="flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2"
-                  >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-blue-500"
-                      checked={isChecked}
-                      onChange={() => toggleTagSelection(tag.id)}
-                    />
-                    <div className="flex-1">
-                      <span
-                        className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-medium text-white"
-                        style={{ backgroundColor: displayColor }}
-                      >
-                        {tag.name}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => openEditor({ mode: "edit", tag })}
-                      className="rounded-md border border-gray-600 px-2 py-1 text-xs text-gray-200 hover:border-gray-400"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-sm text-gray-400">No tags yet. Create one to get started.</p>
-            )}
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-muted-foreground">
+              {projectTags.length} tags available
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => openEditor({ mode: "create" })}
+            >
+              New Tag
+            </Button>
           </div>
 
-          {actionError && <p className="text-sm text-red-400">{actionError}</p>}
+          <ScrollArea className="max-h-72 rounded-md border border-border bg-card">
+            <div className="space-y-2 p-3">
+              {loadingProjectTags ? (
+                <p className="text-sm text-muted-foreground">Loading tags…</p>
+              ) : projectTags.length ? (
+                projectTags.map((tag) => {
+                  const displayColor = tag.color || DEFAULT_COLOR;
+                  const isChecked = selectedTagIds.has(tag.id);
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={closeTagModal}
-              className="rounded-md bg-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-600"
-            >
+                  return (
+                    <div
+                      key={tag.id}
+                      className={cn(
+                        "flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2 transition hover:border-primary/20 hover:bg-muted/40",
+                        isChecked && "border-primary/40 bg-primary/5"
+                      )}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => toggleTagSelection(tag.id)}
+                        aria-label={`Toggle ${tag.name}`}
+                      />
+                      <div className="flex flex-1 items-center justify-between gap-3">
+                        <Badge
+                          className="flex items-center gap-2 border-none px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary"
+                          style={{ backgroundColor: displayColor }}
+                        >
+                          {tag.name}
+                        </Badge>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEditor({ mode: "edit", tag })}
+                          className="h-7 px-3 text-xs"
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No tags yet. Create one to get started.
+                </p>
+              )}
+            </div>
+          </ScrollArea>
+
+          {actionError ? (
+            <p className="text-sm text-destructive">{actionError}</p>
+          ) : null}
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="ghost" onClick={closeTagModal}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleApplySelection}
               disabled={isApplying || !hasSelectionChanged}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500 disabled:opacity-50"
             >
               {isApplying ? "Saving…" : "Apply"}
-            </button>
-          </div>
-        </div>
-      </div>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {editorState && (
         <TagEditorDialog
+          open={isEditorOpen}
           state={editorState}
           projectId={projectId}
           onCancel={closeEditor}
           onComplete={(tag) => handleEditorComplete(tag, editorState.mode)}
         />
       )}
-    </div>
+    </>
   );
 }
 
 interface TagEditorDialogProps {
+  open: boolean;
   state: EditorState;
   projectId: string;
   onCancel: () => void;
   onComplete: (tag: Tag) => void;
 }
 
-function TagEditorDialog({ state, projectId, onCancel, onComplete }: TagEditorDialogProps) {
+function TagEditorDialog({ open, state, projectId, onCancel, onComplete }: TagEditorDialogProps) {
   const isEdit = state.mode === "edit";
   const referenceTag = isEdit ? state.tag : null;
 
@@ -300,19 +315,6 @@ function TagEditorDialog({ state, projectId, onCancel, onComplete }: TagEditorDi
 
   const [addTag, { loading: creating }] = useMutation(ADD_TAG);
   const [updateTag, { loading: updating }] = useMutation(UPDATE_TAG);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-      onCancel();
-    };
-    document.addEventListener("keydown", handler, true);
-    return () => document.removeEventListener("keydown", handler, true);
-  }, [onCancel]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -347,75 +349,68 @@ function TagEditorDialog({ state, projectId, onCancel, onComplete }: TagEditorDi
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={(e) => {
-          e.stopPropagation();
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
           onCancel();
-        }}
-      />
-      <form
-        onSubmit={handleSubmit}
-        className="relative z-10 w-full max-w-sm space-y-4 rounded-xl bg-gray-800 p-6 shadow-xl"
-      >
-        <h4 className="text-lg font-semibold text-white">
-          {isEdit ? "Edit Tag" : "Create Tag"}
-        </h4>
+        }
+      }}
+    >
+      <DialogContent className="max-w-sm space-y-4">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit tag" : "Create tag"}</DialogTitle>
+          <DialogDescription>
+            Set a name and color to help teammates identify this tag quickly.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300" htmlFor="tag-name-input">
-            Name
-          </label>
-          <input
-            id="tag-name-input"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <span className="text-sm font-medium text-gray-300">Color</span>
-          <div className="grid grid-cols-6 gap-2">
-            {palette.map((option) => {
-              const isSelected = option === color;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setColor(option)}
-                  className={`h-9 w-9 rounded-md border-2 transition focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 ${
-                    isSelected ? "border-white" : "border-transparent"
-                  }`}
-                  style={{ backgroundColor: option }}
-                  aria-pressed={isSelected}
-                />
-              );
-            })}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="tag-name-input">Name</Label>
+            <Input
+              id="tag-name-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              placeholder="Marketing"
+            />
           </div>
-        </div>
 
-        {formError && <p className="text-sm text-red-400">{formError}</p>}
+          <div className="space-y-2">
+            <span className="text-sm font-medium text-foreground">Color</span>
+            <div className="grid grid-cols-6 gap-2">
+              {palette.map((option) => {
+                const isSelected = option === color;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setColor(option)}
+                    className={cn(
+                      "h-9 w-9 rounded-md border border-border/40 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                      isSelected ? "border-primary ring-2 ring-primary/40 ring-offset-2 ring-offset-background" : "hover:border-border"
+                    )}
+                    style={{ backgroundColor: option }}
+                    aria-pressed={isSelected}
+                  />
+                );
+              })}
+            </div>
+          </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md bg-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-600"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={creating || updating}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500 disabled:opacity-50"
-          >
-            {creating || updating ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </form>
-    </div>
+          {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={creating || updating}>
+              {creating || updating ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

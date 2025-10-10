@@ -63,6 +63,7 @@ export interface Project {
   updated_at?: string;
   tasks?: Task[];
   is_public?: boolean;
+  viewer_is_owner?: boolean;
   members?: User[];
 }
 

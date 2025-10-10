@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, CornerDownLeft } from "lucide-react";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { cn } from "../lib/utils";
 interface TaskFormProps {
   stageId: string;
   onAdd: (stage_id: string, title: string) => void;
@@ -42,23 +45,23 @@ export function TaskForm({ stageId, onAdd }: TaskFormProps) {
   };
 
   return (
-    <div ref={containerRef} className="mt-3">
+    <div ref={containerRef} className="mt-2">
       {!open ? (
-        <button
+        <Button
+          type="button"
+          variant="ghost"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => setOpen(true)}
-          className="group w-full rounded-2xl border border-dashed border-gray-600/60 bg-gray-900/70 px-4 py-3 text-left transition hover:border-blue-500 hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+          className="group flex w-full items-center justify-start gap-3 rounded-2xl border border-dashed border-border/60 bg-transparent px-5 py-8 text-left transition hover:border-primary/40 hover:bg-muted/20"
         >
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15 text-blue-300">
-              <Plus className="h-4 w-4" />
-            </span>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-white">Add card</p>
-              <p className="text-xs text-gray-400">Capture a task in this stage</p>
-            </div>
-          </div>
-        </button>
+          <span className="flex h-5 w-5 items-center justify-center text-primary">
+            <Plus className="h-4 w-4" strokeWidth={1.5} />
+          </span>
+          <span className="flex flex-col text-left">
+            <span className="text-sm font-semibold text-foreground">Add card</span>
+            <span className="text-xs text-muted-foreground">Capture a task in this stage</span>
+          </span>
+        </Button>
       ) : (
         <form
           onPointerDown={(e) => e.stopPropagation()}
@@ -66,43 +69,40 @@ export function TaskForm({ stageId, onAdd }: TaskFormProps) {
             e.preventDefault();
             handle_submit();
           }}
-          className="group w-full rounded-2xl border border-dashed border-blue-500/70 bg-gray-900/80 px-4 py-3 text-left shadow focus-within:border-blue-500"
+          className="flex items-center gap-2 rounded-lg border border-primary/40 bg-muted/30 px-3 py-2 shadow-sm focus-within:border-primary"
         >
-          <div className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              value={title}
-              onChange={(e) =>
-                setTitle(e.target.value.slice(0, TASK_TITLE_MAX_LENGTH))
+          <Input
+            ref={inputRef}
+            value={title}
+            onChange={(e) => setTitle(e.target.value.slice(0, TASK_TITLE_MAX_LENGTH))}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setOpen(false);
+                setTitle("");
               }
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setOpen(false);
-                  setTitle("");
-                }
-              }}
-              placeholder="Add card title…"
-              className="w-full border-0 bg-transparent text-sm text-white placeholder-gray-500 focus:border-0 focus:outline-none"
-              maxLength={TASK_TITLE_MAX_LENGTH}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                if (title.trim()) {
-                  handle_submit();
-                }
-              }}
-              disabled={!title.trim()}
-              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
-                title.trim()
-                  ? "text-blue-400 hover:bg-blue-500/10 border-transparent"
-                  : "border-transparent text-gray-600"
-              }`}
-              aria-label="Add card"
-            >
-              <CornerDownLeft size={16} />
-            </button>
-          </div>
+            }}
+            placeholder="Add card title…"
+            className="flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+            maxLength={TASK_TITLE_MAX_LENGTH}
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => {
+              if (title.trim()) {
+                handle_submit();
+              }
+            }}
+            disabled={!title.trim()}
+            className={cn(
+              "h-8 w-8 rounded-full text-muted-foreground",
+              title.trim() && "text-primary hover:bg-primary/10"
+            )}
+            aria-label="Add card"
+          >
+            <CornerDownLeft className="h-4 w-4" />
+          </Button>
         </form>
       )}
     </div>

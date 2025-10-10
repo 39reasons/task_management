@@ -25,7 +25,11 @@ interface UseAllTasksBoardResult {
 }
 
 export function useAllTasksBoard(): UseAllTasksBoardResult {
-  const { data, loading, error, refetch } = useQuery<{ tasks: Task[] }>(GET_TASKS);
+  const { data, loading, error, refetch } = useQuery<{ tasks: Task[] }>(GET_TASKS, {
+    fetchPolicy: "network-only",
+    nextFetchPolicy: "cache-first",
+    errorPolicy: "all",
+  });
 
   useSubscription(TASK_BOARD_EVENTS, {
     variables: { project_id: TASK_BOARD_ALL_PROJECTS },
