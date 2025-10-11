@@ -23,7 +23,6 @@ import { TaskCommentsPanel } from "./TaskCommentsPanel";
 import type { CommentWithUser, TaskDraftResponse } from "./types";
 import { TASK_FRAGMENT } from '../../graphql/tasks';
 import { Button, Dialog, DialogContent, ScrollArea, Separator } from "../ui";
-import { cn } from "../../lib/utils";
 
 const TASK_TITLE_MAX_LENGTH = 512;
 
@@ -658,12 +657,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <div className="flex h-[80vh] min-h-[560px] flex-col bg-[hsl(var(--background))]">
-            <div className="flex items-start justify-between gap-4 border-b border-border/60 bg-[hsl(var(--background))] px-6 py-4">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Task details
-                </p>
-              </div>
+            <div className="flex items-center justify-between gap-4 border-b border-border/60 bg-[hsl(var(--background))] px-6 py-3">
+              <p className="text-sm font-semibold text-muted-foreground">Task details</p>
               <Button
                 type="button"
                 variant="ghost"

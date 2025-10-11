@@ -71,7 +71,12 @@ export function TaskDescriptionSection({
           size="sm"
           variant="outline"
           onClick={onToggleDraftPrompt}
-          className="gap-2 border-primary/40 text-xs font-semibold uppercase tracking-wide text-primary hover:bg-primary/10"
+          aria-pressed={isDraftPromptVisible}
+          className={cn(
+            "gap-2 border-primary/20 bg-transparent text-xs font-semibold uppercase tracking-wide text-primary transition hover:border-primary/60 hover:bg-transparent",
+            isDraftPromptVisible &&
+              "border-primary text-primary shadow-[0_0_0_1px_rgba(37,99,235,0.25)] hover:bg-transparent"
+          )}
         >
           <Sparkles className="h-3.5 w-3.5" />
           {isDraftPromptVisible ? "Close AI draft" : "Draft with AI"}
@@ -129,7 +134,7 @@ export function TaskDescriptionSection({
             autoFocus
             onChange={(event) => onChange(event.target.value)}
             placeholder="Add a more detailed description..."
-            className="min-h-[140px] resize-vertical"
+            className="min-h-[140px] resize-vertical border-border bg-[hsl(var(--card))] text-foreground focus-visible:border-primary focus-visible:ring-primary/30"
           />
           <div className="flex gap-2">
             <Button type="button" onClick={onSave} disabled={trimmedCurrent === trimmedInitial}>

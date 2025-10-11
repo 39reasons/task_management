@@ -516,7 +516,7 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
               <h2 className="text-lg font-semibold text-foreground">Upcoming due dates</h2>
               <p className="text-sm text-muted-foreground">The next tasks scheduled across all workflows.</p>
             </div>
-            <CalendarClock className="h-5 w-5 text-primary" />
+            <CalendarClock className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
           </div>
 
           {upcomingTasks.length === 0 ? (
@@ -555,7 +555,7 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
               <h2 className="text-lg font-semibold text-foreground">Overdue tasks</h2>
               <p className="text-sm text-muted-foreground">Tasks that need attention across every project.</p>
             </div>
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
           </div>
 
           {overdueTasks.length === 0 ? (
