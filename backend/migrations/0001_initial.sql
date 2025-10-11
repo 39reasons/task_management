@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   description TEXT,
+  position INT,
   is_public BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -100,3 +101,11 @@ CREATE TABLE IF NOT EXISTS task_tags (
   tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
   PRIMARY KEY (task_id, tag_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_tasks_stage_position ON tasks (stage_id, position);
+CREATE INDEX IF NOT EXISTS idx_tasks_stage_id ON tasks (stage_id);
+CREATE INDEX IF NOT EXISTS idx_stages_workflow ON stages (workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows (project_id);
+CREATE INDEX IF NOT EXISTS idx_user_projects_project_user ON user_projects (project_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_task_members_task ON task_members (task_id);
+CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags (task_id);
