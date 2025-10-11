@@ -112,14 +112,23 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
                   {members.map((member) => {
                     const isSelected = selectedIds.includes(member.id);
                     return (
-                      <button
+                      <div
                         key={member.id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => toggleMember(member.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            toggleMember(member.id);
+                          }
+                        }}
                         className={cn(
                           "flex w-full items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2 text-left transition hover:border-primary/20 hover:bg-muted/40",
                           isSelected && "border-primary/40 bg-primary/5"
                         )}
+                        aria-pressed={isSelected}
+                        aria-label={`Toggle ${getFullName(member)}`}
                       >
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8 border border-border/60">
@@ -139,10 +148,12 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
                         </div>
                         <Checkbox
                           checked={isSelected}
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
                           onCheckedChange={() => toggleMember(member.id)}
                           aria-label={`Toggle ${getFullName(member)}`}
                         />
-                      </button>
+                      </div>
                     );
                   })}
                 </div>

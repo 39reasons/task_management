@@ -170,7 +170,11 @@ function NotificationItem({
             <Button variant="default" className="flex-1" onClick={() => onRespond(notification.id, true)}>
               Accept
             </Button>
-            <Button variant="secondary" className="flex-1" onClick={() => onRespond(notification.id, false)}>
+            <Button
+              variant="destructive"
+              className="flex-1 bg-red-600 hover:bg-red-700"
+              onClick={() => onRespond(notification.id, false)}
+            >
               Decline
             </Button>
           </div>

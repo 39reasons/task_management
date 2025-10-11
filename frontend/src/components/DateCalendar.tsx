@@ -156,7 +156,7 @@ export function DateCalendar({ selectedDate, onSelect, onClose, title = "Dates" 
               className={cn(
                 "relative flex h-10 w-10 items-center justify-center rounded-lg text-sm font-medium transition",
                 isSelected
-                  ? "bg-primary text-primary-foreground shadow"
+                  ? "border border-primary/60 bg-primary/15 text-primary shadow-sm"
                   : isToday
                   ? "border border-primary/50 text-primary"
                   : "text-muted-foreground",
@@ -166,7 +166,7 @@ export function DateCalendar({ selectedDate, onSelect, onClose, title = "Dates" 
             >
               <span>{date.getDate()}</span>
               {isSelected ? (
-                <span className="absolute bottom-1 left-1/2 h-0.5 w-5 -translate-x-1/2 rounded-full bg-primary-foreground" />
+                <span className="absolute bottom-1 left-1/2 h-0.5 w-5 -translate-x-1/2 rounded-full bg-primary" />
               ) : null}
             </Button>
           );

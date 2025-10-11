@@ -65,6 +65,7 @@ export interface Project {
   is_public?: boolean;
   viewer_is_owner?: boolean;
   members?: User[];
+  position?: number | null;
 }
 
 export interface AuthUser {

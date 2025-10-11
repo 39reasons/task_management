@@ -7,7 +7,8 @@ const PROJECT_FIELDS_SELECT = `
   p.description,
   p.created_at,
   p.updated_at,
-  p.is_public
+  p.is_public,
+  p.position
 `;
 
 const PROJECT_FIELDS_RETURNING = `
@@ -16,7 +17,8 @@ const PROJECT_FIELDS_RETURNING = `
   description,
   created_at,
   updated_at,
-  is_public
+  is_public,
+  position
 `;
 
 export async function getProjects(user_id?: string): Promise<Project[]> {
@@ -30,7 +32,10 @@ export async function getProjects(user_id?: string): Promise<Project[]> {
             SELECT 1 FROM user_projects up
             WHERE up.project_id = p.id AND up.user_id = $1
          )
-      ORDER BY p.created_at DESC
+      ORDER BY
+        CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
+        p.position ASC,
+        p.created_at DESC
       `,
       [user_id]
     );
@@ -41,7 +46,10 @@ export async function getProjects(user_id?: string): Promise<Project[]> {
       SELECT ${PROJECT_FIELDS_SELECT}
       FROM projects p
       WHERE p.is_public = true
-      ORDER BY p.created_at DESC
+      ORDER BY
+        CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
+        p.position ASC,
+        p.created_at DESC
       `
     );
     return result.rows;
@@ -99,8 +107,16 @@ export async function addProject(
 ): Promise<Project> {
   const result = await query<Project>(
     `
-    INSERT INTO projects (name, description, is_public)
-    VALUES ($1, $2, $3)
+    INSERT INTO projects (name, description, is_public, position)
+    VALUES (
+      $1,
+      $2,
+      $3,
+      (
+        SELECT COALESCE(MAX(position), 0) + 1
+        FROM projects
+      )
+    )
     RETURNING ${PROJECT_FIELDS_RETURNING}
     `,
     [name, description, is_public]
@@ -170,6 +186,50 @@ export async function deleteProject(
   }
 
   const result = await query(`DELETE FROM projects WHERE id = $1`, [id]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function reorderProjects(project_ids: string[], user_id: string): Promise<boolean> {
+  if (project_ids.length === 0) {
+    return false;
+  }
+
+  const accessCheck = await query<{ id: string }>(
+    `
+    SELECT p.id
+    FROM projects p
+    WHERE p.id = ANY($2::uuid[])
+      AND (
+        p.is_public = true
+        OR EXISTS (
+          SELECT 1
+          FROM user_projects up
+          WHERE up.project_id = p.id AND up.user_id = $1::uuid
+        )
+      )
+    `,
+    [user_id, project_ids]
+  );
+
+  if ((accessCheck.rowCount ?? 0) !== project_ids.length) {
+    throw new Error("Project not found or not accessible");
+  }
+
+  const result = await query(
+    `
+    WITH ordered AS (
+      SELECT id, ordinality AS position
+      FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, ordinality)
+    )
+    UPDATE projects p
+    SET position = ordered.position,
+        updated_at = now()
+    FROM ordered
+    WHERE p.id = ordered.id
+    `,
+    [project_ids]
+  );
+
   return (result.rowCount ?? 0) > 0;
 }
 

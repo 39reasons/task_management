@@ -22,7 +22,7 @@ import { TaskDescriptionSection } from "./TaskDescriptionSection";
 import { TaskCommentsPanel } from "./TaskCommentsPanel";
 import type { CommentWithUser, TaskDraftResponse } from "./types";
 import { TASK_FRAGMENT } from '../../graphql/tasks';
-import { Badge, Button, Dialog, DialogContent, ScrollArea, Separator } from "../ui";
+import { Button, Dialog, DialogContent, ScrollArea, Separator } from "../ui";
 import { cn } from "../../lib/utils";
 
 const TASK_TITLE_MAX_LENGTH = 512;
@@ -476,11 +476,6 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
 
   if (!isOpen || !task) return null;
 
-  const stageName =
-    (task as Task & { stage?: { name?: string | null } }).stage?.name ?? null;
-  const priorityLabel = priority ? priority.charAt(0).toUpperCase() + priority.slice(1) : null;
-  const shortTaskId = task.id.slice(0, 8);
-
   const cancelTitleEdit = () => {
     setTitle(initialTitle);
     setIsEditingTitle(false);
@@ -536,13 +531,42 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
 
       if (normalized === current) return;
 
+      const fallbackDue = normalized ? normalized.slice(0, 10) : "";
+      setDueDate(fallbackDue);
+      const optimisticTask = {
+        ...(task as Task),
+        due_date: normalized,
+      } as Task;
+      writeTaskToCache(optimisticTask);
+
       const updated = await mutateTask({ due_date: normalized });
+
       if (updated) {
         const nextDue = updated.due_date ? updated.due_date.slice(0, 10) : "";
+        const previousDue = current ?? "";
+
+        if (nextDue === fallbackDue) {
+          writeTaskToCache(updated as Task);
+          return;
+        }
+
+        if (nextDue === previousDue) {
+          const nextTask = {
+            ...(updated as Task),
+            due_date: normalized,
+          } as Task;
+          writeTaskToCache(nextTask);
+          return;
+        }
+
         setDueDate(nextDue);
+        writeTaskToCache(updated as Task);
+        return;
       }
+
+      // retain optimistic state if mutation returned no data
     },
-    [task, dueDate, mutateTask]
+    [task, dueDate, mutateTask, writeTaskToCache]
   );
 
   const submitComment = async () => {
@@ -639,20 +663,6 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Task details
                 </p>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {stageName ? <Badge variant="outline">{stageName}</Badge> : null}
-                  {priorityLabel ? (
-                    <Badge
-                      variant={
-                        priority === "high" ? "destructive" : priority === "medium" ? "secondary" : "outline"
-                      }
-                      className={cn("capitalize", priority === "low" && "border-primary/40 text-primary")}
-                    >
-                      {priorityLabel}
-                    </Badge>
-                  ) : null}
-                  <span className="text-muted-foreground/80">Task · #{shortTaskId}</span>
-                </div>
               </div>
               <Button
                 type="button"

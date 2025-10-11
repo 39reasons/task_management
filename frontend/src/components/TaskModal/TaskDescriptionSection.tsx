@@ -110,7 +110,12 @@ export function TaskDescriptionSection({
                 </>
               )}
             </Button>
-            <Button type="button" variant="ghost" onClick={onCancelDraftPrompt}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCancelDraftPrompt}
+              className="border border-border/70 text-muted-foreground hover:border-border hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800"
+            >
               Cancel
             </Button>
           </div>
@@ -130,7 +135,12 @@ export function TaskDescriptionSection({
             <Button type="button" onClick={onSave} disabled={trimmedCurrent === trimmedInitial}>
               Save
             </Button>
-            <Button type="button" variant="ghost" onClick={onCancel}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCancel}
+              className="border border-border/70 text-muted-foreground hover:border-border hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800"
+            >
               Cancel
             </Button>
           </div>

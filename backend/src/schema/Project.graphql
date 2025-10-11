@@ -5,6 +5,7 @@ type Project {
   created_at: String
   updated_at: String
   is_public: Boolean!
+  position: Int
   tasks: [Task!]
   workflows: [Workflow!]
   members: [User!]
@@ -31,4 +32,6 @@ extend type Mutation {
   ): Project!
 
   deleteProject(id: ID!): Boolean!
+
+  reorderProjects(project_ids: [ID!]!): Boolean!
 }

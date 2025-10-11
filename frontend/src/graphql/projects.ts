@@ -8,6 +8,7 @@ export const GET_PROJECTS = gql`
       description
       is_public
       viewer_is_owner
+      position
       created_at
       updated_at
       members {
@@ -59,6 +60,7 @@ export const ADD_PROJECT = gql`
       description
       is_public
       viewer_is_owner
+      position
       created_at
       updated_at
       members {
@@ -110,6 +112,7 @@ export const UPDATE_PROJECT = gql`
       description
       is_public
       viewer_is_owner
+      position
       created_at
       updated_at
       members {
@@ -158,6 +161,11 @@ export const DELETE_PROJECT = gql`
     deleteProject(id: $id)
   }
 `;
+export const REORDER_PROJECTS = gql`
+  mutation ReorderProjects($project_ids: [ID!]!) {
+    reorderProjects(project_ids: $project_ids)
+  }
+`;
 
 export const GET_PROJECTS_OVERVIEW = gql`
   query GetProjectsOverview {
@@ -169,6 +177,7 @@ export const GET_PROJECTS_OVERVIEW = gql`
       created_at
       updated_at
       viewer_is_owner
+      position
       members {
         id
         first_name

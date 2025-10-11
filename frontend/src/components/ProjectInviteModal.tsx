@@ -258,7 +258,12 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
           {success ? <p className="text-sm text-emerald-400">{success}</p> : null}
 
           <DialogFooter className="gap-2">
-            <Button type="button" variant="ghost" onClick={() => closeModal("invite")}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => closeModal("invite")}
+              className="border border-border/70 text-muted-foreground hover:border-border hover:bg-muted"
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={loading || selectedUsers.length === 0}>

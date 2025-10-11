@@ -5,6 +5,7 @@ import {
   MARK_NOTIFICATION_READ,
   DELETE_NOTIFICATION,
   NOTIFICATION_EVENTS,
+  GET_PROJECTS,
 } from "../graphql";
 import type { Notification } from "@shared/types";
 
@@ -33,7 +34,10 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
   const respond = async (id: string, accept: boolean) => {
     await respondMutation({
       variables: { id, accept },
-      refetchQueries: [{ query: GET_NOTIFICATIONS }],
+      refetchQueries: [
+        { query: GET_NOTIFICATIONS },
+        ...(accept ? [{ query: GET_PROJECTS }] : []),
+      ],
     });
   };
 

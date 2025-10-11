@@ -12,6 +12,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
+import { Separator } from "../components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -370,10 +371,10 @@ export function ProjectBoardPage({
         }}
       >
         {settingsProject ? (
-          <DialogContent className="max-w-lg space-y-6">
-            <DialogHeader>
-              <DialogTitle>Edit project</DialogTitle>
-              <DialogDescription>Update project details and visibility.</DialogDescription>
+          <DialogContent className="max-w-lg">
+            <DialogHeader className="space-y-1">
+            <DialogTitle>Project Settings</DialogTitle>
+          <Separator className="my-4" />
             </DialogHeader>
             <form
               onSubmit={(event) => {
@@ -385,27 +386,36 @@ export function ProjectBoardPage({
               <div className="grid gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="project-settings-name">Project name</Label>
-                  <Input
-                    id="project-settings-name"
-                    value={settingsName}
-                    onChange={(event) => setSettingsName(event.target.value.slice(0, NAME_MAX_LENGTH))}
-                    maxLength={NAME_MAX_LENGTH}
-                    required
-                    placeholder={`${settingsName.length}/${NAME_MAX_LENGTH}`}
-                  />
+                  <div className="relative rounded-lg border border-border bg-[hsl(var(--card))] px-3 py-2 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
+                    <Input
+                      id="project-settings-name"
+                      value={settingsName}
+                      onChange={(event) => setSettingsName(event.target.value.slice(0, NAME_MAX_LENGTH))}
+                      maxLength={NAME_MAX_LENGTH}
+                      required
+                      className="border-0 bg-transparent px-0 pr-16 text-sm text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                      {settingsName.length}/{NAME_MAX_LENGTH}
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="project-settings-description">Description</Label>
-                  <Textarea
-                    id="project-settings-description"
-                    value={settingsDescription}
-                    onChange={(event) =>
-                      setSettingsDescription(event.target.value.slice(0, DESCRIPTION_MAX_LENGTH))
-                    }
-                    maxLength={DESCRIPTION_MAX_LENGTH}
-                    className="min-h-[140px]"
-                    placeholder={`${settingsDescription.length}/${DESCRIPTION_MAX_LENGTH}`}
-                  />
+                  <div className="relative rounded-lg border border-border bg-[hsl(var(--card))] px-3 py-2 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
+                    <Textarea
+                      id="project-settings-description"
+                      value={settingsDescription}
+                      onChange={(event) =>
+                        setSettingsDescription(event.target.value.slice(0, DESCRIPTION_MAX_LENGTH))
+                      }
+                      maxLength={DESCRIPTION_MAX_LENGTH}
+                      className="min-h-[140px] border-0 bg-transparent px-0 pr-16 pb-8 text-sm text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                    <span className="pointer-events-none absolute bottom-3 right-3 text-xs text-muted-foreground">
+                      {settingsDescription.length}/{DESCRIPTION_MAX_LENGTH}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between rounded-md border border-dashed border-border/60 bg-muted/20 px-3 py-2">
                   <div>
@@ -469,7 +479,7 @@ export function ProjectBoardPage({
                     <Button
                       type="button"
                       variant="destructive"
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500"
                       disabled={
                         settingsSubmitting ||
                         deleteSubmitting ||

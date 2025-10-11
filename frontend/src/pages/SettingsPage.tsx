@@ -198,9 +198,6 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
                   className="border-border bg-[hsl(var(--card))] focus-visible:border-primary focus-visible:ring-primary/30"
                   required
                 />
-                <p className="text-xs text-muted-foreground">
-                  {firstName.length}/{MAX_NAME_LENGTH}
-                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="last-name">Last name</Label>
@@ -219,9 +216,6 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
                   className="border-border bg-[hsl(var(--card))] focus-visible:border-primary focus-visible:ring-primary/30"
                   required
                 />
-                <p className="text-xs text-muted-foreground">
-                  {lastName.length}/{MAX_NAME_LENGTH}
-                </p>
               </div>
             </div>
 
@@ -242,9 +236,6 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
                 className="border-border bg-[hsl(var(--card))] focus-visible:border-primary focus-visible:ring-primary/30"
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                {username.length}/{MAX_USERNAME_LENGTH}
-              </p>
             </div>
 
             <div className="space-y-3">

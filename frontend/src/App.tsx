@@ -22,6 +22,7 @@ function AppContent() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [inviteProjectId, setInviteProjectId] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   const client = useApolloClient();
   const navigate = useNavigate();
@@ -70,6 +71,7 @@ function AppContent() {
         setUser(null);
       }
     }
+    setAuthChecked(true);
   }, []);
 
   return (
@@ -123,14 +125,18 @@ function AppContent() {
               <Route
                 path="/settings"
                 element={
-                  user ? (
-                    <SettingsPage
-                      onProfileUpdate={(updated) => {
-                        setUser(updated);
-                      }}
-                    />
+                  authChecked ? (
+                    user ? (
+                      <SettingsPage
+                        onProfileUpdate={(updated) => {
+                          setUser(updated);
+                        }}
+                      />
+                    ) : (
+                      <Navigate to="/signin" replace state={{ from: "/settings" }} />
+                    )
                   ) : (
-                    <Navigate to="/signin" replace state={{ from: "/settings" }} />
+                    <div className="p-6 text-muted-foreground">Loading settings…</div>
                   )
                 }
               />

@@ -15,3 +15,4 @@ export * from "./tabs";
 export * from "./textarea";
 export * from "./tooltip";
 export * from "./alert";
+export * from "./alert-dialog";
