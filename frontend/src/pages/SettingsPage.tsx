@@ -5,7 +5,6 @@ import { CURRENT_USER, UPDATE_USER_PROFILE } from "../graphql";
 import { COLOR_WHEEL, DEFAULT_AVATAR_COLOR } from "../constants/colors";
 import { getFullName, getInitials } from "../utils/user";
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -56,6 +55,16 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
 
   const initials = useMemo(() => getInitials({ first_name: firstName, last_name: lastName }), [firstName, lastName]);
 
+  const hasProfileChanges = useMemo(() => {
+    if (!currentUser) return false;
+    return (
+      firstName !== currentUser.first_name ||
+      lastName !== currentUser.last_name ||
+      username !== currentUser.username ||
+      (avatarColor ?? DEFAULT_AVATAR_COLOR) !== (currentUser.avatar_color ?? DEFAULT_AVATAR_COLOR)
+    );
+  }, [avatarColor, currentUser, firstName, lastName, username]);
+
   const normalizeName = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return "";
@@ -102,6 +111,11 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
     }
     if (!USERNAME_PATTERN.test(trimmedUsername)) {
       setError("Username can only contain letters, numbers, hyphens, or underscores.");
+      return;
+    }
+
+    if (!hasProfileChanges) {
+      setMessage("You're already up to date.");
       return;
     }
 
@@ -181,6 +195,7 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
                   }
                   onBlur={() => setFirstName(normalizeName(firstName))}
                   maxLength={MAX_NAME_LENGTH}
+                  className="border-border bg-[hsl(var(--card))] focus-visible:border-primary focus-visible:ring-primary/30"
                   required
                 />
                 <p className="text-xs text-muted-foreground">
@@ -201,6 +216,7 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
                   }
                   onBlur={() => setLastName(normalizeName(lastName))}
                   maxLength={MAX_NAME_LENGTH}
+                  className="border-border bg-[hsl(var(--card))] focus-visible:border-primary focus-visible:ring-primary/30"
                   required
                 />
                 <p className="text-xs text-muted-foreground">
@@ -223,6 +239,7 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
                   )
                 }
                 maxLength={MAX_USERNAME_LENGTH}
+                className="border-border bg-[hsl(var(--card))] focus-visible:border-primary focus-visible:ring-primary/30"
                 required
               />
               <p className="text-xs text-muted-foreground">
@@ -250,9 +267,6 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
                   );
                 })}
               </div>
-              <Badge variant="outline" className="border-border/60 text-xs text-muted-foreground">
-                Current: {avatarColor.toUpperCase()}
-              </Badge>
             </div>
 
             {error ? (
@@ -267,7 +281,7 @@ export default function SettingsPage({ onProfileUpdate }: SettingsPageProps) {
             ) : null}
 
             <div className="flex justify-end gap-2">
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving || !hasProfileChanges}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save changes
               </Button>

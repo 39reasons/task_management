@@ -139,8 +139,21 @@ export function ProjectBoardPage({
     setIsDeleteSectionOpen(false);
   }, [currentProject]);
 
+  const hasSettingsChanges = useMemo(() => {
+    if (!settingsProject) return false;
+    const initialName = settingsProject.name ?? "";
+    const initialDescription = settingsProject.description ?? "";
+    const initialPublic = Boolean(settingsProject.is_public);
+    return (
+      settingsName !== initialName ||
+      settingsDescription !== initialDescription ||
+      settingsPublic !== initialPublic
+    );
+  }, [settingsDescription, settingsName, settingsProject, settingsPublic]);
+
   const handleSettingsSave = useCallback(async () => {
     if (!settingsProject) return;
+    if (!hasSettingsChanges) return;
     const trimmed = settingsName.trim();
     if (!trimmed) {
       setSettingsError("Project name is required.");
@@ -172,7 +185,15 @@ export function ProjectBoardPage({
     } finally {
       setSettingsSubmitting(false);
     }
-  }, [resetSettingsState, settingsDescription, settingsName, settingsProject, settingsPublic, updateProject]);
+  }, [
+    hasSettingsChanges,
+    resetSettingsState,
+    settingsDescription,
+    settingsName,
+    settingsProject,
+    settingsPublic,
+    updateProject,
+  ]);
 
   const handleProjectDelete = useCallback(async () => {
     if (!settingsProject) return;
@@ -370,10 +391,8 @@ export function ProjectBoardPage({
                     onChange={(event) => setSettingsName(event.target.value.slice(0, NAME_MAX_LENGTH))}
                     maxLength={NAME_MAX_LENGTH}
                     required
+                    placeholder={`${settingsName.length}/${NAME_MAX_LENGTH}`}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {settingsName.length}/{NAME_MAX_LENGTH}
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="project-settings-description">Description</Label>
@@ -385,10 +404,8 @@ export function ProjectBoardPage({
                     }
                     maxLength={DESCRIPTION_MAX_LENGTH}
                     className="min-h-[140px]"
+                    placeholder={`${settingsDescription.length}/${DESCRIPTION_MAX_LENGTH}`}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {settingsDescription.length}/{DESCRIPTION_MAX_LENGTH}
-                  </p>
                 </div>
                 <div className="flex items-center justify-between rounded-md border border-dashed border-border/60 bg-muted/20 px-3 py-2">
                   <div>
@@ -480,7 +497,7 @@ export function ProjectBoardPage({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={settingsSubmitting || deleteSubmitting}>
+                <Button type="submit" disabled={settingsSubmitting || deleteSubmitting || !hasSettingsChanges}>
                   {settingsSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save changes
                 </Button>
