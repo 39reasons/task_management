@@ -63,6 +63,16 @@ export const teamResolvers = {
       }
       return await TeamService.deleteTeam(args.id, ctx.user.id);
     },
+    leaveTeam: async (
+      _: unknown,
+      args: { team_id: string },
+      ctx: GraphQLContext
+    ): Promise<boolean> => {
+      if (!ctx.user) {
+        throw new Error("Not authenticated");
+      }
+      return await TeamService.leaveTeam(args.team_id, ctx.user.id);
+    },
   },
 
   Team: {

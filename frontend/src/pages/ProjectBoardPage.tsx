@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@apollo/client";
 import { useNavigate } from "react-router-dom";
 import { KanbanBoard } from "../components/KanbanBoard/KanbanBoard";
 import { useProjectBoard } from "../hooks/useProjectBoard";
-import { GET_PROJECTS, UPDATE_PROJECT, DELETE_PROJECT, GET_PROJECTS_OVERVIEW } from "../graphql";
+import { GET_PROJECTS, UPDATE_PROJECT, DELETE_PROJECT, GET_PROJECTS_OVERVIEW, LEAVE_PROJECT } from "../graphql";
 import { useTeamContext } from "../providers/TeamProvider";
 import type { AuthUser, Task, Project } from "@shared/types";
 import { Sparkles, Loader2, UserPlus2, Settings, Trash2 } from "lucide-react";
@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
 import { getNavItemHighlightClasses } from "../lib/navigation";
 
 const NAME_MAX_LENGTH = 120;
@@ -84,6 +85,7 @@ export function ProjectBoardPage({
 
   const [updateProject] = useMutation(UPDATE_PROJECT);
   const [removeProject] = useMutation(DELETE_PROJECT);
+  const [leaveProjectMutation] = useMutation(LEAVE_PROJECT);
 
   const resetSettingsState = useCallback(() => {
     setSettingsProject(null);
@@ -115,6 +117,13 @@ export function ProjectBoardPage({
   );
 
   const projectName = currentProject?.name ?? workflow?.name ?? "Project";
+  const [leaveProjectLoading, setLeaveProjectLoading] = useState(false);
+  const [leaveProjectError, setLeaveProjectError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLeaveProjectError(null);
+    setLeaveProjectLoading(false);
+  }, [projectId]);
 
   const handleGenerateWorkflow = useCallback(async () => {
     const trimmed = workflowPrompt.trim();
@@ -251,6 +260,43 @@ export function ProjectBoardPage({
       (currentProject?.viewer_role === "owner" || currentProject?.viewer_role === "admin")
   );
 
+  const handleLeaveProject = useCallback(async () => {
+    if (!projectId) return;
+    const name = currentProject?.name ?? "this project";
+    const confirmed = window.confirm(`Leave the project "${name}"?`);
+    if (!confirmed) return;
+
+    setLeaveProjectError(null);
+    setLeaveProjectLoading(true);
+    try {
+      await leaveProjectMutation({
+        variables: { project_id: projectId },
+        refetchQueries: projectTeamId
+          ? [
+              { query: GET_PROJECTS, variables: { team_id: projectTeamId } },
+              { query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } },
+            ]
+          : [],
+      });
+      if (projectId === currentProject?.id) {
+        navigate("/");
+      }
+      resetSettingsState();
+    } catch (error) {
+      setLeaveProjectError((error as Error).message ?? "Unable to leave project.");
+    } finally {
+      setLeaveProjectLoading(false);
+    }
+  }, [
+    currentProject?.id,
+    currentProject?.name,
+    leaveProjectMutation,
+    navigate,
+    projectId,
+    projectTeamId,
+    resetSettingsState,
+  ]);
+
   const handleCancelWorkflowPrompt = useCallback(() => {
     setIsWorkflowPromptOpen(false);
     setWorkflowPromptError(null);
@@ -300,27 +346,60 @@ export function ProjectBoardPage({
                 Invite
               </Button>
             ) : null}
-            {canManageProject ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={openProjectSettings}
-                className={getNavItemHighlightClasses({
-                  isActive: Boolean(settingsProject),
-                  className: "h-10 w-10 self-center sm:self-auto",
-                  inactiveClassName:
-                    "border-border hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-border dark:hover-border-white/15 dark:hover:bg-white/10 dark:hover:text-primary",
-                })}
-                disabled={!currentProject}
-                aria-pressed={Boolean(settingsProject)}
-              >
-                <Settings className="h-4 w-4" />
-                <span className="sr-only">Project settings</span>
-              </Button>
+            {user && projectId ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={getNavItemHighlightClasses({
+                      isActive: Boolean(settingsProject),
+                      className: "h-10 w-10 self-center sm:self-auto",
+                      inactiveClassName:
+                        "border-border hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-border dark:hover-border-white/15 dark:hover:bg-white/10 dark:hover:text-primary",
+                    })}
+                    aria-pressed={Boolean(settingsProject)}
+                    disabled={leaveProjectLoading || !currentProject}
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span className="sr-only">Project options</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {canManageProject ? (
+                    <>
+                      <DropdownMenuItem
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          openProjectSettings();
+                        }}
+                      >
+                        Project settings
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null}
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      void handleLeaveProject();
+                    }}
+                    className="text-destructive focus:text-destructive"
+                    disabled={leaveProjectLoading}
+                  >
+                    {leaveProjectLoading ? "Leaving…" : "Leave project"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
           </div>
         </CardHeader>
+        {leaveProjectError ? (
+          <div className="mx-5 mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {leaveProjectError}
+          </div>
+        ) : null}
         {user && projectId && isWorkflowPromptOpen ? (
           <CardContent className="border-t border-border/60 pt-4">
             <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4 text-primary">

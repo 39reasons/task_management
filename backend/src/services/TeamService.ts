@@ -1,4 +1,5 @@
 import { query } from "../db/index.js";
+import * as ProjectService from "./ProjectService.js";
 import type { Team, TeamMember, TeamRole } from "../../../shared/types.js";
 
 const TEAM_NAME_MAX_LENGTH = 120;
@@ -160,6 +161,13 @@ export async function createTeam(
     [team.id, user_id]
   );
 
+  try {
+    await ProjectService.addProject(team.id, `${team.name} Project`, null, false, user_id);
+  } catch (error) {
+    // If the default project creation fails, we don't want to block team creation.
+    console.error("Failed to create default project for team:", error);
+  }
+
   return { ...team, role: "owner" };
 }
 
@@ -253,4 +261,65 @@ export async function getTeamMembers(team_id: string): Promise<TeamMember[]> {
   );
 
   return result.rows.map(mapTeamMemberRow);
+}
+
+export async function leaveTeam(team_id: string, user_id: string): Promise<boolean> {
+  const membership = await getTeamMembership(team_id, user_id);
+  if (!membership) {
+    throw new Error("You are not a member of this team");
+  }
+
+  if (membership.role === "owner") {
+    const ownerCount = await query<{ count: string }>(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM team_members
+      WHERE team_id = $1
+        AND role = 'owner'
+        AND status = 'active'
+      `,
+      [team_id]
+    );
+
+    if (Number(ownerCount.rows[0]?.count ?? 0) <= 1) {
+      throw new Error("Transfer ownership before leaving the team");
+    }
+  }
+
+  await query(
+    `
+    DELETE FROM team_members
+    WHERE team_id = $1 AND user_id = $2
+    `,
+    [team_id, user_id]
+  );
+
+  await query(
+    `
+    DELETE FROM user_projects
+    WHERE user_id = $2
+      AND project_id IN (
+        SELECT id FROM projects WHERE team_id = $1
+      )
+    `,
+    [team_id, user_id]
+  );
+
+  await query(
+    `
+    DELETE FROM task_members
+    WHERE user_id = $2
+      AND task_id IN (
+        SELECT t.id
+        FROM tasks t
+        JOIN stages s ON s.id = t.stage_id
+        JOIN workflows w ON w.id = s.workflow_id
+        JOIN projects p ON p.id = w.project_id
+        WHERE p.team_id = $1
+      )
+    `,
+    [team_id, user_id]
+  );
+
+  return true;
 }

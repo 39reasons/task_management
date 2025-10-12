@@ -12,7 +12,7 @@ import type { Notification } from "@shared/types";
 import { useTeamContext } from "../providers/TeamProvider";
 
 export function useNotifications(enabled: boolean = true, _userId: string | null = null) {
-  const { activeTeamId } = useTeamContext();
+  const { activeTeamId, refetchTeams, setActiveTeamId } = useTeamContext();
   const { data, loading, error, refetch } = useQuery<{ notifications: Notification[] }>(
     GET_NOTIFICATIONS,
     {
@@ -35,7 +35,7 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
   const [deleteNotificationMutation] = useMutation(DELETE_NOTIFICATION);
 
   const respond = async (id: string, accept: boolean) => {
-    await respondMutation({
+    const response = await respondMutation({
       variables: { id, accept },
       refetchQueries: [
         { query: GET_NOTIFICATIONS },
@@ -47,6 +47,14 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
           : []),
       ],
     });
+
+    if (accept) {
+      const projectTeamId = response.data?.respondToNotification?.project?.team_id ?? null;
+      await refetchTeams().catch(() => {});
+      if (projectTeamId) {
+        setActiveTeamId(projectTeamId);
+      }
+    }
   };
 
   const markRead = async (id: string, read = true) => {

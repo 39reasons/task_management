@@ -151,15 +151,14 @@ export async function sendProjectInvite(
   const membershipRes = await query(
     `
     SELECT 1
-    FROM team_members
-    WHERE team_id = $1
+    FROM user_projects
+    WHERE project_id = $1
       AND user_id = $2
-      AND status = 'active'
     `,
-    [teamId, recipient.id]
+    [project_id, recipient.id]
   );
   if (membershipRes.rowCount && membershipRes.rowCount > 0) {
-    throw new Error("User is already a team member");
+    throw new Error("User is already a project member");
   }
 
   // Prevent duplicate pending invite
@@ -194,7 +193,10 @@ export async function sendProjectInvite(
     INSERT INTO team_members (team_id, user_id, role, status)
     VALUES ($1, $2, 'member', 'invited')
     ON CONFLICT (team_id, user_id) DO UPDATE
-      SET status = 'invited',
+      SET status = CASE
+            WHEN team_members.status = 'active' THEN team_members.status
+            ELSE 'invited'
+          END,
           updated_at = now()
     `,
     [teamId, recipient.id]
@@ -268,6 +270,19 @@ export async function respondToNotification(
               updated_at = now()
         `,
         [teamId, user_id]
+      );
+
+      await query(
+        `
+        INSERT INTO user_projects (user_id, project_id, role)
+        VALUES ($2, $1, 'member')
+        ON CONFLICT (user_id, project_id) DO UPDATE
+          SET role = CASE
+            WHEN user_projects.role = 'owner' THEN user_projects.role
+            ELSE EXCLUDED.role
+          END
+        `,
+        [project_id, user_id]
       );
     }
   }

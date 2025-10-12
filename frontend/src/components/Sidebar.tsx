@@ -428,6 +428,7 @@ function SidebarContent({ user, projects, projectsLoading }: SidebarContentProps
                     setShowCreateTeam(true);
                   }}
                   className="gap-2"
+                  data-test="create-team-button"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   New team
@@ -445,6 +446,7 @@ function SidebarContent({ user, projects, projectsLoading }: SidebarContentProps
                 setTeamDescription("");
                 setShowCreateTeam(true);
               }}
+              data-test="create-team-button"
             >
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
               Create first team
@@ -574,6 +576,7 @@ function SidebarContent({ user, projects, projectsLoading }: SidebarContentProps
                 setTeamDescription("");
                 setShowCreateTeam(true);
               }}
+              data-test="create-team-button"
             >
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
               New team

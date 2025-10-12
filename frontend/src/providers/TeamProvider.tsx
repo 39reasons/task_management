@@ -8,8 +8,8 @@ interface TeamContextValue {
   activeTeamId: string | null;
   activeTeam: Team | null;
   loadingTeams: boolean;
-  setActiveTeamId: (teamId: string) => void;
-  refetchTeams: () => Promise<void>;
+  setActiveTeamId: (teamId: string | null) => void;
+  refetchTeams: () => Promise<Team[]>;
 }
 
 const TeamContext = createContext<TeamContextValue | undefined>(undefined);
@@ -60,13 +60,22 @@ export function TeamProvider({ user, children }: TeamProviderProps) {
       return;
     }
 
-    if (activeTeamId && teams.some((team) => team.id === activeTeamId)) {
+    const hasActiveTeam = activeTeamId ? teams.some((team) => team.id === activeTeamId) : false;
+    if (hasActiveTeam) {
       return;
     }
 
     const storedId = storageKey ? window.localStorage.getItem(storageKey) : null;
-    const initialId = storedId && teams.some((team) => team.id === storedId) ? storedId : teams[0].id;
-    setActiveTeamInternal(initialId);
+    if (storedId && teams.some((team) => team.id === storedId)) {
+      if (storedId !== activeTeamId) {
+        setActiveTeamInternal(storedId);
+      }
+      return;
+    }
+
+    if (!activeTeamId) {
+      setActiveTeamInternal(teams[0].id);
+    }
   }, [user, teams, activeTeamId, setActiveTeamInternal, storageKey]);
 
   useEffect(() => {
@@ -82,10 +91,14 @@ export function TeamProvider({ user, children }: TeamProviderProps) {
       activeTeamId,
       activeTeam,
       loadingTeams: loading,
-      setActiveTeamId: (teamId: string) => setActiveTeamInternal(teamId),
+      setActiveTeamId: (teamId: string | null) => setActiveTeamInternal(teamId),
       refetchTeams: async () => {
-        if (!user) return;
-        await refetch();
+        if (!user) {
+          setActiveTeamInternal(null);
+          return [];
+        }
+        const result = await refetch();
+        return result.data?.teams ?? [];
       },
     };
   }, [teams, activeTeamId, loading, setActiveTeamInternal, refetch, user]);

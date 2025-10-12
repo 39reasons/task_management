@@ -10,6 +10,23 @@ export const GET_TEAMS = gql`
       role
       created_at
       updated_at
+      projects {
+        id
+        is_public
+        created_at
+        updated_at
+      }
+      members {
+        role
+        status
+        user {
+          id
+          first_name
+          last_name
+          username
+          avatar_color
+        }
+      }
     }
   }
 `;
@@ -45,5 +62,11 @@ export const UPDATE_TEAM = gql`
 export const DELETE_TEAM = gql`
   mutation DeleteTeam($id: ID!) {
     deleteTeam(id: $id)
+  }
+`;
+
+export const LEAVE_TEAM = gql`
+  mutation LeaveTeam($team_id: ID!) {
+    leaveTeam(team_id: $team_id)
   }
 `;

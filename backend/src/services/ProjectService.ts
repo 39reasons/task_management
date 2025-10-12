@@ -1,6 +1,5 @@
 import type { Project, Task, TeamRole, User } from "../../../shared/types.js";
 import { query } from "../db/index.js";
-import * as TeamService from "./TeamService.js";
 
 const PROJECT_FIELDS_SELECT = `
   p.id,
@@ -67,20 +66,32 @@ async function getProjectTeamId(project_id: string): Promise<string | null> {
   return result.rows[0]?.team_id ?? null;
 }
 
+interface ProjectMembership {
+  team_id: string;
+  team_role: TeamRole;
+  project_role: string | null;
+  is_public: boolean;
+}
+
 async function getProjectMembership(
   project_id: string,
   user_id: string
-): Promise<{ team_id: string; role: TeamRole } | null> {
-  const result = await query<{ team_id: string; role: TeamRole }>(
+): Promise<ProjectMembership | null> {
+  const result = await query<ProjectMembership>(
     `
     SELECT
       p.team_id,
-      tm.role
+      tm.role AS team_role,
+      p.is_public,
+      up.role AS project_role
     FROM projects p
     JOIN team_members tm
       ON tm.team_id = p.team_id
      AND tm.user_id = $2
      AND tm.status = 'active'
+    LEFT JOIN user_projects up
+      ON up.project_id = p.id
+     AND up.user_id = $2
     WHERE p.id = $1
     LIMIT 1
     `,
@@ -98,12 +109,16 @@ async function assertProjectPermission(
   project_id: string,
   user_id: string,
   allowedRoles: TeamRole[] = ["owner", "admin", "member"]
-): Promise<{ team_id: string; role: TeamRole }> {
+): Promise<ProjectMembership & { viewer_role: TeamRole }> {
   const membership = await getProjectMembership(project_id, user_id);
-  if (!membership || !allowedRoles.includes(membership.role)) {
+  if (!membership || !membership.project_role) {
     throw new Error("Project not found or not accessible");
   }
-  return membership;
+  const projectRole = membership.project_role as TeamRole;
+  if (allowedRoles.length > 0 && !allowedRoles.includes(projectRole)) {
+    throw new Error("Not authorized for this project");
+  }
+  return { ...membership, viewer_role: projectRole };
 }
 
 async function assertTeamMembership(
@@ -134,18 +149,16 @@ export async function getProjectsForTeam(
   team_id: string,
   user_id: string
 ): Promise<Project[]> {
-  await assertTeamMembership(team_id, user_id);
-
+  const teamRole = await assertTeamMembership(team_id, user_id);
   const result = await query<ProjectRow>(
     `
     SELECT
       ${PROJECT_FIELDS_SELECT},
-      tm.role AS viewer_role
+      up.role AS viewer_role
     FROM projects p
-    JOIN team_members tm
-      ON tm.team_id = p.team_id
-     AND tm.user_id = $2
-     AND tm.status = 'active'
+    JOIN user_projects up
+      ON up.project_id = p.id
+     AND up.user_id = $2
     WHERE p.team_id = $1
     ORDER BY
       CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
@@ -154,6 +167,10 @@ export async function getProjectsForTeam(
     `,
     [team_id, user_id]
   );
+
+  if ((result.rowCount ?? 0) === 0 && (teamRole === "owner" || teamRole === "admin")) {
+    return [];
+  }
 
   return result.rows.map(mapProjectRow);
 }
@@ -179,7 +196,7 @@ export async function getProjectById(
 
   const project = mapProjectRow({
     ...projRes.rows[0],
-    viewer_role: membership.role,
+    viewer_role: membership.viewer_role,
   });
 
   const taskRes = await query<Task & { team_id: string }>(
@@ -248,6 +265,15 @@ export async function addProject(
 
   await query(
     `
+    INSERT INTO user_projects (user_id, project_id, role)
+    VALUES ($1, $2, 'owner')
+    ON CONFLICT (user_id, project_id) DO NOTHING
+    `,
+    [user_id, project.id]
+  );
+
+  await query(
+    `
     INSERT INTO workflows (project_id, name)
     VALUES ($1, $2)
     `,
@@ -285,7 +311,7 @@ export async function updateProject(
 
   return mapProjectRow({
     ...result.rows[0],
-    viewer_role: membership.role,
+    viewer_role: membership.viewer_role,
   });
 }
 
@@ -345,15 +371,18 @@ export async function reorderProjects(
 }
 
 export async function getProjectMembers(project_id: string): Promise<User[]> {
-  const teamId = await getProjectTeamId(project_id);
-  if (!teamId) {
-    return [];
-  }
+  const result = await query<User>(
+    `
+    SELECT u.id, u.first_name, u.last_name, u.username, u.avatar_color, u.created_at, u.updated_at
+    FROM user_projects up
+    JOIN users u ON u.id = up.user_id
+    WHERE up.project_id = $1
+    ORDER BY u.first_name ASC, u.last_name ASC
+    `,
+    [project_id]
+  );
 
-  const members = await TeamService.getTeamMembers(teamId);
-  return members.map((member) => ({
-    ...member.user,
-  }));
+  return result.rows;
 }
 
 export async function userHasProjectAccess(
@@ -361,7 +390,13 @@ export async function userHasProjectAccess(
   user_id: string
 ): Promise<boolean> {
   const membership = await getProjectMembership(project_id, user_id);
-  return membership !== null;
+  if (!membership) {
+    return false;
+  }
+  if (membership.team_role === "owner" || membership.team_role === "admin") {
+    return true;
+  }
+  return membership.project_role !== null;
 }
 
 export async function getUserRoleInProject(
@@ -369,5 +404,48 @@ export async function getUserRoleInProject(
   user_id: string
 ): Promise<TeamRole | null> {
   const membership = await getProjectMembership(project_id, user_id);
-  return membership?.role ?? null;
+  if (!membership) return null;
+  return (membership.project_role as TeamRole | null) ?? membership.team_role;
+}
+
+export async function leaveProject(project_id: string, user_id: string): Promise<boolean> {
+  const membership = await getProjectMembership(project_id, user_id);
+  if (!membership) {
+    throw new Error("You are not a member of this project");
+  }
+
+  const projectRoleRes = await query<{ role: string }>(
+    `
+    SELECT role
+    FROM user_projects
+    WHERE project_id = $1 AND user_id = $2
+    `,
+    [project_id, user_id]
+  );
+
+  const projectRole = projectRoleRes.rows[0]?.role ?? null;
+  await query(
+    `
+    DELETE FROM user_projects
+    WHERE project_id = $1 AND user_id = $2
+    `,
+    [project_id, user_id]
+  );
+
+  await query(
+    `
+    DELETE FROM task_members
+    WHERE user_id = $2
+      AND task_id IN (
+        SELECT t.id
+        FROM tasks t
+        JOIN stages s ON s.id = t.stage_id
+        JOIN workflows w ON w.id = s.workflow_id
+        WHERE w.project_id = $1
+      )
+    `,
+    [project_id, user_id]
+  );
+
+  return true;
 }

@@ -201,6 +201,12 @@ export const REORDER_PROJECTS = gql`
   }
 `;
 
+export const LEAVE_PROJECT = gql`
+  mutation LeaveProject($project_id: ID!) {
+    leaveProject(project_id: $project_id)
+  }
+`;
+
 export const GET_PROJECTS_OVERVIEW = gql`
   query GetProjectsOverview($team_id: ID!) {
     projects(team_id: $team_id) {
