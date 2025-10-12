@@ -1,8 +1,10 @@
-import type { Project, Task, User } from "../../../shared/types.js";
+import type { Project, Task, TeamRole, User } from "../../../shared/types.js";
 import { query } from "../db/index.js";
+import * as TeamService from "./TeamService.js";
 
 const PROJECT_FIELDS_SELECT = `
   p.id,
+  p.team_id,
   p.name,
   p.description,
   p.created_at,
@@ -13,6 +15,7 @@ const PROJECT_FIELDS_SELECT = `
 
 const PROJECT_FIELDS_RETURNING = `
   id,
+  team_id,
   name,
   description,
   created_at,
@@ -21,60 +24,165 @@ const PROJECT_FIELDS_RETURNING = `
   position
 `;
 
-export async function getProjects(user_id?: string): Promise<Project[]> {
-  if (user_id) {
-    const result = await query<Project>(
-      `
-      SELECT ${PROJECT_FIELDS_SELECT}
-      FROM projects p
-      WHERE p.is_public = true
-         OR EXISTS (
-            SELECT 1 FROM user_projects up
-            WHERE up.project_id = p.id AND up.user_id = $1
-         )
-      ORDER BY
-        CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
-        p.position ASC,
-        p.created_at DESC
-      `,
-      [user_id]
-    );
-    return result.rows;
-  } else {
-    const result = await query<Project>(
-      `
-      SELECT ${PROJECT_FIELDS_SELECT}
-      FROM projects p
-      WHERE p.is_public = true
-      ORDER BY
-        CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
-        p.position ASC,
-        p.created_at DESC
-      `
-    );
-    return result.rows;
+type ProjectRow = {
+  id: string;
+  team_id: string;
+  name: string;
+  description: string | null;
+  created_at: Date | string | null;
+  updated_at: Date | string | null;
+  is_public: boolean;
+  position: number | null;
+  viewer_role?: TeamRole | null;
+};
+
+function normalizeTimestamp(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value as string);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function mapProjectRow(row: ProjectRow): Project {
+  const viewerRole = row.viewer_role ?? null;
+  return {
+    id: row.id,
+    team_id: row.team_id,
+    name: row.name,
+    description: row.description,
+    created_at: normalizeTimestamp(row.created_at),
+    updated_at: normalizeTimestamp(row.updated_at),
+    is_public: row.is_public,
+    position: row.position,
+    viewer_role: viewerRole,
+    viewer_is_owner: viewerRole === "owner",
+  };
+}
+
+async function getProjectTeamId(project_id: string): Promise<string | null> {
+  const result = await query<{ team_id: string }>(
+    `SELECT team_id FROM projects WHERE id = $1`,
+    [project_id]
+  );
+  return result.rows[0]?.team_id ?? null;
+}
+
+async function getProjectMembership(
+  project_id: string,
+  user_id: string
+): Promise<{ team_id: string; role: TeamRole } | null> {
+  const result = await query<{ team_id: string; role: TeamRole }>(
+    `
+    SELECT
+      p.team_id,
+      tm.role
+    FROM projects p
+    JOIN team_members tm
+      ON tm.team_id = p.team_id
+     AND tm.user_id = $2
+     AND tm.status = 'active'
+    WHERE p.id = $1
+    LIMIT 1
+    `,
+    [project_id, user_id]
+  );
+
+  if (result.rowCount === 0) {
+    return null;
   }
+
+  return result.rows[0];
+}
+
+async function assertProjectPermission(
+  project_id: string,
+  user_id: string,
+  allowedRoles: TeamRole[] = ["owner", "admin", "member"]
+): Promise<{ team_id: string; role: TeamRole }> {
+  const membership = await getProjectMembership(project_id, user_id);
+  if (!membership || !allowedRoles.includes(membership.role)) {
+    throw new Error("Project not found or not accessible");
+  }
+  return membership;
+}
+
+async function assertTeamMembership(
+  team_id: string,
+  user_id: string,
+  allowedRoles: TeamRole[] = ["owner", "admin", "member"]
+): Promise<TeamRole> {
+  const result = await query<{ role: TeamRole }>(
+    `
+    SELECT role
+    FROM team_members
+    WHERE team_id = $1
+      AND user_id = $2
+      AND status = 'active'
+    LIMIT 1
+    `,
+    [team_id, user_id]
+  );
+
+  if (result.rowCount === 0 || !allowedRoles.includes(result.rows[0].role)) {
+    throw new Error("Team not found or not accessible");
+  }
+
+  return result.rows[0].role;
+}
+
+export async function getProjectsForTeam(
+  team_id: string,
+  user_id: string
+): Promise<Project[]> {
+  await assertTeamMembership(team_id, user_id);
+
+  const result = await query<ProjectRow>(
+    `
+    SELECT
+      ${PROJECT_FIELDS_SELECT},
+      tm.role AS viewer_role
+    FROM projects p
+    JOIN team_members tm
+      ON tm.team_id = p.team_id
+     AND tm.user_id = $2
+     AND tm.status = 'active'
+    WHERE p.team_id = $1
+    ORDER BY
+      CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
+      p.position ASC,
+      p.created_at DESC
+    `,
+    [team_id, user_id]
+  );
+
+  return result.rows.map(mapProjectRow);
 }
 
 export async function getProjectById(
   id: string,
   user_id: string
 ): Promise<Project> {
-  const projRes = await query<Project>(
+  const membership = await assertProjectPermission(id, user_id);
+
+  const projRes = await query<ProjectRow>(
     `
     SELECT ${PROJECT_FIELDS_SELECT}
     FROM projects p
-    JOIN user_projects up ON up.project_id = p.id
-    WHERE p.id = $1 AND up.user_id = $2
+    WHERE p.id = $1
     `,
-    [id, user_id]
+    [id]
   );
 
   if (projRes.rowCount === 0) {
     throw new Error("Project not found or not accessible");
   }
 
-  const taskRes = await query<Task>(
+  const project = mapProjectRow({
+    ...projRes.rows[0],
+    viewer_role: membership.role,
+  });
+
+  const taskRes = await query<Task & { team_id: string }>(
     `
     SELECT
       t.id,
@@ -83,51 +191,60 @@ export async function getProjectById(
       to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
       t.priority,
       t.stage_id,
-      w.project_id
+      w.project_id,
+      p.team_id,
+      t.position
     FROM tasks t
     JOIN stages s ON s.id = t.stage_id
     JOIN workflows w ON w.id = s.workflow_id
+    JOIN projects p ON p.id = w.project_id
     WHERE w.project_id = $1
-    ORDER BY s.position ASC, t.created_at ASC
+    ORDER BY s.position ASC, t.position ASC, t.created_at ASC
     `,
     [id]
   );
 
   return {
-    ...projRes.rows[0],
-    tasks: taskRes.rows,
+    ...project,
+    tasks: taskRes.rows.map((task) => ({
+      ...task,
+      team_id: task.team_id,
+    })),
   };
 }
 
 export async function addProject(
+  team_id: string,
   name: string,
   description: string | null,
-  is_public: boolean = false,
+  is_public: boolean,
   user_id: string
 ): Promise<Project> {
-  const result = await query<Project>(
+  const role = await assertTeamMembership(team_id, user_id, ["owner", "admin"]);
+
+  const result = await query<ProjectRow>(
     `
-    INSERT INTO projects (name, description, is_public, position)
+    INSERT INTO projects (team_id, name, description, is_public, position)
     VALUES (
       $1,
       $2,
       $3,
+      $4,
       (
         SELECT COALESCE(MAX(position), 0) + 1
         FROM projects
+        WHERE team_id = $1
       )
     )
     RETURNING ${PROJECT_FIELDS_RETURNING}
     `,
-    [name, description, is_public]
+    [team_id, name, description, is_public]
   );
 
-  const project = result.rows[0];
-
-  await query(
-    `INSERT INTO user_projects (user_id, project_id, role) VALUES ($1, $2, 'owner')`,
-    [user_id, project.id]
-  );
+  const project = mapProjectRow({
+    ...result.rows[0],
+    viewer_role: role,
+  });
 
   await query(
     `
@@ -147,72 +264,65 @@ export async function updateProject(
   description?: string,
   is_public?: boolean
 ): Promise<Project> {
-  const result = await query<Project>(
+  const membership = await assertProjectPermission(id, user_id, ["owner", "admin"]);
+
+  const result = await query<ProjectRow>(
     `
-    UPDATE projects p
-    SET name = COALESCE($3, name),
-        description = COALESCE($4, description),
-        is_public = COALESCE($5, is_public),
+    UPDATE projects
+    SET name = COALESCE($2, name),
+        description = COALESCE($3, description),
+        is_public = COALESCE($4, is_public),
         updated_at = now()
-    WHERE p.id = $1
-      AND EXISTS (
-        SELECT 1 FROM user_projects up
-        WHERE up.project_id = p.id AND up.user_id = $2
-      )
+    WHERE id = $1
     RETURNING ${PROJECT_FIELDS_RETURNING}
     `,
-    [id, user_id, name, description, is_public]
+    [id, name ?? null, description ?? null, is_public ?? null]
   );
 
-  if (result.rowCount === 0) throw new Error("Project not found or not accessible");
-  return result.rows[0];
+  if (result.rowCount === 0) {
+    throw new Error("Project not found or not accessible");
+  }
+
+  return mapProjectRow({
+    ...result.rows[0],
+    viewer_role: membership.role,
+  });
 }
 
 export async function deleteProject(
   id: string,
   user_id: string
 ): Promise<boolean> {
-  const ownerCheck = await query(
-    `
-    SELECT 1
-    FROM user_projects
-    WHERE project_id = $1 AND user_id = $2 AND role = 'owner'
-    `,
-    [id, user_id]
-  );
-
-  if (ownerCheck.rowCount === 0) {
-    return false;
-  }
+  await assertProjectPermission(id, user_id, ["owner"]);
 
   const result = await query(`DELETE FROM projects WHERE id = $1`, [id]);
   return (result.rowCount ?? 0) > 0;
 }
 
-export async function reorderProjects(project_ids: string[], user_id: string): Promise<boolean> {
+export async function reorderProjects(
+  team_id: string,
+  project_ids: string[],
+  user_id: string
+): Promise<boolean> {
   if (project_ids.length === 0) {
     return false;
   }
 
-  const accessCheck = await query<{ id: string }>(
+  await assertTeamMembership(team_id, user_id);
+
+  const countRes = await query<{ count: string }>(
     `
-    SELECT p.id
-    FROM projects p
-    WHERE p.id = ANY($2::uuid[])
-      AND (
-        p.is_public = true
-        OR EXISTS (
-          SELECT 1
-          FROM user_projects up
-          WHERE up.project_id = p.id AND up.user_id = $1::uuid
-        )
-      )
+    SELECT COUNT(*)::int AS count
+    FROM projects
+    WHERE id = ANY($1::uuid[])
+      AND team_id = $2
     `,
-    [user_id, project_ids]
+    [project_ids, team_id]
   );
 
-  if ((accessCheck.rowCount ?? 0) !== project_ids.length) {
-    throw new Error("Project not found or not accessible");
+  const count = Number(countRes.rows[0]?.count ?? 0);
+  if (count !== project_ids.length) {
+    throw new Error("One or more projects not found in the specified team");
   }
 
   const result = await query(
@@ -226,57 +336,38 @@ export async function reorderProjects(project_ids: string[], user_id: string): P
         updated_at = now()
     FROM ordered
     WHERE p.id = ordered.id
+      AND p.team_id = $2
     `,
-    [project_ids]
+    [project_ids, team_id]
   );
 
   return (result.rowCount ?? 0) > 0;
 }
 
 export async function getProjectMembers(project_id: string): Promise<User[]> {
-  const result = await query<User>(
-    `
-    SELECT u.id, u.first_name, u.last_name, u.username, u.avatar_color, u.created_at, u.updated_at
-    FROM user_projects up
-    JOIN users u ON u.id = up.user_id
-    WHERE up.project_id = $1
-    ORDER BY u.first_name ASC, u.last_name ASC
-    `,
-    [project_id]
-  );
+  const teamId = await getProjectTeamId(project_id);
+  if (!teamId) {
+    return [];
+  }
 
-  return result.rows;
+  const members = await TeamService.getTeamMembers(teamId);
+  return members.map((member) => ({
+    ...member.user,
+  }));
 }
 
-export async function userHasProjectAccess(project_id: string, user_id: string): Promise<boolean> {
-  const result = await query(
-    `
-    SELECT 1
-    FROM projects p
-    WHERE p.id = $1
-      AND (
-        p.is_public = true
-        OR EXISTS (
-          SELECT 1 FROM user_projects up
-          WHERE up.project_id = p.id AND up.user_id = $2
-        )
-      )
-    `,
-    [project_id, user_id]
-  );
-
-  return (result.rowCount ?? 0) > 0;
+export async function userHasProjectAccess(
+  project_id: string,
+  user_id: string
+): Promise<boolean> {
+  const membership = await getProjectMembership(project_id, user_id);
+  return membership !== null;
 }
 
-export async function getUserRoleInProject(project_id: string, user_id: string): Promise<string | null> {
-  const result = await query<{ role: string }>(
-    `
-    SELECT role
-    FROM user_projects
-    WHERE project_id = $1 AND user_id = $2
-    `,
-    [project_id, user_id]
-  );
-
-  return result.rows[0]?.role ?? null;
+export async function getUserRoleInProject(
+  project_id: string,
+  user_id: string
+): Promise<TeamRole | null> {
+  const membership = await getProjectMembership(project_id, user_id);
+  return membership?.role ?? null;
 }

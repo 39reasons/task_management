@@ -1,16 +1,23 @@
 import { gql } from "@apollo/client";
 
 export const GET_PROJECTS = gql`
-  query GetProjects {
-    projects {
+  query GetProjects($team_id: ID!) {
+    projects(team_id: $team_id) {
       id
+      team_id
       name
       description
       is_public
       viewer_is_owner
+      viewer_role
       position
       created_at
       updated_at
+      team {
+        id
+        name
+        slug
+      }
       members {
         id
         first_name
@@ -32,6 +39,7 @@ export const GET_PROJECTS = gql`
             priority
             stage_id
             project_id
+            team_id
             position
             assignees {
               id
@@ -53,16 +61,33 @@ export const GET_PROJECTS = gql`
 `;
 
 export const ADD_PROJECT = gql`
-  mutation AddProject($name: String!, $description: String, $is_public: Boolean) {
-    addProject(name: $name, description: $description, is_public: $is_public) {
+  mutation AddProject(
+    $team_id: ID!
+    $name: String!
+    $description: String
+    $is_public: Boolean
+  ) {
+    addProject(
+      team_id: $team_id
+      name: $name
+      description: $description
+      is_public: $is_public
+    ) {
       id
+      team_id
       name
       description
       is_public
       viewer_is_owner
+      viewer_role
       position
       created_at
       updated_at
+      team {
+        id
+        name
+        slug
+      }
       members {
         id
         first_name
@@ -84,6 +109,7 @@ export const ADD_PROJECT = gql`
             priority
             stage_id
             project_id
+            team_id
             position
             assignees {
               id
@@ -108,13 +134,20 @@ export const UPDATE_PROJECT = gql`
   mutation UpdateProject($id: ID!, $name: String, $description: String, $is_public: Boolean) {
     updateProject(id: $id, name: $name, description: $description, is_public: $is_public) {
       id
+      team_id
       name
       description
       is_public
       viewer_is_owner
+      viewer_role
       position
       created_at
       updated_at
+      team {
+        id
+        name
+        slug
+      }
       members {
         id
         first_name
@@ -136,6 +169,7 @@ export const UPDATE_PROJECT = gql`
             priority
             stage_id
             project_id
+            team_id
             position
             assignees {
               id
@@ -162,22 +196,29 @@ export const DELETE_PROJECT = gql`
   }
 `;
 export const REORDER_PROJECTS = gql`
-  mutation ReorderProjects($project_ids: [ID!]!) {
-    reorderProjects(project_ids: $project_ids)
+  mutation ReorderProjects($team_id: ID!, $project_ids: [ID!]!) {
+    reorderProjects(team_id: $team_id, project_ids: $project_ids)
   }
 `;
 
 export const GET_PROJECTS_OVERVIEW = gql`
-  query GetProjectsOverview {
-    projects {
+  query GetProjectsOverview($team_id: ID!) {
+    projects(team_id: $team_id) {
       id
+      team_id
       name
       description
       is_public
       created_at
       updated_at
       viewer_is_owner
+      viewer_role
       position
+      team {
+        id
+        name
+        slug
+      }
       members {
         id
         first_name
@@ -200,6 +241,7 @@ export const GET_PROJECTS_OVERVIEW = gql`
             priority
             stage_id
             project_id
+            team_id
             position
             assignees {
               id

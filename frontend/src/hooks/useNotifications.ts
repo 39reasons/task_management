@@ -6,10 +6,13 @@ import {
   DELETE_NOTIFICATION,
   NOTIFICATION_EVENTS,
   GET_PROJECTS,
+  GET_PROJECTS_OVERVIEW,
 } from "../graphql";
 import type { Notification } from "@shared/types";
+import { useTeamContext } from "../providers/TeamProvider";
 
 export function useNotifications(enabled: boolean = true, _userId: string | null = null) {
+  const { activeTeamId } = useTeamContext();
   const { data, loading, error, refetch } = useQuery<{ notifications: Notification[] }>(
     GET_NOTIFICATIONS,
     {
@@ -36,7 +39,12 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
       variables: { id, accept },
       refetchQueries: [
         { query: GET_NOTIFICATIONS },
-        ...(accept ? [{ query: GET_PROJECTS }] : []),
+        ...(accept && activeTeamId
+          ? [
+              { query: GET_PROJECTS, variables: { team_id: activeTeamId } },
+              { query: GET_PROJECTS_OVERVIEW, variables: { team_id: activeTeamId } },
+            ]
+          : []),
       ],
     });
   };

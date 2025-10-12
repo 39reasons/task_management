@@ -8,6 +8,8 @@ DROP TABLE IF EXISTS tasks CASCADE;
 DROP TABLE IF EXISTS stages CASCADE;
 DROP TABLE IF EXISTS workflows CASCADE;
 DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS team_members CASCADE;
+DROP TABLE IF EXISTS teams CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS tags CASCADE;
 
@@ -23,9 +25,32 @@ CREATE TABLE users (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Teams
+CREATE TABLE teams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  slug TEXT UNIQUE NOT NULL,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Team membership
+CREATE TABLE team_members (
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member',
+  status TEXT NOT NULL DEFAULT 'active', -- active, invited, removed
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (team_id, user_id)
+);
+
 -- Projects (container for workflows)
 CREATE TABLE projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
   position INT,
@@ -126,6 +151,9 @@ CREATE INDEX IF NOT EXISTS idx_tasks_stage_position ON tasks (stage_id, position
 CREATE INDEX IF NOT EXISTS idx_tasks_stage_id ON tasks (stage_id);
 CREATE INDEX IF NOT EXISTS idx_stages_workflow ON stages (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows (project_id);
+CREATE INDEX IF NOT EXISTS idx_projects_team ON projects (team_id);
 CREATE INDEX IF NOT EXISTS idx_user_projects_project_user ON user_projects (project_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_task_members_task ON task_members (task_id);
 CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags (task_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members (user_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members (team_id);

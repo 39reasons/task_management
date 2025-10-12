@@ -6,8 +6,10 @@ function buildProjectAccessClause(user_id: string | null, paramIndex: number) {
     return {
       clause: `(
         p.is_public = true OR EXISTS (
-          SELECT 1 FROM user_projects up
-          WHERE up.project_id = p.id AND up.user_id = $${paramIndex}
+          SELECT 1 FROM team_members tm
+          WHERE tm.team_id = p.team_id
+            AND tm.user_id = $${paramIndex}
+            AND tm.status = 'active'
         )
       )`,
       params: [user_id],
@@ -28,9 +30,9 @@ export async function getWorkflowsByProject(
   const { clause, params: accessParams } = buildProjectAccessClause(user_id, params.length + 1);
   params.push(...accessParams);
 
-  const result = await query<{ id: string; name: string; project_id: string }>(
+  const result = await query<{ id: string; name: string; project_id: string; team_id: string }>(
     `
-    SELECT w.id, w.name, w.project_id
+    SELECT w.id, w.name, w.project_id, p.team_id
     FROM workflows w
     JOIN projects p ON p.id = w.project_id
     WHERE w.project_id = $1
@@ -51,9 +53,9 @@ export async function getWorkflowById(
   const { clause, params: accessParams } = buildProjectAccessClause(user_id, params.length + 1);
   params.push(...accessParams);
 
-  const result = await query<{ id: string; name: string; project_id: string }>(
+  const result = await query<{ id: string; name: string; project_id: string; team_id: string }>(
     `
-    SELECT w.id, w.name, w.project_id
+    SELECT w.id, w.name, w.project_id, p.team_id
     FROM workflows w
     JOIN projects p ON p.id = w.project_id
     WHERE w.id = $1

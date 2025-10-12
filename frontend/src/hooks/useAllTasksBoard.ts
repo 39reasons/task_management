@@ -11,6 +11,7 @@ import {
 } from "../graphql";
 import type { Stage, Task } from "@shared/types";
 import { TASK_BOARD_ALL_PROJECTS } from "@shared/types";
+import { useTeamContext } from "../providers/TeamProvider";
 
 interface UseAllTasksBoardResult {
   stages: Array<Stage & { tasks: Task[] }>;
@@ -25,7 +26,10 @@ interface UseAllTasksBoardResult {
 }
 
 export function useAllTasksBoard(): UseAllTasksBoardResult {
+  const { activeTeamId } = useTeamContext();
   const { data, loading, error, refetch } = useQuery<{ tasks: Task[] }>(GET_TASKS, {
+    variables: activeTeamId ? { team_id: activeTeamId } : undefined,
+    skip: !activeTeamId,
     fetchPolicy: "network-only",
     nextFetchPolicy: "cache-first",
     errorPolicy: "all",
@@ -33,15 +37,26 @@ export function useAllTasksBoard(): UseAllTasksBoardResult {
 
   useSubscription(TASK_BOARD_EVENTS, {
     variables: { project_id: TASK_BOARD_ALL_PROJECTS },
-    onData: () => {
-      void refetch();
+    onData: ({ data: subscriptionData }) => {
+      const eventTeamId = subscriptionData.data?.taskBoardEvents?.team_id ?? null;
+      if (!activeTeamId || !eventTeamId || eventTeamId === activeTeamId) {
+        void refetch();
+      }
     },
+    skip: !activeTeamId,
   });
 
   const stageBuckets = useMemo(() => {
     const map = new Map<string, Stage & { tasks: Task[] }>();
 
+    if (!activeTeamId) {
+      return [] as Array<Stage & { tasks: Task[] }>;
+    }
+
     for (const task of data?.tasks ?? []) {
+      if (task.team_id && task.team_id !== activeTeamId) {
+        continue;
+      }
       const stageInfo = task.stage
         ? {
             id: task.stage.id,
@@ -69,7 +84,7 @@ export function useAllTasksBoard(): UseAllTasksBoardResult {
         tasks: [...stage.tasks].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
       }))
       .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
-  }, [data]);
+  }, [activeTeamId, data]);
 
   const [deleteTaskMutation] = useMutation(DELETE_TASK);
   const [moveTaskMutation] = useMutation(MOVE_TASK);
@@ -80,21 +95,27 @@ export function useAllTasksBoard(): UseAllTasksBoardResult {
   const deleteTask = async (id: string) => {
     await deleteTaskMutation({
       variables: { id },
-      refetchQueries: [{ query: GET_TASKS }],
+      refetchQueries: activeTeamId
+        ? [{ query: GET_TASKS, variables: { team_id: activeTeamId } }]
+        : [],
     });
   };
 
   const moveTask = async (task_id: string, to_stage_id: string) => {
     await moveTaskMutation({
       variables: { task_id, to_stage_id },
-      refetchQueries: [{ query: GET_TASKS }],
+      refetchQueries: activeTeamId
+        ? [{ query: GET_TASKS, variables: { team_id: activeTeamId } }]
+        : [],
     });
   };
 
   const updateTask = async (input: Partial<Task> & { id: string }) => {
     await updateTaskMutation({
       variables: { ...input },
-      refetchQueries: [{ query: GET_TASKS }],
+      refetchQueries: activeTeamId
+        ? [{ query: GET_TASKS, variables: { team_id: activeTeamId } }]
+        : [],
     });
   };
 
@@ -102,7 +123,9 @@ export function useAllTasksBoard(): UseAllTasksBoardResult {
     if (!priority) return;
     await updatePriorityMutation({
       variables: { id, priority },
-      refetchQueries: [{ query: GET_TASKS }],
+      refetchQueries: activeTeamId
+        ? [{ query: GET_TASKS, variables: { team_id: activeTeamId } }]
+        : [],
     });
   };
 
@@ -110,13 +133,15 @@ export function useAllTasksBoard(): UseAllTasksBoardResult {
     if (task_ids.length === 0) return;
     await reorderTasksMutation({
       variables: { stage_id, task_ids },
-      refetchQueries: [{ query: GET_TASKS }],
+      refetchQueries: activeTeamId
+        ? [{ query: GET_TASKS, variables: { team_id: activeTeamId } }]
+        : [],
     });
   };
 
   return {
     stages: stageBuckets,
-    loading,
+    loading: loading && Boolean(activeTeamId),
     error,
     deleteTask,
     moveTask,

@@ -1,8 +1,8 @@
 import { gql } from "@apollo/client";
 
 export const GET_TASKS = gql`
-  query GetTasks($project_id: ID, $workflow_id: ID, $stage_id: ID) {
-    tasks(project_id: $project_id, workflow_id: $workflow_id, stage_id: $stage_id) {
+  query GetTasks($team_id: ID, $project_id: ID, $workflow_id: ID, $stage_id: ID) {
+    tasks(team_id: $team_id, project_id: $project_id, workflow_id: $workflow_id, stage_id: $stage_id) {
       id
       title
       description
@@ -10,6 +10,7 @@ export const GET_TASKS = gql`
       priority
       stage_id
       project_id
+      team_id
       position
       assignees {
         id
@@ -55,6 +56,7 @@ export const CREATE_TASK = gql`
       priority
       stage_id
       project_id
+      team_id
       position
       assignees {
         id
@@ -118,6 +120,7 @@ export const UPDATE_TASK = gql`
       priority
       stage_id
       project_id
+      team_id
       position
       assignees {
         id
@@ -145,6 +148,8 @@ export const MOVE_TASK = gql`
   mutation MoveTask($task_id: ID!, $to_stage_id: ID!) {
     moveTask(task_id: $task_id, to_stage_id: $to_stage_id) {
       id
+      project_id
+      team_id
       stage_id
       position
       assignees {

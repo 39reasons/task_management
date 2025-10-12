@@ -36,12 +36,18 @@ async function broadcastStageEvent(event: Omit<TaskBoardEvent, "timestamp">): Pr
   });
 }
 
-async function getProjectIdForWorkflow(workflow_id: string): Promise<string | null> {
-  const result = await query<{ project_id: string }>(
-    `SELECT project_id FROM workflows WHERE id = $1`,
+async function getProjectIdForWorkflow(workflow_id: string): Promise<{ project_id: string; team_id: string } | null> {
+  const result = await query<{ project_id: string; team_id: string }>(
+    `
+    SELECT w.project_id, p.team_id
+    FROM workflows w
+    JOIN projects p ON p.id = w.project_id
+    WHERE w.id = $1
+    `,
     [workflow_id]
   );
-  return result.rows[0]?.project_id ?? null;
+  const row = result.rows[0];
+  return row ? { project_id: row.project_id, team_id: row.team_id } : null;
 }
 
 export async function addStage(
@@ -74,11 +80,12 @@ export async function addStage(
 
   const stage = { ...result.rows[0], tasks: [] };
 
-  const projectId = await getProjectIdForWorkflow(workflow_id);
-  if (projectId) {
+  const projectContext = await getProjectIdForWorkflow(workflow_id);
+  if (projectContext) {
     await broadcastStageEvent({
       action: "STAGE_CREATED",
-      project_id: projectId,
+      project_id: projectContext.project_id,
+      team_id: projectContext.team_id,
       workflow_id,
       stage_id: stage.id,
       origin: options?.origin ?? null,
@@ -113,11 +120,12 @@ export async function updateStage(
   }
 
   const stage = { ...result.rows[0], tasks: [] };
-  const projectId = await getProjectIdForWorkflow(stage.workflow_id);
-  if (projectId) {
+  const projectContext = await getProjectIdForWorkflow(stage.workflow_id);
+  if (projectContext) {
     await broadcastStageEvent({
       action: "STAGE_UPDATED",
-      project_id: projectId,
+      project_id: projectContext.project_id,
+      team_id: projectContext.team_id,
       workflow_id: stage.workflow_id,
       stage_id: stage.id,
       origin: options?.origin ?? null,
@@ -139,11 +147,12 @@ export async function deleteStage(id: string, options?: { origin?: string | null
   const deleted = (result.rowCount ?? 0) > 0;
 
   if (deleted && workflowId) {
-    const projectId = await getProjectIdForWorkflow(workflowId);
-    if (projectId) {
+    const projectContext = await getProjectIdForWorkflow(workflowId);
+    if (projectContext) {
       await broadcastStageEvent({
         action: "STAGE_DELETED",
-        project_id: projectId,
+        project_id: projectContext.project_id,
+        team_id: projectContext.team_id,
         workflow_id: workflowId,
         stage_id: id,
         origin: options?.origin ?? null,
@@ -178,11 +187,12 @@ export async function reorderStages(
     [workflow_id, stage_ids]
   );
 
-  const projectId = await getProjectIdForWorkflow(workflow_id);
-  if (projectId) {
+  const projectContext = await getProjectIdForWorkflow(workflow_id);
+  if (projectContext) {
     await broadcastStageEvent({
       action: "STAGES_REORDERED",
-      project_id: projectId,
+      project_id: projectContext.project_id,
+      team_id: projectContext.team_id,
       workflow_id,
       stage_ids,
       origin: options?.origin ?? null,

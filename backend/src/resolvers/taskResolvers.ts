@@ -9,7 +9,7 @@ export const taskResolvers = {
   Query: {
     tasks: async (
       _: unknown,
-      args: { stage_id?: string; workflow_id?: string; project_id?: string },
+      args: { team_id?: string; stage_id?: string; workflow_id?: string; project_id?: string },
       ctx: GraphQLContext
     ): Promise<Task[]> => {
       return await TaskService.getTasks(args, ctx.user?.id ?? null);

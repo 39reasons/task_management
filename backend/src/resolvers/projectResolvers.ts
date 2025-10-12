@@ -1,12 +1,18 @@
 import * as ProjectService from "../services/ProjectService.js";
 import * as WorkflowService from "../services/WorkflowService.js";
-import type { Project, Workflow, User } from "../../../shared/types.js";
+import * as TeamService from "../services/TeamService.js";
+import type { Project, Workflow, User, Team } from "../../../shared/types.js";
 import { GraphQLContext } from "src/types/context";
 
 export const projectResolvers = {
   Query: {
-    projects: async (_: unknown, __: unknown, ctx: GraphQLContext) => {
-      return ProjectService.getProjects(ctx.user?.id);
+    projects: async (
+      _: unknown,
+      args: { team_id: string },
+      ctx: GraphQLContext
+    ) => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      return ProjectService.getProjectsForTeam(args.team_id, ctx.user.id);
     },
     project: async (_: unknown, args: { id: string }, ctx: GraphQLContext): Promise<Project> => {
       if (!ctx.user) throw new Error("Not authenticated");
@@ -27,11 +33,12 @@ export const projectResolvers = {
   Mutation: {
     addProject: async (
       _: unknown,
-      args: { name: string; description?: string; is_public?: boolean },
+      args: { team_id: string; name: string; description?: string; is_public?: boolean },
       ctx: GraphQLContext
     ): Promise<Project> => {
       if (!ctx.user) throw new Error("Not authenticated");
       return await ProjectService.addProject(
+        args.team_id,
         args.name,
         args.description ?? null,
         args.is_public ?? false,
@@ -61,11 +68,11 @@ export const projectResolvers = {
 
     reorderProjects: async (
       _: unknown,
-      args: { project_ids: string[] },
+      args: { team_id: string; project_ids: string[] },
       ctx: GraphQLContext
     ): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await ProjectService.reorderProjects(args.project_ids, ctx.user.id);
+      return await ProjectService.reorderProjects(args.team_id, args.project_ids, ctx.user.id);
     },
   },
 
@@ -79,10 +86,20 @@ export const projectResolvers = {
       if (!hasAccess) return [];
       return await ProjectService.getProjectMembers(parent.id);
     },
-    viewer_is_owner: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<boolean> => {
-      if (!ctx.user) return false;
-      const membership = await ProjectService.getUserRoleInProject(parent.id, ctx.user.id);
-      return membership === "owner";
+    viewer_is_owner: (parent: Project): boolean => {
+      if (parent.viewer_is_owner !== undefined) {
+        return parent.viewer_is_owner;
+      }
+      return parent.viewer_role === "owner";
+    },
+    viewer_role: (parent: Project): Project["viewer_role"] => parent.viewer_role ?? null,
+    team: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<Team | null> => {
+      if (!ctx.user) return null;
+      try {
+        return await TeamService.getTeamById(parent.team_id, ctx.user.id);
+      } catch {
+        return null;
+      }
     },
   },
 };

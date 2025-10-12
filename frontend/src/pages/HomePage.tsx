@@ -13,6 +13,7 @@ import {
 import type { AuthUser, Project, Stage, Task, User, Workflow } from "@shared/types";
 import { useAllTasksBoard } from "../hooks/useAllTasksBoard";
 import { GET_PROJECTS_OVERVIEW } from "../graphql";
+import { useTeamContext } from "../providers/TeamProvider";
 import { getInitials } from "../utils/user";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
 import { Button } from "../components/ui/button";
@@ -105,11 +106,14 @@ function WorkspaceSnapshot({ totals }: { totals: WorkspaceTotals }) {
 }
 
 export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePageProps) {
+  const { activeTeamId, loadingTeams } = useTeamContext();
   const {
     data,
     loading,
     error,
   } = useQuery<{ projects: ProjectOverview[] }>(GET_PROJECTS_OVERVIEW, {
+    variables: activeTeamId ? { team_id: activeTeamId } : undefined,
+    skip: !activeTeamId,
     fetchPolicy: "network-only",
     nextFetchPolicy: "cache-first",
     errorPolicy: "all",
@@ -121,7 +125,9 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
     error: tasksError,
   } = useAllTasksBoard();
 
-  const hasProjectError = Boolean(error);
+  const showTeamRequired = !loadingTeams && !activeTeamId;
+
+  const hasProjectError = Boolean(error) && !showTeamRequired;
   const tasksErrorMessage = (() => {
     if (!tasksError) return null;
     if (tasksError instanceof Error) return tasksError.message;
@@ -132,10 +138,23 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
   const hasAnyError = hasProjectError || hasTasksError;
 
   const allTasks = useMemo<Task[]>(() => {
+    if (!activeTeamId) return [];
     return stages.flatMap((stage) => stage.tasks ?? []);
-  }, [stages]);
+  }, [activeTeamId, stages]);
 
   const totals = useMemo(() => {
+    if (!activeTeamId) {
+      return {
+        totalProjects: 0,
+        publicProjects: 0,
+        privateProjects: 0,
+        workflowCount: 0,
+        stageCount: 0,
+        taskCount: 0,
+        memberCount: 0,
+        tagCount: 0,
+      } as WorkspaceTotals;
+    }
     const projects = (data?.projects ?? []) as ProjectOverview[];
     let workflowCount = 0;
     let stageCount = 0;
@@ -186,9 +205,12 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
       memberCount: memberIds.size,
       tagCount: tagIds.size,
     };
-  }, [data]);
+  }, [activeTeamId, data]);
 
   const projectSummaries = useMemo<ProjectSummary[]>(() => {
+    if (!activeTeamId) {
+      return [];
+    }
     const projects = (data?.projects ?? []) as ProjectOverview[];
     const todayStart = startOfToday();
     return projects.map((project) => {
@@ -237,7 +259,7 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
         nextDueTask: upcoming[0] ?? null,
       };
     });
-  }, [data]);
+  }, [activeTeamId, data]);
 
   const prioritySummary = useMemo(() => {
     const summary: Record<"high" | "medium" | "low" | "none", number> = {
@@ -280,7 +302,7 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
     };
   }, [allTasks]);
 
-  const showProjectsEmptyState = !loading && projectSummaries.length === 0;
+  const showProjectsEmptyState = !loading && projectSummaries.length === 0 && !showTeamRequired;
   return (
     <div className="space-y-8 pb-6">
       <section className="rounded-3xl border border-border bg-card px-6 py-8 shadow-lg shadow-slate-950/5">
@@ -310,6 +332,15 @@ export function HomePage({ user, setSelectedTask: _setSelectedTask }: HomePagePr
           </div>
         </div>
       </section>
+
+      {showTeamRequired ? (
+        <Alert>
+          <AlertTitle>No team selected</AlertTitle>
+          <AlertDescription>
+            Create a team or select an existing one from the sidebar to start organizing projects and tracking tasks.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {hasAnyError ? (
         <div className="space-y-2">

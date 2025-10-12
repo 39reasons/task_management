@@ -6,6 +6,7 @@ export interface Task {
   priority?: "low" | "medium" | "high" | null;
   stage_id: string;
   project_id: string;
+  team_id?: string;
   tags?: Tag[];
   stage?: Stage;
   position?: number;
@@ -42,6 +43,7 @@ export interface Workflow {
   id: string;
   name: string;
   project_id: string;
+  team_id?: string;
   stages: Stage[];
 }
 
@@ -57,6 +59,7 @@ export interface TasksData {
 
 export interface Project {
   id: string;
+  team_id: string;
   name: string;
   description?: string | null;
   created_at?: string;
@@ -64,8 +67,10 @@ export interface Project {
   tasks?: Task[];
   is_public?: boolean;
   viewer_is_owner?: boolean;
+  viewer_role?: TeamRole | null;
   members?: User[];
   position?: number | null;
+  team?: Team | null;
 }
 
 export interface AuthUser {
@@ -121,6 +126,7 @@ export interface Notification {
   type: string;
   status: "pending" | "accepted" | "declined";
   is_read: boolean;
+  team_id?: string | null;
   project?: Project | null;
   sender?: User | null;
   created_at: string;
@@ -152,6 +158,7 @@ export type TaskBoardEventAction =
 export interface TaskBoardEvent {
   action: TaskBoardEventAction;
   project_id: string;
+  team_id?: string | null;
   workflow_id?: string | null;
   stage_id?: string | null;
   previous_stage_id?: string | null;
@@ -160,4 +167,27 @@ export interface TaskBoardEvent {
   stage_ids?: string[] | null;
   origin?: string | null;
   timestamp?: string | null;
+}
+
+export type TeamRole = "owner" | "admin" | "member" | "viewer";
+
+export interface TeamMember {
+  team_id: string;
+  user: User;
+  role: TeamRole;
+  status: "active" | "invited" | "removed";
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description?: string | null;
+  slug: string;
+  created_at?: string;
+  updated_at?: string;
+  role?: TeamRole | null;
+  members?: TeamMember[];
+  projects?: Project[];
 }

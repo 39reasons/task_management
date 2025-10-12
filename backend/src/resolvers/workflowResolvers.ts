@@ -162,6 +162,7 @@ export const workflowResolvers = {
       },
       resolve: (event: TaskBoardEvent) => ({
         ...event,
+        team_id: event.team_id ?? null,
         workflow_id: event.workflow_id ?? null,
         stage_id: event.stage_id ?? null,
         previous_stage_id: event.previous_stage_id ?? null,

@@ -16,6 +16,7 @@ export type TaskBoardEventAction =
 export interface TaskBoardEvent {
   action: TaskBoardEventAction;
   project_id: string;
+  team_id?: string | null;
   workflow_id?: string | null;
   stage_id?: string | null;
   previous_stage_id?: string | null;

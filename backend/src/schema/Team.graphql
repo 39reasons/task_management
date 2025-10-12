@@ -1,0 +1,44 @@
+enum TeamRole {
+  owner
+  admin
+  member
+  viewer
+}
+
+enum TeamMemberStatus {
+  active
+  invited
+  removed
+}
+
+type TeamMember {
+  team_id: ID!
+  user: User!
+  role: TeamRole!
+  status: TeamMemberStatus!
+  created_at: String
+  updated_at: String
+}
+
+type Team {
+  id: ID!
+  name: String!
+  description: String
+  slug: String!
+  created_at: String
+  updated_at: String
+  role: TeamRole
+  members: [TeamMember!]
+  projects: [Project!]
+}
+
+extend type Query {
+  teams: [Team!]!
+  team(id: ID!): Team
+}
+
+extend type Mutation {
+  createTeam(name: String!, description: String): Team!
+  updateTeam(id: ID!, name: String, description: String): Team!
+  deleteTeam(id: ID!): Boolean!
+}

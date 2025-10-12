@@ -6,6 +6,7 @@ export const GET_WORKFLOWS = gql`
       id
       name
       project_id
+      team_id
       stages {
         id
         name
@@ -19,6 +20,7 @@ export const GET_WORKFLOWS = gql`
           priority
           stage_id
           project_id
+          team_id
           position
           assignees {
             id
@@ -44,6 +46,7 @@ export const GET_WORKFLOW = gql`
       id
       name
       project_id
+      team_id
       stages {
         id
         name
@@ -57,6 +60,7 @@ export const GET_WORKFLOW = gql`
           priority
           stage_id
           project_id
+          team_id
           position
           assignees {
             id
@@ -126,6 +130,7 @@ export const TASK_BOARD_EVENTS = gql`
     taskBoardEvents(project_id: $project_id) {
       action
       project_id
+      team_id
       workflow_id
       stage_id
       previous_stage_id

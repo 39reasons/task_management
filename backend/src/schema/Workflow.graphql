@@ -2,6 +2,7 @@ type Workflow {
   id: ID!
   name: String!
   project_id: ID!
+  team_id: ID!
   stages: [Stage!]!
 }
 
@@ -47,6 +48,7 @@ enum TaskBoardEventAction {
 type TaskBoardEvent {
   action: TaskBoardEventAction!
   project_id: ID!
+  team_id: ID
   workflow_id: ID
   stage_id: ID
   previous_stage_id: ID

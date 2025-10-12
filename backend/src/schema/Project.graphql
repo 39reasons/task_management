@@ -1,5 +1,6 @@
 type Project {
   id: ID!
+  team_id: ID!
   name: String!
   description: String
   created_at: String
@@ -10,15 +11,18 @@ type Project {
   workflows: [Workflow!]
   members: [User!]
   viewer_is_owner: Boolean!
+  viewer_role: TeamRole
+  team: Team
 }
 extend type Query {
-  projects: [Project!]!
+  projects(team_id: ID!): [Project!]!
   project(id: ID!): Project
   projectMembers(project_id: ID!): [User!]!
 }
 
 extend type Mutation {
   addProject(
+    team_id: ID!
     name: String!
     description: String
     is_public: Boolean
@@ -33,5 +37,5 @@ extend type Mutation {
 
   deleteProject(id: ID!): Boolean!
 
-  reorderProjects(project_ids: [ID!]!): Boolean!
+  reorderProjects(team_id: ID!, project_ids: [ID!]!): Boolean!
 }

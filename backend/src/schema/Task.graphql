@@ -6,6 +6,7 @@ type Task {
   priority: String
   stage_id: ID!
   project_id: ID
+  team_id: ID
   tags: [Tag!]!
   stage: Stage
   assignees: [User!]!
@@ -28,7 +29,7 @@ input TaskDraftInput {
 }
 
 extend type Query {
-  tasks(stage_id: ID, workflow_id: ID, project_id: ID): [Task!]!
+  tasks(team_id: ID, stage_id: ID, workflow_id: ID, project_id: ID): [Task!]!
   task(id: ID!): Task
 }
 

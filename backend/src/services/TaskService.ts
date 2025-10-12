@@ -13,6 +13,7 @@ const TASK_BASE_SELECT = `
     to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
     t.priority,
     w.project_id,
+    p.team_id,
     t.position
   FROM tasks t
   JOIN stages s ON s.id = t.stage_id
@@ -26,7 +27,7 @@ function normalizeDate(input?: string | null): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-function mapTaskRow(row: Task & { project_id: string; position: number }): Task {
+function mapTaskRow(row: Task & { project_id: string; team_id: string; position: number }): Task {
   return {
     id: row.id,
     title: row.title,
@@ -35,6 +36,7 @@ function mapTaskRow(row: Task & { project_id: string; position: number }): Task 
     priority: row.priority as Task["priority"],
     stage_id: row.stage_id,
     project_id: row.project_id,
+    team_id: row.team_id,
     position: row.position,
   };
 }
@@ -86,6 +88,7 @@ async function emitTaskUpdateEvent(
   await broadcastTaskEvent({
     action,
     project_id: task.project_id,
+    team_id: task.team_id ?? null,
     workflow_id: stage?.workflow_id ?? null,
     stage_id: task.stage_id,
     task_id: task.id,
@@ -95,11 +98,16 @@ async function emitTaskUpdateEvent(
 }
 
 export async function getTasks(
-  filter: { stage_id?: string; workflow_id?: string; project_id?: string },
+  filter: { team_id?: string; stage_id?: string; workflow_id?: string; project_id?: string },
   user_id: string | null
 ): Promise<Task[]> {
   const params: unknown[] = [];
   const conditions: string[] = [];
+
+  if (filter.team_id) {
+    params.push(filter.team_id);
+    conditions.push(`p.team_id = $${params.length}`);
+  }
 
   if (filter.stage_id) {
     params.push(filter.stage_id);
@@ -120,8 +128,10 @@ export async function getTasks(
     params.push(user_id);
     conditions.push(`(
       p.is_public = true OR EXISTS (
-        SELECT 1 FROM user_projects up
-        WHERE up.project_id = p.id AND up.user_id = $${params.length}
+        SELECT 1 FROM team_members tm
+        WHERE tm.team_id = p.team_id
+          AND tm.user_id = $${params.length}
+          AND tm.status = 'active'
       )
     )`);
   } else {
@@ -134,7 +144,7 @@ export async function getTasks(
   }
   sql += ` ORDER BY s.position ASC, t.position ASC, t.created_at ASC`;
 
-  const result = await query<Task & { project_id: string; position: number }>(sql, params);
+  const result = await query<Task & { project_id: string; team_id: string; position: number }>(sql, params);
   return result.rows.map(mapTaskRow);
 }
 
@@ -143,7 +153,7 @@ export async function getAllVisibleTasks(user_id: string | null): Promise<Task[]
 }
 
 export async function getTaskById(id: string): Promise<Task | null> {
-  const result = await query<Task & { project_id: string; position: number }>(
+  const result = await query<Task & { project_id: string; team_id: string; position: number }>(
     `${TASK_BASE_SELECT} WHERE t.id = $1`,
     [id]
   );
@@ -298,6 +308,7 @@ export async function deleteTask(id: string, options?: { origin?: string | null 
     await broadcastTaskEvent({
       action: "TASK_DELETED",
       project_id: task.project_id,
+      team_id: task.team_id ?? null,
       workflow_id: stage?.workflow_id ?? null,
       stage_id: task.stage_id,
       task_id: task.id,
@@ -360,7 +371,8 @@ export async function reorderTasks(
     const stage = await StageService.getStageById(stage_id);
     await broadcastTaskEvent({
       action: "TASKS_REORDERED",
-      project_id: projectId,
+      project_id: projectId.project_id,
+      team_id: projectId.team_id,
       workflow_id: stage?.workflow_id ?? null,
       stage_id,
       task_ids,
@@ -369,18 +381,20 @@ export async function reorderTasks(
   }
 }
 
-export async function getProjectIdForStage(stage_id: string): Promise<string | null> {
-  const result = await query<{ project_id: string }>(
+export async function getProjectIdForStage(stage_id: string): Promise<{ project_id: string; team_id: string } | null> {
+  const result = await query<{ project_id: string; team_id: string }>(
     `
-    SELECT w.project_id
+    SELECT w.project_id, p.team_id
     FROM stages s
     JOIN workflows w ON w.id = s.workflow_id
+    JOIN projects p ON p.id = w.project_id
     WHERE s.id = $1
     `,
     [stage_id]
   );
 
-  return result.rows[0]?.project_id ?? null;
+  const row = result.rows[0];
+  return row ? { project_id: row.project_id, team_id: row.team_id } : null;
 }
 
 export async function getTaskMembers(task_id: string): Promise<User[]> {

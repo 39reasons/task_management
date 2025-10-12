@@ -1,9 +1,10 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import { useNavigate } from "react-router-dom";
 import { KanbanBoard } from "../components/KanbanBoard/KanbanBoard";
 import { useProjectBoard } from "../hooks/useProjectBoard";
 import { GET_PROJECTS, UPDATE_PROJECT, DELETE_PROJECT, GET_PROJECTS_OVERVIEW } from "../graphql";
+import { useTeamContext } from "../providers/TeamProvider";
 import type { AuthUser, Task, Project } from "@shared/types";
 import { Sparkles, Loader2, UserPlus2, Settings, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -34,6 +35,7 @@ export function ProjectBoardPage({
   setSelectedTask: (task: Task) => void;
   onInvite: (projectId: string) => void;
 }) {
+  const { activeTeamId, setActiveTeamId } = useTeamContext();
   const {
     projectId,
     workflow,
@@ -48,6 +50,21 @@ export function ProjectBoardPage({
     reorderStagesOrder,
     loading,
   } = useProjectBoard();
+  const workflowTeamId = workflow?.team_id ?? null;
+  const lastProjectIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!projectId || !workflowTeamId) {
+      return;
+    }
+
+    if (lastProjectIdRef.current !== projectId) {
+      lastProjectIdRef.current = projectId;
+      setActiveTeamId(workflowTeamId);
+    }
+  }, [projectId, workflowTeamId, setActiveTeamId]);
+
+  const queryTeamId = workflowTeamId ?? activeTeamId ?? null;
 
   const [isWorkflowPromptOpen, setIsWorkflowPromptOpen] = useState(false);
   const [workflowPrompt, setWorkflowPrompt] = useState("");
@@ -65,18 +82,8 @@ export function ProjectBoardPage({
   const [isDeleteSectionOpen, setIsDeleteSectionOpen] = useState(false);
   const navigate = useNavigate();
 
-  const [updateProject] = useMutation(UPDATE_PROJECT, {
-    refetchQueries: [
-      { query: GET_PROJECTS },
-      { query: GET_PROJECTS_OVERVIEW },
-    ],
-  });
-  const [removeProject] = useMutation(DELETE_PROJECT, {
-    refetchQueries: [
-      { query: GET_PROJECTS },
-      { query: GET_PROJECTS_OVERVIEW },
-    ],
-  });
+  const [updateProject] = useMutation(UPDATE_PROJECT);
+  const [removeProject] = useMutation(DELETE_PROJECT);
 
   const resetSettingsState = useCallback(() => {
     setSettingsProject(null);
@@ -87,7 +94,8 @@ export function ProjectBoardPage({
   }, []);
 
   const { data: projectsData } = useQuery<{ projects: Project[] }>(GET_PROJECTS, {
-    skip: !projectId,
+    variables: queryTeamId ? { team_id: queryTeamId } : undefined,
+    skip: !projectId || !queryTeamId,
     fetchPolicy: "network-only",
     nextFetchPolicy: "cache-first",
     errorPolicy: "all",
@@ -99,7 +107,12 @@ export function ProjectBoardPage({
       return null;
     }
     return projectsData?.projects?.find((project) => project.id === projectId) ?? null;
-  }, [projectId, projectsData]);
+  }, [activeTeamId, projectId, projectsData]);
+
+  const projectTeamId = useMemo(
+    () => currentProject?.team_id ?? workflowTeamId ?? activeTeamId ?? null,
+    [activeTeamId, currentProject?.team_id, workflowTeamId]
+  );
 
   const projectName = currentProject?.name ?? workflow?.name ?? "Project";
 
@@ -178,6 +191,12 @@ export function ProjectBoardPage({
           description: settingsDescription.trim() || null,
           is_public: settingsPublic,
         },
+        refetchQueries: projectTeamId
+          ? [
+              { query: GET_PROJECTS, variables: { team_id: projectTeamId } },
+              { query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } },
+            ]
+          : [],
       });
       resetSettingsState();
     } catch (error) {
@@ -193,6 +212,7 @@ export function ProjectBoardPage({
     settingsProject,
     settingsPublic,
     updateProject,
+    projectTeamId,
   ]);
 
   const handleProjectDelete = useCallback(async () => {
@@ -205,7 +225,15 @@ export function ProjectBoardPage({
     setDeleteSubmitting(true);
     setDeleteError(null);
     try {
-      await removeProject({ variables: { id: settingsProject.id } });
+      await removeProject({
+        variables: { id: settingsProject.id },
+        refetchQueries: projectTeamId
+          ? [
+              { query: GET_PROJECTS, variables: { team_id: projectTeamId } },
+              { query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } },
+            ]
+          : [],
+      });
       if (projectId && settingsProject.id === projectId) {
         navigate("/");
       }
@@ -215,9 +243,13 @@ export function ProjectBoardPage({
     } finally {
       setDeleteSubmitting(false);
     }
-  }, [deleteConfirmation, navigate, projectId, removeProject, resetSettingsState, settingsProject]);
+  }, [deleteConfirmation, navigate, projectId, projectTeamId, removeProject, resetSettingsState, settingsProject]);
 
-  const canManageProject = Boolean(user && projectId && currentProject?.viewer_is_owner);
+  const canManageProject = Boolean(
+    user &&
+      projectId &&
+      (currentProject?.viewer_role === "owner" || currentProject?.viewer_role === "admin")
+  );
 
   const handleCancelWorkflowPrompt = useCallback(() => {
     setIsWorkflowPromptOpen(false);
@@ -257,7 +289,7 @@ export function ProjectBoardPage({
                 {isWorkflowPromptOpen ? "Close AI Workflow" : "Generate AI Workflow"}
               </Button>
             ) : null}
-            {user && projectId ? (
+            {canManageProject && projectId ? (
               <Button
                 type="button"
                 onClick={() => onInvite(projectId)}

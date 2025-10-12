@@ -16,7 +16,8 @@ import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import SettingsPage from "./pages/SettingsPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
-import { GET_PROJECTS, GET_PROJECTS_OVERVIEW, GET_TASKS } from "./graphql";
+import { GET_TASKS } from "./graphql";
+import { TeamProvider } from "./providers/TeamProvider";
 
 function AppContent() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -41,14 +42,7 @@ function AppContent() {
     setUser({ ...authUser, avatar_color: authUser.avatar_color ?? null });
     try {
       await client.clearStore();
-      client.cache.writeQuery({ query: GET_PROJECTS, data: { projects: [] } });
-      client.cache.writeQuery({ query: GET_PROJECTS_OVERVIEW, data: { projects: [] } });
       client.cache.writeQuery({ query: GET_TASKS, data: { tasks: [] } });
-      await Promise.all([
-        client.query({ query: GET_PROJECTS, fetchPolicy: "network-only" }),
-        client.query({ query: GET_PROJECTS_OVERVIEW, fetchPolicy: "network-only" }),
-        client.query({ query: GET_TASKS, fetchPolicy: "network-only" }),
-      ]);
     } catch {
       // ignore hydration errors; UI will refetch as needed
     }
@@ -75,102 +69,102 @@ function AppContent() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* Navbar */}
-      <Navbar user={user} onLogout={handleLogout} />
+    <TeamProvider user={user}>
+      <div className="flex min-h-screen flex-col bg-background text-foreground">
+        {/* Navbar */}
+        <Navbar user={user} onLogout={handleLogout} />
 
-      {/* Layout */}
-      <div className="flex min-w-0 flex-1 overflow-x-hidden">
-        {!isAuthRoute && <Sidebar user={user} />}
+        {/* Layout */}
+        <div className="flex min-w-0 flex-1 overflow-x-hidden">
+          {!isAuthRoute && <Sidebar user={user} />}
 
-        <main className={isAuthRoute ? "flex-1 min-w-0" : "flex-1 min-w-0 px-4 py-6 sm:px-6"}>
-          <div className={isAuthRoute ? "min-w-0" : "mx-auto w-full min-w-0"}>
-            <Routes>
-              <Route
-                path="/signin"
-                element={<SignInPage onAuthenticated={handleAuthSuccess} />}
-              />
-              <Route
-                path="/signup"
-                element={<SignUpPage onAuthenticated={handleAuthSuccess} />}
-              />
-              <Route
-                path="/"
-                element={
-                  <HomePage
-                    user={user}
-                    setSelectedTask={(task) => {
-                      setSelectedTask(task);
-                      openModal("task");
-                    }}
-                  />
-                }
-              />
-              <Route
-                path="/projects/:id"
-                element={
-                  <ProjectBoardPage
-                    user={user}
-                    setSelectedTask={(task) => {
-                      setSelectedTask(task);
-                      openModal("task");
-                    }}
-                    onInvite={(projectId) => {
-                      setInviteProjectId(projectId);
-                      openModal("invite");
-                    }}
-                  />
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  authChecked ? (
-                    user ? (
-                      <SettingsPage
-                        onProfileUpdate={(updated) => {
-                          setUser(updated);
-                        }}
-                      />
+          <main className={isAuthRoute ? "flex-1 min-w-0" : "flex-1 min-w-0 px-4 py-6 sm:px-6"}>
+            <div className={isAuthRoute ? "min-w-0" : "mx-auto w-full min-w-0"}>
+              <Routes>
+                <Route
+                  path="/signin"
+                  element={<SignInPage onAuthenticated={handleAuthSuccess} />}
+                />
+                <Route
+                  path="/signup"
+                  element={<SignUpPage onAuthenticated={handleAuthSuccess} />}
+                />
+                <Route
+                  path="/"
+                  element={
+                    <HomePage
+                      user={user}
+                      setSelectedTask={(task) => {
+                        setSelectedTask(task);
+                        openModal("task");
+                      }}
+                    />
+                  }
+                />
+                <Route
+                  path="/projects/:id"
+                  element={
+                    <ProjectBoardPage
+                      user={user}
+                      setSelectedTask={(task) => {
+                        setSelectedTask(task);
+                        openModal("task");
+                      }}
+                      onInvite={(projectId) => {
+                        setInviteProjectId(projectId);
+                        openModal("invite");
+                      }}
+                    />
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    authChecked ? (
+                      user ? (
+                        <SettingsPage
+                          onProfileUpdate={(updated) => {
+                            setUser(updated);
+                          }}
+                        />
+                      ) : (
+                        <Navigate to="/signin" replace state={{ from: "/settings" }} />
+                      )
                     ) : (
-                      <Navigate to="/signin" replace state={{ from: "/settings" }} />
+                      <div className="p-6 text-muted-foreground">Loading settings…</div>
                     )
-                  ) : (
-                    <div className="p-6 text-muted-foreground">Loading settings…</div>
-                  )
-                }
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
-        </main>
-      </div>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </div>
+          </main>
+        </div>
 
-      {/* Stacked Modals */}
-      {modals.includes("task") && (
-        <TaskModal
-          task={selectedTask}
-          currentUser={user}
-          onTaskUpdate={(updated) => setSelectedTask(updated)}
-        />
-      )}
-      {modals.includes("tag") && (
-        <TagModal task={selectedTask} />
-      )}
-      {modals.includes("member") && (
-        <MemberModal
-          task={selectedTask}
-          onAssign={(updated) => setSelectedTask(updated)}
-        />
-      )}
-      {modals.includes("notifications") && <NotificationInbox currentUser={user} />}
-      {modals.includes("invite") && (
-        <ProjectInviteModal
-          projectId={inviteProjectId}
-          onClose={() => setInviteProjectId(null)}
-        />
-      )}
-    </div>
+        {/* Stacked Modals */}
+        {modals.includes("task") && (
+          <TaskModal
+            task={selectedTask}
+            currentUser={user}
+            onTaskUpdate={(updated) => setSelectedTask(updated)}
+          />
+        )}
+        {modals.includes("tag") && <TagModal task={selectedTask} />}
+        {modals.includes("member") && (
+          <MemberModal
+            task={selectedTask}
+            onAssign={(updated) => setSelectedTask(updated)}
+          />
+        )}
+        {modals.includes("notifications") && <NotificationInbox currentUser={user} />}
+        {modals.includes("invite") && (
+          <ProjectInviteModal
+            projectId={inviteProjectId}
+            onClose={() => setInviteProjectId(null)}
+          />
+        )}
+      </div>
+    </TeamProvider>
   );
 }
 
