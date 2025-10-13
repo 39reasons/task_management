@@ -18,6 +18,7 @@ export const GET_WORKFLOWS = gql`
           description
           due_date
           priority
+          status
           stage_id
           project_id
           team_id
@@ -58,6 +59,7 @@ export const GET_WORKFLOW = gql`
           description
           due_date
           priority
+          status
           stage_id
           project_id
           team_id

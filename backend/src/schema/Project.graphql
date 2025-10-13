@@ -9,6 +9,7 @@ type Project {
   position: Int
   tasks: [Task!]
   workflows: [Workflow!]
+  backlogs: [Backlog!]
   members: [User!]
   viewer_is_owner: Boolean!
   viewer_role: TeamRole

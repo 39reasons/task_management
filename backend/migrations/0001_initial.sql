@@ -1,10 +1,4 @@
--- 0001_initial.sql
--- Full schema reset and rebuild for Task Management App
-
-\set ON_ERROR_STOP on
-BEGIN;
-
--- === DROP ALL TABLES ===
+-- Wipe old structures
 DROP TABLE IF EXISTS task_tags CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
@@ -19,10 +13,7 @@ DROP TABLE IF EXISTS teams CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS tags CASCADE;
 
--- === EXTENSIONS ===
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- === USERS ===
+-- Users
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   first_name TEXT NOT NULL,
@@ -34,7 +25,7 @@ CREATE TABLE users (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- === TEAMS ===
+-- Teams
 CREATE TABLE teams (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -45,7 +36,7 @@ CREATE TABLE teams (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- === TEAM MEMBERS ===
+-- Team membership
 CREATE TABLE team_members (
   team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -56,7 +47,7 @@ CREATE TABLE team_members (
   PRIMARY KEY (team_id, user_id)
 );
 
--- === PROJECTS ===
+-- Projects (container for workflows)
 CREATE TABLE projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
@@ -68,7 +59,18 @@ CREATE TABLE projects (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- === WORKFLOWS ===
+-- Team backlogs (collections of planned work)
+CREATE TABLE backlogs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  position INT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Workflows (each project can have multiple boards)
 CREATE TABLE workflows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -77,7 +79,7 @@ CREATE TABLE workflows (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- === STAGES ===
+-- Stages (columns in a workflow)
 CREATE TABLE stages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workflow_id UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
@@ -87,7 +89,7 @@ CREATE TABLE stages (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- === TASKS ===
+-- Tasks (cards inside a stage)
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   stage_id UUID NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
@@ -96,18 +98,28 @@ CREATE TABLE tasks (
   description TEXT,
   due_date DATE,
   priority TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- === TASK MEMBERS ===
+CREATE TABLE backlog_tasks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  backlog_id UUID NOT NULL REFERENCES backlogs(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  position INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE task_members (
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   PRIMARY KEY (task_id, user_id)
 );
 
--- === NOTIFICATIONS ===
 CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recipient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -121,7 +133,7 @@ CREATE TABLE notifications (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- === USER ↔ PROJECT RELATION ===
+-- User <-> Project   ship
 CREATE TABLE user_projects (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -129,7 +141,7 @@ CREATE TABLE user_projects (
   PRIMARY KEY (user_id, project_id)
 );
 
--- === COMMENTS ===
+-- Comments on tasks
 CREATE TABLE comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -139,7 +151,7 @@ CREATE TABLE comments (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- === TAGS ===
+-- Tags (per project)
 CREATE TABLE tags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -150,23 +162,22 @@ CREATE TABLE tags (
   UNIQUE (project_id, name)
 );
 
--- === TASK TAGS ===
+-- Task <-> Tag mapping
 CREATE TABLE task_tags (
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
   PRIMARY KEY (task_id, tag_id)
 );
 
--- === INDEXES ===
-CREATE INDEX idx_tasks_stage_position ON tasks (stage_id, position);
-CREATE INDEX idx_tasks_stage_id ON tasks (stage_id);
-CREATE INDEX idx_stages_workflow ON stages (workflow_id);
-CREATE INDEX idx_workflows_project ON workflows (project_id);
-CREATE INDEX idx_projects_team ON projects (team_id);
-CREATE INDEX idx_user_projects_project_user ON user_projects (project_id, user_id);
-CREATE INDEX idx_task_members_task ON task_members (task_id);
-CREATE INDEX idx_task_tags_task ON task_tags (task_id);
-CREATE INDEX idx_team_members_user ON team_members (user_id);
-CREATE INDEX idx_team_members_team ON team_members (team_id);
-
-COMMIT;
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_tasks_stage_position ON tasks (stage_id, position);
+CREATE INDEX IF NOT EXISTS idx_tasks_stage_id ON tasks (stage_id);
+CREATE INDEX IF NOT EXISTS idx_stages_workflow ON stages (workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows (project_id);
+CREATE INDEX IF NOT EXISTS idx_projects_team ON projects (team_id);
+CREATE INDEX IF NOT EXISTS idx_user_projects_project_user ON user_projects (project_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_task_members_task ON task_members (task_id);
+CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags (task_id);
+CREATE INDEX IF NOT EXISTS idx_backlog_tasks_backlog ON backlog_tasks (backlog_id, position);
+CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members (user_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members (team_id);

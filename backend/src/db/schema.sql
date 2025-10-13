@@ -59,6 +59,17 @@ CREATE TABLE projects (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Team backlogs (collections of planned work)
+CREATE TABLE backlogs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  position INT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Workflows (each project can have multiple boards)
 CREATE TABLE workflows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -87,6 +98,19 @@ CREATE TABLE tasks (
   description TEXT,
   due_date DATE,
   priority TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Tasks captured in a backlog for triage
+CREATE TABLE backlog_tasks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  backlog_id UUID NOT NULL REFERENCES backlogs(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  position INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -155,5 +179,6 @@ CREATE INDEX IF NOT EXISTS idx_projects_team ON projects (team_id);
 CREATE INDEX IF NOT EXISTS idx_user_projects_project_user ON user_projects (project_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_task_members_task ON task_members (task_id);
 CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags (task_id);
+CREATE INDEX IF NOT EXISTS idx_backlog_tasks_backlog ON backlog_tasks (backlog_id, position);
 CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members (team_id);

@@ -33,12 +33,14 @@ export const taskResolvers = {
         description,
         due_date,
         priority,
+        status,
       }: {
         stage_id: string;
         title: string;
         description?: string;
         due_date?: string;
         priority?: string;
+        status?: string;
       },
       ctx: GraphQLContext
     ): Promise<Task> => {
@@ -49,6 +51,7 @@ export const taskResolvers = {
         description,
         due_date,
         priority,
+        status,
       }, {
         origin: ctx.clientId ?? null,
       });
@@ -63,6 +66,7 @@ export const taskResolvers = {
         due_date,
         priority,
         stage_id,
+        status,
       }: {
         id: string;
         title?: string;
@@ -70,6 +74,7 @@ export const taskResolvers = {
         due_date?: string | null;
         priority?: string | null;
         stage_id?: string;
+        status?: string | null;
       },
       ctx: GraphQLContext
     ): Promise<Task> => {
@@ -80,6 +85,7 @@ export const taskResolvers = {
         due_date,
         priority,
         stage_id,
+        status,
       }, {
         origin: ctx.clientId ?? null,
       });

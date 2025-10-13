@@ -207,6 +207,7 @@ export async function getProjectById(
       t.description,
       to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
       t.priority,
+      t.status,
       t.stage_id,
       w.project_id,
       p.team_id,

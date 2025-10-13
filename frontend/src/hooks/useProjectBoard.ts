@@ -20,6 +20,7 @@ import type { Stage, Task, Workflow } from "@shared/types";
 function normalizeTaskForCache(task: Task) {
   return {
     ...task,
+    status: task.status ?? "new",
     __typename: "Task" as const,
     tags: (task.tags ?? []).map((tag) => ({
       ...tag,
@@ -113,6 +114,7 @@ export function useProjectBoard(): UseProjectBoardResult {
       description: null,
       due_date: null,
       priority: null,
+      status: "new",
       stage_id,
       project_id: projectId,
       position: stageMeta?.tasks.length ?? 0,

@@ -8,6 +8,7 @@ export const GET_TASKS = gql`
       description
       due_date
       priority
+      status
       stage_id
       project_id
       team_id
@@ -54,6 +55,7 @@ export const CREATE_TASK = gql`
       description
       due_date
       priority
+      status
       stage_id
       project_id
       team_id
@@ -91,6 +93,7 @@ export const UPDATE_TASK_PRIORITY = gql`
     updateTaskPriority(id: $id, priority: $priority) {
       id
       priority
+      status
       stage_id
     }
   }
@@ -104,6 +107,7 @@ export const UPDATE_TASK = gql`
     $due_date: String
     $priority: String
     $stage_id: ID
+    $status: String
   ) {
     updateTask(
       id: $id
@@ -112,12 +116,14 @@ export const UPDATE_TASK = gql`
       due_date: $due_date
       priority: $priority
       stage_id: $stage_id
+      status: $status
     ) {
       id
       title
       description
       due_date
       priority
+      status
       stage_id
       project_id
       team_id
@@ -152,6 +158,7 @@ export const MOVE_TASK = gql`
       team_id
       stage_id
       position
+      status
       assignees {
         id
         first_name
@@ -179,6 +186,7 @@ export const SET_TASK_MEMBERS = gql`
   mutation SetTaskMembers($task_id: ID!, $member_ids: [ID!]!) {
     setTaskMembers(task_id: $task_id, member_ids: $member_ids) {
       id
+      status
       assignees {
         id
         first_name
@@ -210,6 +218,7 @@ export const TASK_FRAGMENT = gql`
     description
     due_date
     priority
+    status
     stage_id
     project_id
     position

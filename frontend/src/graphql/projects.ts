@@ -37,6 +37,7 @@ export const GET_PROJECTS = gql`
             title
             due_date
             priority
+            status
             stage_id
             project_id
             team_id
@@ -89,6 +90,40 @@ export const GET_PROJECT = gql`
         name
         stages {
           id
+          name
+          tasks {
+            id
+            title
+            due_date
+            priority
+            status
+            stage_id
+            assignees {
+              id
+              first_name
+              last_name
+              username
+              avatar_color
+            }
+          }
+        }
+      }
+      backlogs {
+        id
+        team_id
+        name
+        description
+        position
+        created_at
+        updated_at
+        tasks {
+          id
+          title
+          description
+          status
+          position
+          created_at
+          updated_at
         }
       }
     }
@@ -142,6 +177,7 @@ export const ADD_PROJECT = gql`
             title
             due_date
             priority
+            status
             stage_id
             project_id
             team_id
@@ -202,6 +238,7 @@ export const UPDATE_PROJECT = gql`
             title
             due_date
             priority
+            status
             stage_id
             project_id
             team_id
@@ -280,6 +317,7 @@ export const GET_PROJECTS_OVERVIEW = gql`
             description
             due_date
             priority
+            status
             stage_id
             project_id
             team_id

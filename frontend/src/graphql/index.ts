@@ -7,3 +7,5 @@ export * from "./workflows";
 export * from "./users";
 export * from "./notifications";
 export * from "./teams";
+
+export * from "./backlogs";

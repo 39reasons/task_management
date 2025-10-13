@@ -60,6 +60,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<Task["priority"] | null>(null);
+  const [status, setStatus] = useState<Task["status"]>("new");
   const [commentText, setCommentText] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
@@ -69,6 +70,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const [draftPrompt, setDraftPrompt] = useState("");
   const [draftError, setDraftError] = useState<string | null>(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const { data, loading, refetch } = useQuery(GET_COMMENTS, {
     variables: { task_id: task?.id },
@@ -109,21 +112,28 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
         }
       }
 
+      const normalizedTask = {
+        ...data,
+        status: data.status ?? "new",
+      } as Task;
+
       client.cache.writeFragment({
         id: cacheId,
         fragment: TASK_FRAGMENT,
         data: {
-          ...data,
+          ...normalizedTask,
           __typename: "Task",
         },
       });
-      onTaskUpdate?.(data);
+      onTaskUpdate?.(normalizedTask);
     },
     [client, onTaskUpdate]
   );
 
   const mutateTask = useCallback(
-    async (variables: Partial<Pick<Task, "title" | "description" | "due_date" | "priority" | "stage_id">>) => {
+    async (
+      variables: Partial<Pick<Task, "title" | "description" | "due_date" | "priority" | "stage_id" | "status">>
+    ) => {
       if (!task) return null;
       const { data: mutationData } = await updateTask({
         variables: {
@@ -207,6 +217,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                   description,
                   due_date: dueDate ? dueDate : null,
                   priority,
+                  status,
                 }
               : null);
         if (sourceTask) {
@@ -228,6 +239,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       description,
       dueDate,
       priority,
+      status,
     ]
   );
 
@@ -330,6 +342,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       const finalDueDate = finalTask.due_date ? finalTask.due_date.slice(0, 10) : "";
       setDueDate(finalDueDate);
       setPriority(finalTask.priority ?? null);
+      setStatus(finalTask.status ?? "new");
 
       const nextTagState = Array.isArray(finalTask.tags)
         ? finalTask.tags.map((tag) => ({
@@ -388,6 +401,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       const normalizedDueDate = task.due_date ? task.due_date.slice(0, 10) : "";
       setDueDate(normalizedDueDate);
       setPriority(task.priority ?? null);
+      setStatus(task.status ?? "new");
       setEditingCommentId(null);
       setEditingCommentText("");
       setCommentText("");
@@ -396,6 +410,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       setDraftPrompt("");
       setDraftError(null);
       setIsDraftPromptVisible(false);
+      setStatusError(null);
+      setIsUpdatingStatus(false);
     }
   }, [task]);
 
@@ -412,7 +428,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     const currentDescription = (task.description ?? "").trim();
     const currentDue = task.due_date ? task.due_date.slice(0, 10) : "";
 
-    const payload: Partial<Pick<Task, "title" | "description" | "due_date" | "priority">> = {};
+    const payload: Partial<Pick<Task, "title" | "description" | "due_date" | "priority" | "status">> = {};
     let shouldMutate = false;
 
     if (!trimmedTitle) {
@@ -437,6 +453,11 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       shouldMutate = true;
     }
 
+    if (status !== task.status) {
+      payload.status = status;
+      shouldMutate = true;
+    }
+
     if (!shouldMutate) {
       return;
     }
@@ -456,8 +477,9 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       const nextDue = updated.due_date ? updated.due_date.slice(0, 10) : "";
       setDueDate(nextDue);
       setPriority(updated.priority ?? null);
+      setStatus(updated.status ?? status);
     }
-  }, [task, title, initialTitle, description, initialDescription, dueDate, priority, mutateTask]);
+  }, [task, title, initialTitle, description, initialDescription, dueDate, priority, status, mutateTask]);
 
   const handleClose = useCallback(async () => {
     await saveAllChanges();
@@ -499,10 +521,11 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
         const nextTitle = updated.title ?? "";
         setInitialTitle(nextTitle.slice(0, TASK_TITLE_MAX_LENGTH));
         setTitle(nextTitle.slice(0, TASK_TITLE_MAX_LENGTH));
+        setStatus(updated.status ?? status);
       }
     }
     setIsEditingTitle(false);
-  }, [task, title, initialTitle, mutateTask]);
+  }, [task, title, initialTitle, status, mutateTask]);
 
   const commitDescription = useCallback(async () => {
     if (!task) return;
@@ -518,9 +541,10 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       const nextDescription = updated.description ?? "";
       setInitialDescription(nextDescription);
       setDescription(nextDescription);
+      setStatus(updated.status ?? status);
     }
     setIsEditingDescription(false);
-  }, [task, description, initialDescription, mutateTask]);
+  }, [task, description, initialDescription, status, mutateTask]);
 
   const handleDueDateSave = useCallback(
     async (nextDate: string | null) => {
@@ -541,6 +565,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       const updated = await mutateTask({ due_date: normalized });
 
       if (updated) {
+        setStatus(updated.status ?? status);
         const nextDue = updated.due_date ? updated.due_date.slice(0, 10) : "";
         const previousDue = current ?? "";
 
@@ -565,7 +590,43 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
 
       // retain optimistic state if mutation returned no data
     },
-    [task, dueDate, mutateTask, writeTaskToCache]
+    [task, dueDate, status, mutateTask, writeTaskToCache]
+  );
+
+  const handleStatusChange = useCallback(
+    async (nextStatus: Task["status"]) => {
+      if (!task) return;
+      const previousStatus = status;
+      if (nextStatus === previousStatus) return;
+
+      setStatusError(null);
+      setStatus(nextStatus);
+      setIsUpdatingStatus(true);
+
+      const optimisticTask = {
+        ...(task as Task),
+        status: nextStatus,
+      } as Task;
+      writeTaskToCache(optimisticTask);
+
+      try {
+        const updated = await mutateTask({ status: nextStatus });
+        if (updated) {
+          setStatus(updated.status ?? nextStatus);
+        }
+      } catch (error) {
+        const fallbackTask = {
+          ...(task as Task),
+          status: previousStatus,
+        } as Task;
+        writeTaskToCache(fallbackTask);
+        setStatus(previousStatus);
+        setStatusError(error instanceof Error ? error.message : "Unable to update status.");
+      } finally {
+        setIsUpdatingStatus(false);
+      }
+    },
+    [task, status, mutateTask, writeTaskToCache]
   );
 
   const submitComment = async () => {
@@ -686,6 +747,12 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                   />
 
                   <TaskMetaSection
+                    status={status}
+                    onStatusChange={(value) => {
+                      void handleStatusChange(value);
+                    }}
+                    isStatusUpdating={isUpdatingStatus}
+                    statusError={statusError}
                     hasTags={hasTags}
                     hasAssignees={hasAssignees}
                     tags={tags}

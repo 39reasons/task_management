@@ -39,6 +39,7 @@ export const ADD_TAG_TO_TASK = gql`
     addTagToTask(task_id: $task_id, name: $name, color: $color) {
       id
       title
+      status
       tags {
         id
         name
@@ -53,6 +54,7 @@ export const ASSIGN_TAG_TO_TASK = gql`
     assignTagToTask(task_id: $task_id, tag_id: $tag_id) {
       id
       title
+      status
       tags {
         id
         name
@@ -70,6 +72,7 @@ export const REMOVE_TAG_FROM_TASK = gql`
       description
       due_date
       priority
+      status
       stage_id
       project_id
       position

@@ -1,9 +1,12 @@
+export type TaskStatus = "new" | "active" | "closed";
+
 export interface Task {
   id: string;
   title: string;
   description?: string | null;
   due_date?: string | null;
   priority?: "low" | "medium" | "high" | null;
+  status: TaskStatus;
   stage_id: string;
   project_id: string;
   team_id?: string;
@@ -11,6 +14,17 @@ export interface Task {
   stage?: Stage;
   position?: number;
   assignees?: User[];
+}
+
+export interface BacklogTask {
+  id: string;
+  backlog_id: string;
+  title: string;
+  description?: string | null;
+  status: TaskStatus;
+  position?: number | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface TaskDraftSuggestion {
@@ -47,6 +61,17 @@ export interface Workflow {
   stages: Stage[];
 }
 
+export interface Backlog {
+  id: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  position?: number | null;
+  created_at?: string;
+  updated_at?: string;
+  tasks?: BacklogTask[];
+}
+
 export interface ProjectWorkflowSummary {
   id: string;
   name: string;
@@ -78,6 +103,7 @@ export interface Project {
   position?: number | null;
   team?: Team | null;
   workflows?: ProjectWorkflowSummary[];
+  backlogs?: Backlog[];
 }
 
 export interface AuthUser {

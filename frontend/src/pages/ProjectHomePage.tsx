@@ -3,7 +3,7 @@ import { useQuery } from "@apollo/client";
 import type { AuthUser, Project } from "@shared/types";
 import { Card, CardContent, Badge, Button, Avatar, AvatarFallback, Separator } from "../components/ui";
 import { GET_PROJECT } from "../graphql";
-import { Loader2, Users, Layers, CalendarDays, AlertCircle, Sparkles } from "lucide-react";
+import { Loader2, Users, Layers, CalendarDays, AlertCircle } from "lucide-react";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
 import { getInitials, getFullName } from "../utils/user";
 

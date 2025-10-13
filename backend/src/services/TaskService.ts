@@ -12,6 +12,7 @@ const TASK_BASE_SELECT = `
     t.description,
     to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
     t.priority,
+    t.status,
     w.project_id,
     p.team_id,
     t.position
@@ -27,6 +28,19 @@ function normalizeDate(input?: string | null): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
+const VALID_TASK_STATUSES: ReadonlySet<Task["status"]> = new Set(["new", "active", "closed"]);
+
+function sanitizeTaskStatus(input?: string | null): Task["status"] {
+  const candidate = (input ?? "").trim().toLowerCase();
+  if (!candidate) {
+    return "new";
+  }
+  if (VALID_TASK_STATUSES.has(candidate as Task["status"])) {
+    return candidate as Task["status"];
+  }
+  throw new Error("Invalid task status.");
+}
+
 function mapTaskRow(row: Task & { project_id: string; team_id: string; position: number }): Task {
   return {
     id: row.id,
@@ -34,6 +48,7 @@ function mapTaskRow(row: Task & { project_id: string; team_id: string; position:
     description: row.description,
     due_date: row.due_date,
     priority: row.priority as Task["priority"],
+    status: sanitizeTaskStatus(row.status),
     stage_id: row.stage_id,
     project_id: row.project_id,
     team_id: row.team_id,
@@ -168,13 +183,16 @@ export async function createTask({
   description,
   due_date,
   priority,
+  status,
 }: {
   stage_id: string;
   title: string;
   description?: string | null;
   due_date?: string | null;
   priority?: string | null;
+  status?: string | null;
 }, options?: { origin?: string | null }): Promise<Task> {
+  const normalizedStatus = sanitizeTaskStatus(status ?? undefined);
   const result = await query<{ id: string }>(
     `
     WITH next_position AS (
@@ -182,18 +200,19 @@ export async function createTask({
       FROM tasks
       WHERE stage_id = $1
     )
-    INSERT INTO tasks (stage_id, title, description, due_date, priority, position)
+    INSERT INTO tasks (stage_id, title, description, due_date, priority, status, position)
     VALUES (
       $1,
       $2,
       $3,
       COALESCE($4::DATE, NULL),
       $5,
+      $6,
       (SELECT pos FROM next_position)
     )
     RETURNING id
     `,
-    [stage_id, title, description ?? null, normalizeDate(due_date), priority ?? null]
+    [stage_id, title, description ?? null, normalizeDate(due_date), priority ?? null, normalizedStatus]
   );
 
   const task = await getTaskById(result.rows[0].id);
@@ -212,6 +231,7 @@ export async function updateTask(
     priority,
     stage_id,
     position,
+    status,
   }: {
     title?: string;
     description?: string;
@@ -219,11 +239,14 @@ export async function updateTask(
     priority?: string | null;
     stage_id?: string;
     position?: number;
+    status?: string | null;
   },
   options?: { origin?: string | null }
 ): Promise<Task> {
   const beforeUpdate = await getTaskById(id);
 
+  const normalizedStatus =
+    status === undefined || status === null ? null : sanitizeTaskStatus(status);
   const result = await query<{ id: string }>(
     `
     UPDATE tasks
@@ -233,6 +256,7 @@ export async function updateTask(
         priority = COALESCE($5, priority),
         stage_id = COALESCE($6, stage_id),
         position = COALESCE($7, position),
+        status = COALESCE($8, status),
         updated_at = now()
     WHERE id = $1
     RETURNING id
@@ -245,6 +269,7 @@ export async function updateTask(
       priority ?? null,
       stage_id ?? null,
       position ?? null,
+      normalizedStatus,
     ]
   );
 

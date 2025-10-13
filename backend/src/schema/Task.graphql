@@ -4,6 +4,7 @@ type Task {
   description: String
   due_date: String
   priority: String
+  status: String!
   stage_id: ID!
   project_id: ID
   team_id: ID
@@ -40,6 +41,7 @@ extend type Mutation {
     description: String
     due_date: String
     priority: String
+    status: String
   ): Task!
 
   updateTask(
@@ -49,6 +51,7 @@ extend type Mutation {
     due_date: String
     priority: String
     stage_id: ID
+    status: String
   ): Task!
 
   deleteTask(id: ID!): Boolean!

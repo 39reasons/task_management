@@ -1,7 +1,8 @@
 import * as ProjectService from "../services/ProjectService.js";
 import * as WorkflowService from "../services/WorkflowService.js";
 import * as TeamService from "../services/TeamService.js";
-import type { Project, Workflow, User, Team } from "../../../shared/types.js";
+import * as BacklogService from "../services/BacklogService.js";
+import type { Project, Workflow, User, Team, Backlog } from "../../../shared/types.js";
 import { GraphQLContext } from "src/types/context";
 
 export const projectResolvers = {
@@ -108,6 +109,12 @@ export const projectResolvers = {
       } catch {
         return null;
       }
+    },
+    backlogs: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<Backlog[]> => {
+      if (!ctx.user) return [];
+      const hasAccess = await ProjectService.userHasProjectAccess(parent.id, ctx.user.id);
+      if (!hasAccess) return [];
+      return await BacklogService.getBacklogsForProject(parent.id);
     },
   },
 };

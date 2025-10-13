@@ -6,6 +6,7 @@ import { tagResolvers } from "./tagResolvers.js";
 import { workflowResolvers } from "./workflowResolvers.js";
 import { notificationResolvers } from "./notificationResolvers.js";
 import { teamResolvers } from "./teamResolvers.js";
+import { backlogResolvers } from "./backlogResolvers.js";
 
 export const resolvers = [
   taskResolvers,
@@ -16,4 +17,5 @@ export const resolvers = [
   workflowResolvers,
   notificationResolvers,
   teamResolvers,
+  backlogResolvers,
 ];

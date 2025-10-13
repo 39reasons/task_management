@@ -29,7 +29,8 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
   const { data } = useQuery(GET_PROJECT, {
     variables: { id: projectId },
     skip: !projectId,
-    fetchPolicy: "cache-first",
+    fetchPolicy: "network-only",
+    nextFetchPolicy: "cache-first",
   });
 
   const projectName = data?.project?.name ?? "Project";
