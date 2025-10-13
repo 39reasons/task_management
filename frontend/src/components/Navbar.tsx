@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 import { Bell, LogIn, LogOut, Settings } from "lucide-react";
+import type { AuthUser } from "@shared/types";
 import { useModal } from "./ModalStack";
 import { useNotifications } from "../hooks/useNotifications";
 import { getFullName, getInitials } from "../utils/user";
-import type { AuthUser } from "@shared/types";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
 import {
   Avatar,
@@ -29,8 +29,8 @@ interface NavbarProps {
 
 export default function Navbar({ user, onLogout }: NavbarProps) {
   const { openModal } = useModal();
-  const { notifications } = useNotifications(!!user, user?.id ?? null);
-  const unreadCount = notifications.filter((n) => !n.is_read && n.status === "pending").length;
+  const { notifications } = useNotifications(Boolean(user), user?.id ?? null);
+  const unreadCount = notifications.filter((notification) => !notification.is_read && notification.status === "pending").length;
 
   return (
     <nav className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/65">

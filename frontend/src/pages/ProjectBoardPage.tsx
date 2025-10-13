@@ -1,13 +1,11 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Sparkles, Loader2, UserPlus2, Settings, Trash2 } from "lucide-react";
+import type { AuthUser, Task, Project } from "@shared/types";
 import { KanbanBoard } from "../components/KanbanBoard/KanbanBoard";
 import { useProjectBoard } from "../hooks/useProjectBoard";
-import { GET_PROJECTS, UPDATE_PROJECT, DELETE_PROJECT, GET_PROJECTS_OVERVIEW, LEAVE_PROJECT } from "../graphql";
-import { useTeamContext } from "../providers/TeamProvider";
-import type { AuthUser, Task, Project } from "@shared/types";
-import { Sparkles, Loader2, UserPlus2, Settings, Trash2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { GET_PROJECT, UPDATE_PROJECT, DELETE_PROJECT, GET_PROJECTS_OVERVIEW, LEAVE_PROJECT } from "../graphql";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 import { Input } from "../components/ui/input";
@@ -21,7 +19,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 import { getNavItemHighlightClasses } from "../lib/navigation";
 
 const NAME_MAX_LENGTH = 120;
@@ -36,7 +40,6 @@ export function ProjectBoardPage({
   setSelectedTask: (task: Task) => void;
   onInvite: (projectId: string) => void;
 }) {
-  const { activeTeamId, setActiveTeamId } = useTeamContext();
   const {
     projectId,
     workflow,
@@ -52,36 +55,54 @@ export function ProjectBoardPage({
     loading,
   } = useProjectBoard();
   const workflowTeamId = workflow?.team_id ?? null;
-  const lastProjectIdRef = useRef<string | null>(null);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!projectId || !workflowTeamId) {
-      return;
-    }
+  const {
+    data: projectData,
+    loading: projectLoading,
+    error: projectError,
+    refetch: refetchProject,
+  } = useQuery<{ project: Project | null }>(GET_PROJECT, {
+    variables: projectId ? { id: projectId } : undefined,
+    skip: !projectId,
+    fetchPolicy: "network-only",
+    nextFetchPolicy: "cache-first",
+    errorPolicy: "all",
+  });
 
-    if (lastProjectIdRef.current !== projectId) {
-      lastProjectIdRef.current = projectId;
-      setActiveTeamId(workflowTeamId);
-    }
-  }, [projectId, workflowTeamId, setActiveTeamId]);
+  const project = projectData?.project ?? null;
 
-  const queryTeamId = workflowTeamId ?? activeTeamId ?? null;
+  const projectTeamId = useMemo(
+    () => project?.team_id ?? workflowTeamId ?? null,
+    [project?.team_id, workflowTeamId]
+  );
+
+  const backDestination = useMemo(() => (projectId ? `/projects/${projectId}` : "/"), [projectId]);
+  const handleBackNavigation = useCallback(() => {
+    navigate(backDestination);
+  }, [navigate, backDestination]);
+
+  const projectName = project?.name ?? workflow?.name ?? "Project";
 
   const [isWorkflowPromptOpen, setIsWorkflowPromptOpen] = useState(false);
   const [workflowPrompt, setWorkflowPrompt] = useState("");
   const [workflowPromptError, setWorkflowPromptError] = useState<string | null>(null);
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
+
   const [settingsProject, setSettingsProject] = useState<Project | null>(null);
   const [settingsName, setSettingsName] = useState("");
   const [settingsDescription, setSettingsDescription] = useState("");
   const [settingsPublic, setSettingsPublic] = useState(false);
   const [settingsSubmitting, setSettingsSubmitting] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [isDeleteSectionOpen, setIsDeleteSectionOpen] = useState(false);
-  const navigate = useNavigate();
+
+  const [leaveProjectLoading, setLeaveProjectLoading] = useState(false);
+  const [leaveProjectError, setLeaveProjectError] = useState<string | null>(null);
 
   const [updateProject] = useMutation(UPDATE_PROJECT);
   const [removeProject] = useMutation(DELETE_PROJECT);
@@ -95,71 +116,17 @@ export function ProjectBoardPage({
     setIsDeleteSectionOpen(false);
   }, []);
 
-  const { data: projectsData } = useQuery<{ projects: Project[] }>(GET_PROJECTS, {
-    variables: queryTeamId ? { team_id: queryTeamId } : undefined,
-    skip: !projectId || !queryTeamId,
-    fetchPolicy: "network-only",
-    nextFetchPolicy: "cache-first",
-    errorPolicy: "all",
-    returnPartialData: true,
-  });
-
-  const currentProject = useMemo(() => {
-    if (!projectId) {
-      return null;
-    }
-    return projectsData?.projects?.find((project) => project.id === projectId) ?? null;
-  }, [activeTeamId, projectId, projectsData]);
-
-  const projectTeamId = useMemo(
-    () => currentProject?.team_id ?? workflowTeamId ?? activeTeamId ?? null,
-    [activeTeamId, currentProject?.team_id, workflowTeamId]
-  );
-
-  const projectName = currentProject?.name ?? workflow?.name ?? "Project";
-  const [leaveProjectLoading, setLeaveProjectLoading] = useState(false);
-  const [leaveProjectError, setLeaveProjectError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLeaveProjectError(null);
-    setLeaveProjectLoading(false);
-  }, [projectId]);
-
-  const handleGenerateWorkflow = useCallback(async () => {
-    const trimmed = workflowPrompt.trim();
-    if (!trimmed) {
-      setWorkflowPromptError("Describe the workflow you'd like to generate.");
-      return;
-    }
-
-    setWorkflowPromptError(null);
-    setIsGeneratingWorkflow(true);
-    try {
-      await generateWorkflowStagesFromAI(trimmed);
-      setIsWorkflowPromptOpen(false);
-      setWorkflowPrompt("");
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message.replace(/^GraphQL error:\s*/i, "")
-          : "Failed to generate workflow.";
-      setWorkflowPromptError(message || "Failed to generate workflow.");
-    } finally {
-      setIsGeneratingWorkflow(false);
-    }
-  }, [workflowPrompt, generateWorkflowStagesFromAI]);
-
   const openProjectSettings = useCallback(() => {
-    if (!currentProject) return;
-    setSettingsProject(currentProject);
-    setSettingsName(currentProject.name ?? "");
-    setSettingsDescription(currentProject.description ?? "");
-    setSettingsPublic(Boolean(currentProject.is_public));
+    if (!project) return;
+    setSettingsProject(project);
+    setSettingsName(project.name ?? "");
+    setSettingsDescription(project.description ?? "");
+    setSettingsPublic(Boolean(project.is_public));
     setSettingsError(null);
     setDeleteError(null);
     setDeleteConfirmation("");
     setIsDeleteSectionOpen(false);
-  }, [currentProject]);
+  }, [project]);
 
   const hasSettingsChanges = useMemo(() => {
     if (!settingsProject) return false;
@@ -201,12 +168,10 @@ export function ProjectBoardPage({
           is_public: settingsPublic,
         },
         refetchQueries: projectTeamId
-          ? [
-              { query: GET_PROJECTS, variables: { team_id: projectTeamId } },
-              { query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } },
-            ]
+          ? [{ query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } }]
           : [],
       });
+      await refetchProject();
       resetSettingsState();
     } catch (error) {
       setSettingsError((error as Error).message ?? "Unable to update project.");
@@ -222,6 +187,7 @@ export function ProjectBoardPage({
     settingsPublic,
     updateProject,
     projectTeamId,
+    refetchProject,
   ]);
 
   const handleProjectDelete = useCallback(async () => {
@@ -237,10 +203,7 @@ export function ProjectBoardPage({
       await removeProject({
         variables: { id: settingsProject.id },
         refetchQueries: projectTeamId
-          ? [
-              { query: GET_PROJECTS, variables: { team_id: projectTeamId } },
-              { query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } },
-            ]
+          ? [{ query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } }]
           : [],
       });
       if (projectId && settingsProject.id === projectId) {
@@ -257,12 +220,12 @@ export function ProjectBoardPage({
   const canManageProject = Boolean(
     user &&
       projectId &&
-      (currentProject?.viewer_role === "owner" || currentProject?.viewer_role === "admin")
+      (project?.viewer_role === "owner" || project?.viewer_role === "admin")
   );
 
   const handleLeaveProject = useCallback(async () => {
     if (!projectId) return;
-    const name = currentProject?.name ?? "this project";
+    const name = project?.name ?? "this project";
     const confirmed = window.confirm(`Leave the project "${name}"?`);
     if (!confirmed) return;
 
@@ -272,13 +235,11 @@ export function ProjectBoardPage({
       await leaveProjectMutation({
         variables: { project_id: projectId },
         refetchQueries: projectTeamId
-          ? [
-              { query: GET_PROJECTS, variables: { team_id: projectTeamId } },
-              { query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } },
-            ]
+          ? [{ query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } }]
           : [],
       });
-      if (projectId === currentProject?.id) {
+      await refetchProject();
+      if (projectId === project?.id) {
         navigate("/");
       }
       resetSettingsState();
@@ -288,33 +249,85 @@ export function ProjectBoardPage({
       setLeaveProjectLoading(false);
     }
   }, [
-    currentProject?.id,
-    currentProject?.name,
+    project?.id,
+    project?.name,
     leaveProjectMutation,
     navigate,
     projectId,
     projectTeamId,
     resetSettingsState,
+    refetchProject,
   ]);
+
+  useEffect(() => {
+    setLeaveProjectError(null);
+    setLeaveProjectLoading(false);
+  }, [projectId]);
+
+  const handleGenerateWorkflow = useCallback(async () => {
+    const trimmed = workflowPrompt.trim();
+    if (!trimmed) {
+      setWorkflowPromptError("Describe the workflow you'd like to generate.");
+      return;
+    }
+
+    setWorkflowPromptError(null);
+    setIsGeneratingWorkflow(true);
+    try {
+      await generateWorkflowStagesFromAI(trimmed);
+      setIsWorkflowPromptOpen(false);
+      setWorkflowPrompt("");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message.replace(/^GraphQL error:\s*/i, "")
+          : "Failed to generate workflow.";
+      setWorkflowPromptError(message || "Failed to generate workflow.");
+    } finally {
+      setIsGeneratingWorkflow(false);
+    }
+  }, [workflowPrompt, generateWorkflowStagesFromAI]);
 
   const handleCancelWorkflowPrompt = useCallback(() => {
     setIsWorkflowPromptOpen(false);
     setWorkflowPromptError(null);
   }, []);
 
-  if (loading) {
-    return <div className="text-muted-foreground">Loading board…</div>;
+  if (!projectId) {
+    return <div className="p-6 text-destructive">Project identifier is missing.</div>;
+  }
+
+  if (loading || projectLoading) {
+    return <div className="p-6 text-muted-foreground">Loading project board…</div>;
+  }
+
+  if (projectError) {
+    return <div className="p-6 text-destructive">Unable to load project: {projectError.message}</div>;
+  }
+
+  if (!project) {
+    return <div className="p-6 text-destructive">We couldn&apos;t find that project.</div>;
   }
 
   return (
-    <div className="space-y-4 min-w-0">
-      <Card className="w-full rounded-2xl border border-border/60 bg-[hsl(var(--sidebar-background))] shadow-sm dark:border-white/10 dark:bg-white/5">
-        <CardHeader className="flex flex-col gap-4 overflow-hidden p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6 sm:pb-5">
-          <CardTitle className="w-full min-w-0 flex-1 truncate text-xl font-semibold text-foreground sm:w-auto">
-            {projectName}
-          </CardTitle>
-          <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-3">
-            {user && projectId ? (
+    <div className="flex min-h-full flex-col">
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="flex h-16 w-full items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleBackNavigation}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+            <h1 className="truncate text-lg font-semibold text-foreground sm:text-xl">{projectName}</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {user ? (
               <Button
                 type="button"
                 variant="outline"
@@ -325,7 +338,7 @@ export function ProjectBoardPage({
                 disabled={isGeneratingWorkflow}
                 className={getNavItemHighlightClasses({
                   isActive: isWorkflowPromptOpen,
-                  className: "w-full justify-center gap-2 sm:w-auto sm:min-w-[12rem]",
+                  className: "hidden min-w-[12rem] justify-center gap-2 sm:inline-flex",
                   inactiveClassName:
                     "border-border hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-border dark:hover:border-white/15 dark:hover:bg-white/10 dark:hover:text-primary",
                 })}
@@ -335,18 +348,18 @@ export function ProjectBoardPage({
                 {isWorkflowPromptOpen ? "Close AI Workflow" : "Generate AI Workflow"}
               </Button>
             ) : null}
-            {canManageProject && projectId ? (
+            {canManageProject ? (
               <Button
                 type="button"
                 onClick={() => onInvite(projectId)}
                 variant="default"
-                className="w-full justify-center gap-2 sm:w-auto"
+                className="hidden items-center gap-2 sm:inline-flex"
               >
                 <UserPlus2 className="h-4 w-4" />
                 Invite
               </Button>
             ) : null}
-            {user && projectId ? (
+            {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -355,12 +368,12 @@ export function ProjectBoardPage({
                     size="icon"
                     className={getNavItemHighlightClasses({
                       isActive: Boolean(settingsProject),
-                      className: "h-10 w-10 self-center sm:self-auto",
+                      className: "h-10 w-10",
                       inactiveClassName:
-                        "border-border hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-border dark:hover-border-white/15 dark:hover:bg-white/10 dark:hover:text-primary",
+                        "border-border hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-border dark:hover:border-white/15 dark:hover:bg-white/10 dark:hover:text-primary",
                     })}
                     aria-pressed={Boolean(settingsProject)}
-                    disabled={leaveProjectLoading || !currentProject}
+                    disabled={leaveProjectLoading}
                   >
                     <Settings className="h-4 w-4" />
                     <span className="sr-only">Project options</span>
@@ -394,82 +407,113 @@ export function ProjectBoardPage({
               </DropdownMenu>
             ) : null}
           </div>
-        </CardHeader>
+        </div>
+      </header>
+
+      <div className="flex-1 space-y-4 px-4 py-6 sm:px-6">
+        {user ? (
+          <div className="flex flex-col gap-2 sm:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setWorkflowPromptError(null);
+                setIsWorkflowPromptOpen((open) => !open);
+              }}
+              disabled={isGeneratingWorkflow}
+              className="justify-center gap-2"
+              aria-pressed={isWorkflowPromptOpen}
+            >
+              <Sparkles className="h-4 w-4" />
+              {isWorkflowPromptOpen ? "Close AI Workflow" : "Generate AI Workflow"}
+            </Button>
+            {canManageProject ? (
+              <Button
+                type="button"
+                onClick={() => onInvite(projectId)}
+                variant="default"
+                className="justify-center gap-2"
+              >
+                <UserPlus2 className="h-4 w-4" />
+                Invite
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
         {leaveProjectError ? (
-          <div className="mx-5 mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {leaveProjectError}
           </div>
         ) : null}
-        {user && projectId && isWorkflowPromptOpen ? (
-          <CardContent className="border-t border-border/60 pt-4">
-            <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4 text-primary">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">Describe the workflow you need</p>
-                <p className="text-xs text-primary/80">
-                  Mention goals, hand-offs, or constraints. We'll suggest stage names in order and add them to your board.
-                </p>
-              </div>
-              <Textarea
-                value={workflowPrompt}
-                onChange={(event) => {
-                  setWorkflowPrompt(event.target.value);
-                  if (workflowPromptError) {
-                    setWorkflowPromptError(null);
-                  }
-                }}
-                placeholder="e.g. A software release pipeline from idea to deployment with QA and launch"
-                className="min-h-[120px] bg-[hsl(var(--sidebar-background))] text-primary placeholder:text-primary/60"
-                disabled={isGeneratingWorkflow}
-              />
-              {workflowPromptError ? (
-                <p className="text-sm text-destructive">{workflowPromptError}</p>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  onClick={() => void handleGenerateWorkflow()}
-                  disabled={isGeneratingWorkflow}
-                  className="gap-2"
-                >
-                  {isGeneratingWorkflow ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Generating…
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      Generate workflow
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCancelWorkflowPrompt}
-                  disabled={isGeneratingWorkflow}
-                  className="rounded-md border border-white/30 bg-transparent px-4 py-2 text-sm font-medium text-primary hover:border-white/40 hover:bg-white/10 hover:text-primary"
-                >
-                  Cancel
-                </Button>
-              </div>
+
+        {user && isWorkflowPromptOpen ? (
+          <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4 text-primary shadow-sm">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">Describe the workflow you need</p>
+              <p className="text-xs text-primary/80">
+                Mention goals, hand-offs, or constraints. We&apos;ll suggest stage names in order and add them to your board.
+              </p>
             </div>
-          </CardContent>
+            <Textarea
+              value={workflowPrompt}
+              onChange={(event) => {
+                setWorkflowPrompt(event.target.value);
+                if (workflowPromptError) {
+                  setWorkflowPromptError(null);
+                }
+              }}
+              placeholder="e.g. A software release pipeline from idea to deployment with QA and launch"
+              className="min-h-[120px] bg-[hsl(var(--sidebar-background))] text-primary placeholder:text-primary/60"
+              disabled={isGeneratingWorkflow}
+            />
+            {workflowPromptError ? <p className="text-sm text-destructive">{workflowPromptError}</p> : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => void handleGenerateWorkflow()}
+                disabled={isGeneratingWorkflow}
+                className="gap-2"
+              >
+                {isGeneratingWorkflow ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Generate workflow
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelWorkflowPrompt}
+                disabled={isGeneratingWorkflow}
+                className="rounded-md border border-white/30 bg-transparent px-4 py-2 text-sm font-medium text-primary hover:border-white/40 hover:bg-white/10 hover:text-primary"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
         ) : null}
-      </Card>
-      <div className="pb-4 min-w-0">
-        <KanbanBoard
-          stages={stages}
-          onDelete={user ? (id: Task["id"]) => deleteTask(id) : undefined}
-          onMoveTask={moveTask}
-          onReorderTasks={reorderStage}
-          onAddTask={user ? (stageId, title) => createTask(stageId, title) : undefined}
-          onAddStage={user ? addStage : undefined}
-          onDeleteStage={user ? (stageId: string) => deleteStage(stageId) : undefined}
-          onReorderStages={user ? (ordered) => reorderStagesOrder(ordered) : undefined}
-          user={user}
-          setSelectedTask={setSelectedTask}
-        />
+
+        <div className="min-w-0 pb-4">
+          <KanbanBoard
+            stages={stages}
+            onDelete={user ? (id: Task["id"]) => deleteTask(id) : undefined}
+            onMoveTask={moveTask}
+            onReorderTasks={reorderStage}
+            onAddTask={user ? (stageId, title) => createTask(stageId, title) : undefined}
+            onAddStage={user ? addStage : undefined}
+            onDeleteStage={user ? (stageId: string) => deleteStage(stageId) : undefined}
+            onReorderStages={user ? (ordered) => reorderStagesOrder(ordered) : undefined}
+            user={user}
+            setSelectedTask={setSelectedTask}
+          />
+        </div>
       </div>
 
       <Dialog
@@ -483,8 +527,8 @@ export function ProjectBoardPage({
         {settingsProject ? (
           <DialogContent className="max-w-lg">
             <DialogHeader className="space-y-1">
-            <DialogTitle>Project Settings</DialogTitle>
-          <Separator className="my-4" />
+              <DialogTitle>Project Settings</DialogTitle>
+              <Separator className="my-4" />
             </DialogHeader>
             <form
               onSubmit={(event) => {
@@ -626,7 +670,6 @@ export function ProjectBoardPage({
           </DialogContent>
         ) : null}
       </Dialog>
-
     </div>
   );
 }

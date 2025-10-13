@@ -1,22 +1,21 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo } from "react";
+import type { ReactNode } from "react";
 import { useQuery } from "@apollo/client";
 import type { AuthUser, Team } from "@shared/types";
 import { GET_TEAMS } from "../graphql";
 
 interface TeamContextValue {
   teams: Team[];
-  activeTeamId: string | null;
-  activeTeam: Team | null;
   loadingTeams: boolean;
-  setActiveTeamId: (teamId: string | null) => void;
   refetchTeams: () => Promise<Team[]>;
+  getTeamById: (teamId: string | null | undefined) => Team | null;
 }
 
 const TeamContext = createContext<TeamContextValue | undefined>(undefined);
 
 interface TeamProviderProps {
   user: AuthUser | null;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 type TeamsQueryResult = {
@@ -24,84 +23,36 @@ type TeamsQueryResult = {
 };
 
 export function TeamProvider({ user, children }: TeamProviderProps) {
-  const storageKey = user ? `taskmgr:active-team:${user.id}` : null;
-  const [activeTeamId, setActiveTeamIdState] = useState<string | null>(null);
-
   const { data, loading, refetch } = useQuery<TeamsQueryResult>(GET_TEAMS, {
     skip: !user,
     fetchPolicy: "network-only",
     nextFetchPolicy: "cache-first",
   });
 
-  const teams = data?.teams ?? [];
-
-  const setActiveTeamInternal = useCallback(
-    (teamId: string | null) => {
-      setActiveTeamIdState(teamId);
-      if (storageKey) {
-        if (teamId) {
-          window.localStorage.setItem(storageKey, teamId);
-        } else {
-          window.localStorage.removeItem(storageKey);
-        }
-      }
-    },
-    [storageKey]
-  );
-
-  useEffect(() => {
-    if (!user) {
-      setActiveTeamInternal(null);
-      return;
-    }
-
-    if (teams.length === 0) {
-      setActiveTeamInternal(null);
-      return;
-    }
-
-    const hasActiveTeam = activeTeamId ? teams.some((team) => team.id === activeTeamId) : false;
-    if (hasActiveTeam) {
-      return;
-    }
-
-    const storedId = storageKey ? window.localStorage.getItem(storageKey) : null;
-    if (storedId && teams.some((team) => team.id === storedId)) {
-      if (storedId !== activeTeamId) {
-        setActiveTeamInternal(storedId);
-      }
-      return;
-    }
-
-    if (!activeTeamId) {
-      setActiveTeamInternal(teams[0].id);
-    }
-  }, [user, teams, activeTeamId, setActiveTeamInternal, storageKey]);
-
-  useEffect(() => {
-    if (!user) {
-      setActiveTeamInternal(null);
-    }
-  }, [user, setActiveTeamInternal]);
-
   const value = useMemo<TeamContextValue>(() => {
-    const activeTeam = teams.find((team) => team.id === activeTeamId) ?? null;
+    const normalizedTeams = data?.teams ?? [];
     return {
-      teams,
-      activeTeamId,
-      activeTeam,
+      teams: normalizedTeams,
       loadingTeams: loading,
-      setActiveTeamId: (teamId: string | null) => setActiveTeamInternal(teamId),
       refetchTeams: async () => {
         if (!user) {
-          setActiveTeamInternal(null);
           return [];
         }
-        const result = await refetch();
-        return result.data?.teams ?? [];
+        try {
+          const result = await refetch();
+          return result.data?.teams ?? [];
+        } catch {
+          return [];
+        }
+      },
+      getTeamById: (teamId: string | null | undefined) => {
+        if (!teamId) {
+          return null;
+        }
+        return normalizedTeams.find((team) => team.id === teamId) ?? null;
       },
     };
-  }, [teams, activeTeamId, loading, setActiveTeamInternal, refetch, user]);
+  }, [data?.teams, loading, refetch, user]);
 
   return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>;
 }

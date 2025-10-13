@@ -1,11 +1,12 @@
 import { useMemo, useState, useCallback } from "react";
 import { useMutation } from "@apollo/client";
-import { ArrowUpRight, FolderOpen, Sparkles, Users } from "lucide-react";
+import { FolderOpen, Sparkles, Users } from "lucide-react";
 import type { AuthUser, Team, Task } from "@shared/types";
 import { useTeamContext } from "../providers/TeamProvider";
 import { Button } from "../components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { LEAVE_TEAM } from "../graphql";
+import { useNavigate } from "react-router-dom";
 
 interface HomePageProps {
   user: AuthUser | null;
@@ -62,10 +63,11 @@ function formatUpdatedAt(timestamp?: string | null): string {
 }
 
 export function HomePage({ user }: HomePageProps) {
-  const { teams, loadingTeams, activeTeamId, setActiveTeamId, refetchTeams } = useTeamContext();
+  const { teams, loadingTeams, refetchTeams } = useTeamContext();
   const [leaveTeamMutation] = useMutation(LEAVE_TEAM);
   const [leavingTeamId, setLeavingTeamId] = useState<string | null>(null);
   const [leaveTeamError, setLeaveTeamError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const { totals, teamCards } = useMemo(() => {
     const aggregates = {
@@ -119,6 +121,14 @@ export function HomePage({ user }: HomePageProps) {
 
   const noTeams = !loadingTeams && teamCards.length === 0;
 
+  const handleOpenTeam = useCallback(
+    (team: Team) => {
+      if (!team?.id) return;
+      navigate(`/teams/${team.id}`);
+    },
+    [navigate]
+  );
+
   const handleLeaveTeam = useCallback(
     async (team: Team) => {
       if (!team?.id) return;
@@ -129,22 +139,14 @@ export function HomePage({ user }: HomePageProps) {
       setLeavingTeamId(team.id);
       try {
         await leaveTeamMutation({ variables: { team_id: team.id } });
-        const nextTeams = await refetchTeams();
-        if (team.id === activeTeamId) {
-          const remaining = nextTeams.filter((next) => next.id !== team.id);
-          if (remaining.length > 0) {
-            setActiveTeamId(remaining[0].id);
-          } else {
-            setActiveTeamId(null);
-          }
-        }
+        await refetchTeams();
       } catch (error) {
         setLeaveTeamError((error as Error).message ?? "Unable to leave team.");
       } finally {
         setLeavingTeamId(null);
       }
     },
-    [activeTeamId, leaveTeamMutation, refetchTeams, setActiveTeamId]
+    [leaveTeamMutation, refetchTeams]
   );
 
   return (
@@ -211,14 +213,23 @@ export function HomePage({ user }: HomePageProps) {
         <section className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">Your teams</h2>
-            <p className="text-xs text-muted-foreground">Use the sidebar menu to create additional teams.</p>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             {teamCards.map(({ team, projectCount, publicProjects, privateProjects, memberCount }) => (
               <div
                 key={team.id}
-                className="flex flex-col rounded-2xl border border-border bg-card/60 p-6 transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open team ${team.name}`}
+                onClick={() => handleOpenTeam(team)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleOpenTeam(team);
+                  }
+                }}
+                className="flex flex-col rounded-2xl border border-border bg-card/60 p-6 outline-none transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -248,17 +259,16 @@ export function HomePage({ user }: HomePageProps) {
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button variant="ghost" size="sm" className="gap-2" onClick={() => setActiveTeamId(team.id)}>
-                    Set active
-                    <ArrowUpRight className="h-4 w-4" />
-                  </Button>
                   {team.role !== "owner" ? (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="gap-2 text-destructive hover:text-destructive focus:text-destructive"
                       disabled={leavingTeamId === team.id}
-                      onClick={() => handleLeaveTeam(team)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleLeaveTeam(team);
+                      }}
                     >
                       Leave team
                     </Button>

@@ -60,6 +60,41 @@ export const GET_PROJECTS = gql`
   }
 `;
 
+export const GET_PROJECT = gql`
+  query GetProject($id: ID!) {
+    project(id: $id) {
+      id
+      team_id
+      name
+      description
+      is_public
+      viewer_is_owner
+      viewer_role
+      created_at
+      updated_at
+      team {
+        id
+        name
+        slug
+      }
+      members {
+        id
+        first_name
+        last_name
+        username
+        avatar_color
+      }
+      workflows {
+        id
+        name
+        stages {
+          id
+        }
+      }
+    }
+  }
+`;
+
 export const ADD_PROJECT = gql`
   mutation AddProject(
     $team_id: ID!

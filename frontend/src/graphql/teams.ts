@@ -31,6 +31,43 @@ export const GET_TEAMS = gql`
   }
 `;
 
+export const GET_TEAM = gql`
+  query GetTeam($id: ID!) {
+    team(id: $id) {
+      id
+      name
+      description
+      slug
+      role
+      created_at
+      updated_at
+      projects {
+        id
+        team_id
+        name
+        description
+        is_public
+        created_at
+        updated_at
+        viewer_is_owner
+        viewer_role
+        position
+      }
+      members {
+        role
+        status
+        user {
+          id
+          first_name
+          last_name
+          username
+          avatar_color
+        }
+      }
+    }
+  }
+`;
+
 export const CREATE_TEAM = gql`
   mutation CreateTeam($name: String!, $description: String) {
     createTeam(name: $name, description: $description) {

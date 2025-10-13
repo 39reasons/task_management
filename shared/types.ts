@@ -47,6 +47,12 @@ export interface Workflow {
   stages: Stage[];
 }
 
+export interface ProjectWorkflowSummary {
+  id: string;
+  name: string;
+  stages?: Array<Pick<Stage, "id">>;
+}
+
 export interface TaskReorderInput {
   task_id: string;
   stage_id: string;
@@ -71,6 +77,7 @@ export interface Project {
   members?: User[];
   position?: number | null;
   team?: Team | null;
+  workflows?: ProjectWorkflowSummary[];
 }
 
 export interface AuthUser {

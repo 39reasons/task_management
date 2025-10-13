@@ -5,14 +5,12 @@ import {
   MARK_NOTIFICATION_READ,
   DELETE_NOTIFICATION,
   NOTIFICATION_EVENTS,
-  GET_PROJECTS,
-  GET_PROJECTS_OVERVIEW,
 } from "../graphql";
 import type { Notification } from "@shared/types";
 import { useTeamContext } from "../providers/TeamProvider";
 
 export function useNotifications(enabled: boolean = true, _userId: string | null = null) {
-  const { activeTeamId, refetchTeams, setActiveTeamId } = useTeamContext();
+  const { refetchTeams } = useTeamContext();
   const { data, loading, error, refetch } = useQuery<{ notifications: Notification[] }>(
     GET_NOTIFICATIONS,
     {
@@ -37,22 +35,13 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
   const respond = async (id: string, accept: boolean) => {
     const response = await respondMutation({
       variables: { id, accept },
-      refetchQueries: [
-        { query: GET_NOTIFICATIONS },
-        ...(accept && activeTeamId
-          ? [
-              { query: GET_PROJECTS, variables: { team_id: activeTeamId } },
-              { query: GET_PROJECTS_OVERVIEW, variables: { team_id: activeTeamId } },
-            ]
-          : []),
-      ],
+      refetchQueries: [{ query: GET_NOTIFICATIONS }],
     });
 
     if (accept) {
       const projectTeamId = response.data?.respondToNotification?.project?.team_id ?? null;
-      await refetchTeams().catch(() => {});
       if (projectTeamId) {
-        setActiveTeamId(projectTeamId);
+        await refetchTeams().catch(() => {});
       }
     }
   };
