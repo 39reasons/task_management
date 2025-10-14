@@ -7,18 +7,7 @@ type Backlog {
   created_at: String
   updated_at: String
   team: Team
-  tasks: [BacklogTask!]!
-}
-
-type BacklogTask {
-  id: ID!
-  backlog_id: ID!
-  title: String!
-  description: String
-  status: String!
-  position: Int
-  created_at: String
-  updated_at: String
+  tasks: [Task!]!
 }
 
 extend type Query {
@@ -29,7 +18,4 @@ extend type Mutation {
   addBacklog(team_id: ID!, name: String!, description: String, position: Int): Backlog!
   updateBacklog(id: ID!, name: String, description: String, position: Int): Backlog!
   deleteBacklog(id: ID!): Boolean!
-  addBacklogTask(backlog_id: ID!, title: String!, description: String, status: String): BacklogTask!
-  updateBacklogTask(id: ID!, title: String, description: String, status: String, position: Int): BacklogTask!
-  deleteBacklogTask(id: ID!): Boolean!
 }

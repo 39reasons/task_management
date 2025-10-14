@@ -115,6 +115,10 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
       const normalizedTask = {
         ...data,
         status: data.status ?? "new",
+        stage_id: data.stage_id ?? null,
+        backlog_id: data.backlog_id ?? null,
+        sprint_id: data.sprint_id ?? null,
+        estimate: data.estimate ?? null,
       } as Task;
 
       client.cache.writeFragment({
@@ -132,12 +136,26 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
 
   const mutateTask = useCallback(
     async (
-      variables: Partial<Pick<Task, "title" | "description" | "due_date" | "priority" | "stage_id" | "status">>
+      variables: Partial<
+        Pick<
+          Task,
+          "title" | "description" | "due_date" | "priority" | "estimate" | "stage_id" | "backlog_id" | "sprint_id" | "status"
+        >
+      >
     ) => {
       if (!task) return null;
+
+      const context = {
+        stage_id: task.stage_id ?? null,
+        backlog_id: task.backlog_id ?? null,
+        sprint_id: task.sprint_id ?? null,
+        estimate: task.estimate ?? null,
+      } as Partial<Task>;
+
       const { data: mutationData } = await updateTask({
         variables: {
           id: task.id,
+          ...context,
           ...variables,
         },
       });

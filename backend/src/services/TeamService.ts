@@ -312,9 +312,7 @@ export async function leaveTeam(team_id: string, user_id: string): Promise<boole
       AND task_id IN (
         SELECT t.id
         FROM tasks t
-        JOIN stages s ON s.id = t.stage_id
-        JOIN workflows w ON w.id = s.workflow_id
-        JOIN projects p ON p.id = w.project_id
+        JOIN projects p ON p.id = t.project_id
         WHERE p.team_id = $1
       )
     `,

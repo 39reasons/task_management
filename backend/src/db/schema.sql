@@ -89,28 +89,32 @@ CREATE TABLE stages (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Tasks (cards inside a stage)
+-- Sprints
+CREATE TABLE sprints (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  goal TEXT,
+  start_date DATE,
+  end_date DATE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Tasks (workflow cards or backlog items)
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  stage_id UUID NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  stage_id UUID REFERENCES stages(id) ON DELETE SET NULL,
+  backlog_id UUID REFERENCES backlogs(id) ON DELETE SET NULL,
+  sprint_id UUID REFERENCES sprints(id) ON DELETE SET NULL,
   position INT NOT NULL DEFAULT 0,
   title TEXT NOT NULL,
   description TEXT,
   due_date DATE,
   priority TEXT,
+  estimate INT,
   status TEXT NOT NULL DEFAULT 'new',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Tasks captured in a backlog for triage
-CREATE TABLE backlog_tasks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  backlog_id UUID NOT NULL REFERENCES backlogs(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT,
-  status TEXT NOT NULL DEFAULT 'new',
-  position INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -173,12 +177,14 @@ CREATE TABLE task_tags (
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_tasks_stage_position ON tasks (stage_id, position);
 CREATE INDEX IF NOT EXISTS idx_tasks_stage_id ON tasks (stage_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_backlog ON tasks (backlog_id, position);
+CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks (project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_sprint ON tasks (sprint_id);
 CREATE INDEX IF NOT EXISTS idx_stages_workflow ON stages (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows (project_id);
 CREATE INDEX IF NOT EXISTS idx_projects_team ON projects (team_id);
 CREATE INDEX IF NOT EXISTS idx_user_projects_project_user ON user_projects (project_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_task_members_task ON task_members (task_id);
 CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags (task_id);
-CREATE INDEX IF NOT EXISTS idx_backlog_tasks_backlog ON backlog_tasks (backlog_id, position);
 CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members (team_id);

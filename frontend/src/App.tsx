@@ -54,7 +54,7 @@ function AppContent() {
     setUser({ ...authUser, avatar_color: authUser.avatar_color ?? null });
     try {
       await client.clearStore();
-      client.cache.writeQuery({ query: GET_TASKS, data: { tasks: [] } });
+      client.cache.writeQuery({ query: GET_TASKS, variables: {}, data: { tasks: [] } });
     } catch {
       // ignore hydration errors; UI will refetch as needed
     }
@@ -151,7 +151,14 @@ function AppContent() {
                   />
                   <Route
                     path="/projects/:id/backlog"
-                    element={<ProjectBacklogPage />}
+                    element={
+                      <ProjectBacklogPage
+                        setSelectedTask={(task) => {
+                          setSelectedTask(task);
+                          openModal("task");
+                        }}
+                      />
+                    }
                   />
                   <Route
                     path="/projects/:id/sprints"

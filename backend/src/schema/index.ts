@@ -46,6 +46,11 @@ const backlogSchema = readFileSync(
   "utf8"
 );
 
+const sprintSchema = readFileSync(
+  path.join(process.cwd(), "src/schema/Sprint.graphql"),
+  "utf8"
+);
+
 export const typeDefs = `
   type Query
   type Mutation
@@ -59,4 +64,5 @@ export const typeDefs = `
   ${notificationSchema}
   ${teamSchema}
   ${backlogSchema}
+  ${sprintSchema}
 `;

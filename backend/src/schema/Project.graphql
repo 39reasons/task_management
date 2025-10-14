@@ -10,6 +10,7 @@ type Project {
   tasks: [Task!]
   workflows: [Workflow!]
   backlogs: [Backlog!]
+  sprints: [Sprint!]
   members: [User!]
   viewer_is_owner: Boolean!
   viewer_role: TeamRole

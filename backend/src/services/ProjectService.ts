@@ -199,7 +199,14 @@ export async function getProjectById(
     viewer_role: membership.viewer_role,
   });
 
-  const taskRes = await query<Task & { team_id: string }>(
+  const taskRes = await query<
+    Task & {
+      team_id: string;
+      backlog_id: string | null;
+      sprint_id: string | null;
+      estimate: number | null;
+    }
+  >(
     `
     SELECT
       t.id,
@@ -207,17 +214,23 @@ export async function getProjectById(
       t.description,
       to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
       t.priority,
+      t.estimate,
       t.status,
       t.stage_id,
-      w.project_id,
+      t.backlog_id,
+      t.sprint_id,
+      t.project_id,
       p.team_id,
       t.position
     FROM tasks t
-    JOIN stages s ON s.id = t.stage_id
-    JOIN workflows w ON w.id = s.workflow_id
-    JOIN projects p ON p.id = w.project_id
-    WHERE w.project_id = $1
-    ORDER BY s.position ASC, t.position ASC, t.created_at ASC
+    JOIN projects p ON p.id = t.project_id
+    LEFT JOIN stages s ON s.id = t.stage_id
+    WHERE t.project_id = $1
+    ORDER BY
+      CASE WHEN t.stage_id IS NULL THEN 1 ELSE 0 END,
+      COALESCE(s.position, 0) ASC,
+      t.position ASC,
+      t.created_at ASC
     `,
     [id]
   );
@@ -227,6 +240,9 @@ export async function getProjectById(
     tasks: taskRes.rows.map((task) => ({
       ...task,
       team_id: task.team_id,
+      backlog_id: task.backlog_id ?? null,
+      sprint_id: task.sprint_id ?? null,
+      estimate: task.estimate ?? null,
     })),
   };
 }
@@ -440,9 +456,7 @@ export async function leaveProject(project_id: string, user_id: string): Promise
       AND task_id IN (
         SELECT t.id
         FROM tasks t
-        JOIN stages s ON s.id = t.stage_id
-        JOIN workflows w ON w.id = s.workflow_id
-        WHERE w.project_id = $1
+        WHERE t.project_id = $1
       )
     `,
     [project_id, user_id]

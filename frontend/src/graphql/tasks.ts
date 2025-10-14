@@ -1,15 +1,32 @@
 import { gql } from "@apollo/client";
 
 export const GET_TASKS = gql`
-  query GetTasks($team_id: ID, $project_id: ID, $workflow_id: ID, $stage_id: ID) {
-    tasks(team_id: $team_id, project_id: $project_id, workflow_id: $workflow_id, stage_id: $stage_id) {
+  query GetTasks(
+    $team_id: ID
+    $project_id: ID
+    $workflow_id: ID
+    $stage_id: ID
+    $backlog_id: ID
+    $sprint_id: ID
+  ) {
+    tasks(
+      team_id: $team_id
+      project_id: $project_id
+      workflow_id: $workflow_id
+      stage_id: $stage_id
+      backlog_id: $backlog_id
+      sprint_id: $sprint_id
+    ) {
       id
       title
       description
       due_date
       priority
+      estimate
       status
       stage_id
+      backlog_id
+      sprint_id
       project_id
       team_id
       position
@@ -26,6 +43,14 @@ export const GET_TASKS = gql`
         position
         workflow_id
       }
+      sprint {
+        id
+        name
+        start_date
+        end_date
+      }
+      created_at
+      updated_at
       tags {
         id
         name
@@ -37,26 +62,39 @@ export const GET_TASKS = gql`
 
 export const CREATE_TASK = gql`
   mutation CreateTask(
-    $stage_id: ID!
+    $project_id: ID!
+    $stage_id: ID
+    $backlog_id: ID
+    $sprint_id: ID
     $title: String!
     $description: String
     $due_date: String
     $priority: String
+    $estimate: Int
+    $status: String
   ) {
     createTask(
+      project_id: $project_id
       stage_id: $stage_id
+      backlog_id: $backlog_id
+      sprint_id: $sprint_id
       title: $title
       description: $description
       due_date: $due_date
       priority: $priority
+      estimate: $estimate
+      status: $status
     ) {
       id
       title
       description
       due_date
       priority
+      estimate
       status
       stage_id
+      backlog_id
+      sprint_id
       project_id
       team_id
       position
@@ -73,6 +111,14 @@ export const CREATE_TASK = gql`
         position
         workflow_id
       }
+      sprint {
+        id
+        name
+        start_date
+        end_date
+      }
+      created_at
+      updated_at
       tags {
         id
         name
@@ -95,6 +141,7 @@ export const UPDATE_TASK_PRIORITY = gql`
       priority
       status
       stage_id
+      backlog_id
     }
   }
 `;
@@ -106,7 +153,10 @@ export const UPDATE_TASK = gql`
     $description: String
     $due_date: String
     $priority: String
+    $estimate: Int
     $stage_id: ID
+    $backlog_id: ID
+    $sprint_id: ID
     $status: String
   ) {
     updateTask(
@@ -115,7 +165,10 @@ export const UPDATE_TASK = gql`
       description: $description
       due_date: $due_date
       priority: $priority
+      estimate: $estimate
       stage_id: $stage_id
+      backlog_id: $backlog_id
+      sprint_id: $sprint_id
       status: $status
     ) {
       id
@@ -123,8 +176,11 @@ export const UPDATE_TASK = gql`
       description
       due_date
       priority
+      estimate
       status
       stage_id
+      backlog_id
+      sprint_id
       project_id
       team_id
       position
@@ -141,6 +197,14 @@ export const UPDATE_TASK = gql`
         position
         workflow_id
       }
+      sprint {
+        id
+        name
+        start_date
+        end_date
+      }
+      created_at
+      updated_at
       tags {
         id
         name
@@ -157,6 +221,8 @@ export const MOVE_TASK = gql`
       project_id
       team_id
       stage_id
+      backlog_id
+      sprint_id
       position
       status
       assignees {
@@ -182,11 +248,19 @@ export const REORDER_TASKS = gql`
   }
 `;
 
+export const REORDER_BACKLOG_TASKS = gql`
+  mutation ReorderBacklogTasks($project_id: ID!, $backlog_id: ID, $task_ids: [ID!]!) {
+    reorderBacklogTasks(project_id: $project_id, backlog_id: $backlog_id, task_ids: $task_ids)
+  }
+`;
+
 export const SET_TASK_MEMBERS = gql`
   mutation SetTaskMembers($task_id: ID!, $member_ids: [ID!]!) {
     setTaskMembers(task_id: $task_id, member_ids: $member_ids) {
       id
       status
+      stage_id
+      backlog_id
       assignees {
         id
         first_name
@@ -218,8 +292,11 @@ export const TASK_FRAGMENT = gql`
     description
     due_date
     priority
+    estimate
     status
     stage_id
+    backlog_id
+    sprint_id
     project_id
     position
     assignees {
@@ -237,12 +314,21 @@ export const TASK_FRAGMENT = gql`
       workflow_id
       __typename
     }
+    sprint {
+      id
+      name
+      start_date
+      end_date
+      __typename
+    }
     tags {
       id
       name
       color
       __typename
     }
+    created_at
+    updated_at
     __typename
-}
+  }
 `;

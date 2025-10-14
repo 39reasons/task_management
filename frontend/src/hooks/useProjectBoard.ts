@@ -21,6 +21,9 @@ function normalizeTaskForCache(task: Task) {
   return {
     ...task,
     status: task.status ?? "new",
+    estimate: task.estimate ?? null,
+    backlog_id: task.backlog_id ?? null,
+    sprint_id: task.sprint_id ?? null,
     __typename: "Task" as const,
     tags: (task.tags ?? []).map((tag) => ({
       ...tag,
@@ -116,6 +119,9 @@ export function useProjectBoard(): UseProjectBoardResult {
       priority: null,
       status: "new",
       stage_id,
+      backlog_id: null,
+      sprint_id: null,
+      estimate: null,
       project_id: projectId,
       position: stageMeta?.tasks.length ?? 0,
       assignees: [],
@@ -123,7 +129,7 @@ export function useProjectBoard(): UseProjectBoardResult {
     } as unknown as Task);
 
     await createTaskMutation({
-      variables: { stage_id, title },
+      variables: { project_id: projectId, stage_id, title, status: "new" },
       optimisticResponse: {
         createTask: {
           ...optimisticTask,

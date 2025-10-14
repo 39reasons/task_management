@@ -4,14 +4,20 @@ type Task {
   description: String
   due_date: String
   priority: String
+  estimate: Int
   status: String!
-  stage_id: ID!
-  project_id: ID
+  stage_id: ID
+  backlog_id: ID
+  sprint_id: ID
+  project_id: ID!
   team_id: ID
   tags: [Tag!]!
   stage: Stage
+  sprint: Sprint
   assignees: [User!]!
   position: Int
+  created_at: String
+  updated_at: String
 }
 
 type TaskDraftSuggestion {
@@ -30,17 +36,28 @@ input TaskDraftInput {
 }
 
 extend type Query {
-  tasks(team_id: ID, stage_id: ID, workflow_id: ID, project_id: ID): [Task!]!
+  tasks(
+    team_id: ID
+    project_id: ID
+    stage_id: ID
+    backlog_id: ID
+    workflow_id: ID
+    sprint_id: ID
+  ): [Task!]!
   task(id: ID!): Task
 }
 
 extend type Mutation {
   createTask(
-    stage_id: ID!
+    project_id: ID!
+    stage_id: ID
+    backlog_id: ID
+    sprint_id: ID
     title: String!
     description: String
     due_date: String
     priority: String
+    estimate: Int
     status: String
   ): Task!
 
@@ -51,6 +68,9 @@ extend type Mutation {
     due_date: String
     priority: String
     stage_id: ID
+    backlog_id: ID
+    sprint_id: ID
+    estimate: Int
     status: String
   ): Task!
 
@@ -68,6 +88,12 @@ extend type Mutation {
 
   reorderTasks(
     stage_id: ID!
+    task_ids: [ID!]!
+  ): Boolean!
+
+  reorderBacklogTasks(
+    project_id: ID!
+    backlog_id: ID
     task_ids: [ID!]!
   ): Boolean!
 

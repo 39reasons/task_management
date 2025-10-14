@@ -37,8 +37,11 @@ export const GET_PROJECTS = gql`
             title
             due_date
             priority
+            estimate
             status
             stage_id
+            backlog_id
+            sprint_id
             project_id
             team_id
             position
@@ -48,6 +51,12 @@ export const GET_PROJECTS = gql`
               last_name
               username
               avatar_color
+            }
+            sprint {
+              id
+              name
+              start_date
+              end_date
             }
             tags {
               id
@@ -96,14 +105,23 @@ export const GET_PROJECT = gql`
             title
             due_date
             priority
+            estimate
             status
             stage_id
+            backlog_id
+            sprint_id
             assignees {
               id
               first_name
               last_name
               username
               avatar_color
+            }
+            sprint {
+              id
+              name
+              start_date
+              end_date
             }
           }
         }
@@ -116,15 +134,15 @@ export const GET_PROJECT = gql`
         position
         created_at
         updated_at
-        tasks {
-          id
-          title
-          description
-          status
-          position
-          created_at
-          updated_at
-        }
+      }
+      sprints {
+        id
+        name
+        goal
+        start_date
+        end_date
+        created_at
+        updated_at
       }
     }
   }
@@ -177,6 +195,7 @@ export const ADD_PROJECT = gql`
             title
             due_date
             priority
+            estimate
             status
             stage_id
             project_id
@@ -193,6 +212,12 @@ export const ADD_PROJECT = gql`
               id
               name
               color
+            }
+            sprint {
+              id
+              name
+              start_date
+              end_date
             }
           }
         }

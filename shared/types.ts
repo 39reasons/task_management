@@ -7,22 +7,17 @@ export interface Task {
   due_date?: string | null;
   priority?: "low" | "medium" | "high" | null;
   status: TaskStatus;
-  stage_id: string;
+  stage_id?: string | null;
   project_id: string;
+  backlog_id?: string | null;
+  sprint_id?: string | null;
   team_id?: string;
   tags?: Tag[];
   stage?: Stage;
+  estimate?: number | null;
+  sprint?: Sprint | null;
   position?: number;
   assignees?: User[];
-}
-
-export interface BacklogTask {
-  id: string;
-  backlog_id: string;
-  title: string;
-  description?: string | null;
-  status: TaskStatus;
-  position?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -69,7 +64,7 @@ export interface Backlog {
   position?: number | null;
   created_at?: string;
   updated_at?: string;
-  tasks?: BacklogTask[];
+  tasks?: Task[];
 }
 
 export interface ProjectWorkflowSummary {
@@ -104,6 +99,7 @@ export interface Project {
   team?: Team | null;
   workflows?: ProjectWorkflowSummary[];
   backlogs?: Backlog[];
+  sprints?: Sprint[];
 }
 
 export interface AuthUser {
@@ -151,6 +147,17 @@ export interface Comment {
     last_name: string;
     avatar_color?: string | null;
   };
+}
+
+export interface Sprint {
+  id: string;
+  project_id: string;
+  name: string;
+  goal?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Notification {

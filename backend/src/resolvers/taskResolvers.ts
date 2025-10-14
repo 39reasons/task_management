@@ -1,6 +1,7 @@
 import * as TaskService from "../services/TaskService.js";
 import * as CommentService from "../services/CommentService.js";
 import * as StageService from "../services/StageService.js";
+import * as SprintService from "../services/SprintService.js";
 import * as AIService from "../services/AIService.js";
 import type { Task, TaskDraftSuggestion } from "../../../shared/types.js";
 import type { GraphQLContext } from "../types/context";
@@ -9,7 +10,14 @@ export const taskResolvers = {
   Query: {
     tasks: async (
       _: unknown,
-      args: { team_id?: string; stage_id?: string; workflow_id?: string; project_id?: string },
+      args: {
+        team_id?: string;
+        project_id?: string;
+        stage_id?: string;
+        backlog_id?: string;
+        workflow_id?: string;
+        sprint_id?: string;
+      },
       ctx: GraphQLContext
     ): Promise<Task[]> => {
       return await TaskService.getTasks(args, ctx.user?.id ?? null);
@@ -28,33 +36,48 @@ export const taskResolvers = {
     createTask: async (
       _: unknown,
       {
+        project_id,
         stage_id,
+        backlog_id,
+        sprint_id,
         title,
         description,
         due_date,
         priority,
+        estimate,
         status,
       }: {
-        stage_id: string;
+        project_id: string;
+        stage_id?: string | null;
+        backlog_id?: string | null;
+        sprint_id?: string | null;
         title: string;
         description?: string;
         due_date?: string;
         priority?: string;
+        estimate?: number | null;
         status?: string;
       },
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await TaskService.createTask({
-        stage_id,
-        title,
-        description,
-        due_date,
-        priority,
-        status,
-      }, {
-        origin: ctx.clientId ?? null,
-      });
+      return await TaskService.createTask(
+        {
+          project_id,
+          stage_id,
+          backlog_id,
+          sprint_id,
+          title,
+          description,
+          due_date,
+          priority,
+          estimate,
+          status,
+        },
+        {
+          origin: ctx.clientId ?? null,
+        }
+      );
     },
 
     updateTask: async (
@@ -66,6 +89,9 @@ export const taskResolvers = {
         due_date,
         priority,
         stage_id,
+        backlog_id,
+        sprint_id,
+        estimate,
         status,
       }: {
         id: string;
@@ -73,22 +99,32 @@ export const taskResolvers = {
         description?: string;
         due_date?: string | null;
         priority?: string | null;
-        stage_id?: string;
+        stage_id?: string | null;
+        backlog_id?: string | null;
+        sprint_id?: string | null;
+        estimate?: number | null;
         status?: string | null;
       },
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      return await TaskService.updateTask(id, {
-        title,
-        description,
-        due_date,
-        priority,
-        stage_id,
-        status,
-      }, {
-        origin: ctx.clientId ?? null,
-      });
+      return await TaskService.updateTask(
+        id,
+        {
+          title,
+          description,
+          due_date,
+          priority,
+          estimate,
+          stage_id,
+          backlog_id,
+          sprint_id,
+          status,
+        },
+        {
+          origin: ctx.clientId ?? null,
+        }
+      );
     },
 
     deleteTask: async (
@@ -136,6 +172,27 @@ export const taskResolvers = {
       return true;
     },
 
+    reorderBacklogTasks: async (
+      _: unknown,
+      {
+        project_id,
+        backlog_id,
+        task_ids,
+      }: { project_id: string; backlog_id?: string | null; task_ids: string[] },
+      ctx: GraphQLContext
+    ): Promise<boolean> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      await TaskService.reorderBacklogTasks(
+        project_id,
+        backlog_id ?? null,
+        task_ids,
+        {
+          origin: ctx.clientId ?? null,
+        }
+      );
+      return true;
+    },
+
     setTaskMembers: async (
       _: unknown,
       { task_id, member_ids }: { task_id: string; member_ids: string[] },
@@ -175,7 +232,8 @@ export const taskResolvers = {
 
   Task: {
     comments: (parent: Task) => CommentService.getCommentsByTask(parent.id),
-    stage: (parent: Task) => StageService.getStageById(parent.stage_id),
+    stage: (parent: Task) => (parent.stage_id ? StageService.getStageById(parent.stage_id) : null),
+    sprint: (parent: Task) => (parent.sprint_id ? SprintService.getSprintById(parent.sprint_id) : null),
     assignees: (parent: Task) => TaskService.getTaskMembers(parent.id),
   },
 };

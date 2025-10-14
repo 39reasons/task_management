@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@apollo/client";
-import type { Project, Backlog, TaskStatus } from "@shared/types";
+import type { Backlog, Project, Task, TaskStatus } from "@shared/types";
 import {
   Alert,
   AlertDescription,
@@ -18,26 +18,44 @@ import {
   DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuTrigger,
   Input,
   Label,
   Textarea,
 } from "../components/ui";
-import { GET_PROJECT, ADD_BACKLOG, ADD_BACKLOG_TASK, UPDATE_BACKLOG_TASK, DELETE_BACKLOG_TASK } from "../graphql";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Loader2, Plus } from "lucide-react";
 import { BacklogTaskTable, type BacklogTaskRow } from "../components/Backlog/BacklogTaskTable";
+import {
+  GET_PROJECT,
+  GET_TASKS,
+  ADD_BACKLOG,
+  CREATE_TASK,
+  UPDATE_TASK,
+  DELETE_TASK,
+  REORDER_BACKLOG_TASKS,
+} from "../graphql";
+
+type ProjectBacklogPageProps = {
+  setSelectedTask: (task: Task) => void;
+};
 
 type ProjectQueryResult = {
   project: Project | null;
 };
 
-export function ProjectBacklogPage() {
+type TasksQueryResult = {
+  tasks: Task[];
+};
+
+const UNASSIGNED_BACKLOG_ID = "__UNASSIGNED__";
+
+export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps) {
   const { id } = useParams<{ id: string }>();
   const projectId = id ?? null;
 
+  const [selectedBacklogId, setSelectedBacklogId] = useState<string>(UNASSIGNED_BACKLOG_ID);
   const [isCreateBacklogOpen, setIsCreateBacklogOpen] = useState(false);
   const [createBacklogName, setCreateBacklogName] = useState("");
   const [createBacklogDescription, setCreateBacklogDescription] = useState("");
@@ -47,92 +65,89 @@ export function ProjectBacklogPage() {
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [createTaskTitle, setCreateTaskTitle] = useState("");
   const [createTaskDescription, setCreateTaskDescription] = useState("");
+  const [createTaskSprintId, setCreateTaskSprintId] = useState<string>("");
   const [createTaskSubmitting, setCreateTaskSubmitting] = useState(false);
   const [createTaskError, setCreateTaskError] = useState<string | null>(null);
 
   const [taskActionError, setTaskActionError] = useState<string | null>(null);
-  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
-  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [updatingTaskIds, setUpdatingTaskIds] = useState<Set<string>>(new Set());
+  const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(new Set());
+  const [isReorderingTasks, setIsReorderingTasks] = useState(false);
 
-  const { data, loading, error, refetch } = useQuery<ProjectQueryResult>(GET_PROJECT, {
+  const { data: projectData, loading, error, refetch: refetchProject } = useQuery<ProjectQueryResult>(GET_PROJECT, {
     variables: projectId ? { id: projectId } : undefined,
     skip: !projectId,
     fetchPolicy: "network-only",
     nextFetchPolicy: "cache-first",
   });
 
-  const [addBacklog] = useMutation(ADD_BACKLOG);
-  const [addBacklogTask] = useMutation(ADD_BACKLOG_TASK);
-  const [updateBacklogTask] = useMutation(UPDATE_BACKLOG_TASK);
-  const [deleteBacklogTask] = useMutation(DELETE_BACKLOG_TASK);
-
-  const project = data?.project ?? null;
-  const backlogs = useMemo<Backlog[]>(() => project?.backlogs ?? [], [project?.backlogs]);
-  const [selectedBacklogId, setSelectedBacklogId] = useState<string | null>(() => {
-    return backlogs.length > 0 ? backlogs[0]?.id ?? null : null;
-  });
+  const project = projectData?.project ?? null;
+  const backlogs = project?.backlogs ?? [];
+  const sprints = project?.sprints ?? [];
+  const teamIdForBacklog = project?.team_id ?? null;
 
   useEffect(() => {
     if (backlogs.length === 0) {
-      setSelectedBacklogId(null);
+      setSelectedBacklogId(UNASSIGNED_BACKLOG_ID);
       return;
     }
     setSelectedBacklogId((current) => {
-      if (current && backlogs.some((backlog) => backlog.id === current)) {
+      if (current !== UNASSIGNED_BACKLOG_ID && backlogs.some((backlog) => backlog.id === current)) {
         return current;
       }
-      return backlogs[0]?.id ?? null;
+      return backlogs[0]?.id ?? UNASSIGNED_BACKLOG_ID;
     });
   }, [backlogs]);
 
-  const selectedBacklog = useMemo<Backlog | null>(() => {
-    if (!selectedBacklogId) return null;
-    return backlogs.find((backlog) => backlog.id === selectedBacklogId) ?? null;
-  }, [backlogs, selectedBacklogId]);
+  const isUnassignedView = selectedBacklogId === UNASSIGNED_BACKLOG_ID;
 
-  const backlogTasks = useMemo(() => selectedBacklog?.tasks ?? [], [selectedBacklog?.tasks]);
+  const {
+    data: tasksData,
+    loading: tasksLoading,
+    error: tasksError,
+    refetch: refetchTasks,
+  } = useQuery<TasksQueryResult>(GET_TASKS, {
+    variables: projectId
+      ? {
+          project_id: projectId,
+          stage_id: null,
+          backlog_id: isUnassignedView ? null : selectedBacklogId,
+        }
+      : undefined,
+    skip: !projectId,
+    fetchPolicy: "network-only",
+  });
 
-  const backlogTaskRows = useMemo<BacklogTaskRow[]>(() => {
-    return backlogTasks.map((task) => ({
+  const tasks = tasksData?.tasks ?? [];
+
+  const rows = useMemo<BacklogTaskRow[]>(() => {
+    return tasks.map((task) => ({
       id: task.id,
       title: task.title,
-      description: task.description ?? null,
-      status: task.status,
+      status: task.status ?? "new",
+      estimate: task.estimate ?? null,
+      sprintName: task.sprint?.name ?? null,
+      order: task.position ?? null,
       createdAt: task.created_at ?? null,
       updatedAt: task.updated_at ?? null,
-      isUpdating: updatingTaskId === task.id,
-      isDeleting: deletingTaskId === task.id,
+      isUpdating: updatingTaskIds.has(task.id),
+      isDeleting: deletingTaskIds.has(task.id),
     }));
-  }, [backlogTasks, updatingTaskId, deletingTaskId]);
+  }, [tasks, updatingTaskIds, deletingTaskIds]);
 
-  const canManageProject = Boolean(
-    project?.viewer_role === "owner" || project?.viewer_role === "admin" || project?.viewer_is_owner
-  );
+  const [addBacklog] = useMutation(ADD_BACKLOG);
+  const [createTaskMutation] = useMutation(CREATE_TASK);
+  const [updateTaskMutation] = useMutation(UPDATE_TASK);
+  const [deleteTaskMutation] = useMutation(DELETE_TASK);
+  const [reorderBacklogTasksMutation] = useMutation(REORDER_BACKLOG_TASKS);
 
-  if (!projectId) {
-    return <div className="p-6 text-destructive">Project identifier is missing.</div>;
-  }
+  const selectedBacklog = isUnassignedView ? null : backlogs.find((backlog) => backlog.id === selectedBacklogId) ?? null;
 
-  if (loading) {
-    return <div className="p-6 text-muted-foreground">Loading backlogs…</div>;
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive" className="m-6">
-        <AlertTitle>Unable to load backlogs</AlertTitle>
-        <AlertDescription>{error.message}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (!project) {
-    return <div className="p-6 text-destructive">We couldn&apos;t find that project.</div>;
-  }
-
-  const teamIdForBacklog = project.team?.id ?? project.team_id;
-
-  const backlogDropdownLabel = selectedBacklog?.name ?? (backlogs.length === 0 ? "No backlogs" : "Select backlog");
+  const backlogDropdownLabel = selectedBacklog
+    ? selectedBacklog.name
+    : backlogs.length
+    ? "Unassigned tasks"
+    : "Backlog";
 
   const openCreateBacklogDialog = () => {
     setCreateBacklogError(null);
@@ -145,6 +160,7 @@ export function ProjectBacklogPage() {
     setCreateTaskError(null);
     setCreateTaskTitle("");
     setCreateTaskDescription("");
+    setCreateTaskSprintId("");
     setIsCreateTaskOpen(true);
   };
 
@@ -172,7 +188,7 @@ export function ProjectBacklogPage() {
         refetchQueries: projectId ? [{ query: GET_PROJECT, variables: { id: projectId } }] : undefined,
         awaitRefetchQueries: true,
       });
-      await refetch();
+      await refetchProject();
       const createdBacklog = (result.data?.addBacklog ?? null) as Backlog | null;
       if (createdBacklog?.id) {
         setSelectedBacklogId(createdBacklog.id);
@@ -187,10 +203,10 @@ export function ProjectBacklogPage() {
     }
   };
 
-  const handleCreateBacklogTask = async (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateTask = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedBacklogId) {
-      setCreateTaskError("Select a backlog first.");
+    if (!projectId) {
+      setCreateTaskError("Project context is missing.");
       return;
     }
     const trimmedTitle = createTaskTitle.trim();
@@ -202,19 +218,22 @@ export function ProjectBacklogPage() {
     setCreateTaskSubmitting(true);
     setCreateTaskError(null);
     try {
-      await addBacklogTask({
+      await createTaskMutation({
         variables: {
-          backlog_id: selectedBacklogId,
+          project_id: projectId,
+          stage_id: null,
+          backlog_id: isUnassignedView ? null : selectedBacklogId,
+          sprint_id: createTaskSprintId || null,
           title: trimmedTitle,
           description: createTaskDescription.trim() || null,
+          status: "new",
         },
-        refetchQueries: projectId ? [{ query: GET_PROJECT, variables: { id: projectId } }] : undefined,
-        awaitRefetchQueries: true,
       });
-      await refetch();
+      await Promise.all([refetchTasks(), refetchProject()]);
       setIsCreateTaskOpen(false);
       setCreateTaskTitle("");
       setCreateTaskDescription("");
+      setCreateTaskSprintId("");
     } catch (mutationError) {
       setCreateTaskError((mutationError as Error).message ?? "Unable to add task to backlog.");
     } finally {
@@ -222,127 +241,225 @@ export function ProjectBacklogPage() {
     }
   };
 
-  const handleTaskStatusChange = async (taskId: string, status: TaskStatus) => {
+  const setTaskUpdating = useCallback((taskId: string, next: boolean) => {
+    setUpdatingTaskIds((prev) => {
+      const nextSet = new Set(prev);
+      if (next) {
+        nextSet.add(taskId);
+      } else {
+        nextSet.delete(taskId);
+      }
+      return nextSet;
+    });
+  }, []);
+
+  const setTaskDeleting = useCallback((taskId: string, next: boolean) => {
+    setDeletingTaskIds((prev) => {
+      const nextSet = new Set(prev);
+      if (next) {
+        nextSet.add(taskId);
+      } else {
+        nextSet.delete(taskId);
+      }
+      return nextSet;
+    });
+  }, []);
+
+  const handleStatusChange = async (taskId: string, status: TaskStatus) => {
     setTaskActionError(null);
-    setUpdatingTaskId(taskId);
+    setTaskUpdating(taskId, true);
     try {
-      await updateBacklogTask({
-        variables: { id: taskId, status },
-        refetchQueries: projectId ? [{ query: GET_PROJECT, variables: { id: projectId } }] : undefined,
-        awaitRefetchQueries: true,
+      await updateTaskMutation({
+        variables: {
+          id: taskId,
+          status,
+          stage_id: null,
+          backlog_id: isUnassignedView ? null : selectedBacklogId,
+        },
       });
-      await refetch();
+      await refetchTasks();
     } catch (mutationError) {
       setTaskActionError((mutationError as Error).message ?? "Unable to update task status.");
     } finally {
-      setUpdatingTaskId(null);
+      setTaskUpdating(taskId, false);
     }
   };
 
-  const handleTaskDelete = async (taskId: string) => {
+  const handleDeleteTask = async (taskId: string) => {
     setTaskActionError(null);
-    setDeletingTaskId(taskId);
+    setTaskDeleting(taskId, true);
     try {
-      await deleteBacklogTask({
-        variables: { id: taskId },
-        refetchQueries: projectId ? [{ query: GET_PROJECT, variables: { id: projectId } }] : undefined,
-        awaitRefetchQueries: true,
-      });
-      await refetch();
+      await deleteTaskMutation({ variables: { id: taskId } });
+      await refetchTasks();
     } catch (mutationError) {
       setTaskActionError((mutationError as Error).message ?? "Unable to delete task.");
     } finally {
-      setDeletingTaskId(null);
+      setTaskDeleting(taskId, false);
     }
   };
 
-  const renderEmptyBacklogsState = () => (
-    <Card className="border-border/80">
-      <CardHeader className="flex flex-col gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Start a backlog</h2>
-          <p className="text-sm text-muted-foreground">
-            Create a backlog to capture work ideas before pulling them into a workflow.
-          </p>
-        </div>
-        {canManageProject ? (
-          <Button type="button" variant="outline" className="gap-2 self-start" onClick={openCreateBacklogDialog}>
-            <Plus className="h-4 w-4" />
-            New backlog
-          </Button>
-        ) : null}
-      </CardHeader>
-    </Card>
+  const handleReorderTasks = useCallback(
+    async (orderedIds: string[]) => {
+      if (!projectId || orderedIds.length === 0 || isReorderingTasks) {
+        return;
+      }
+
+      const backlogId = isUnassignedView ? null : selectedBacklogId;
+
+      setTaskActionError(null);
+      setIsReorderingTasks(true);
+
+      try {
+        await reorderBacklogTasksMutation({
+          variables: {
+            project_id: projectId,
+            backlog_id: backlogId,
+            task_ids: orderedIds,
+          },
+        });
+        await refetchTasks();
+      } catch (mutationError) {
+        setTaskActionError((mutationError as Error).message ?? "Unable to reorder tasks.");
+        throw mutationError;
+      } finally {
+        setIsReorderingTasks(false);
+      }
+    },
+    [
+      projectId,
+      isUnassignedView,
+      selectedBacklogId,
+      isReorderingTasks,
+      reorderBacklogTasksMutation,
+      refetchTasks,
+    ]
   );
+
+  const handleTaskSelect = (taskId: string) => {
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) return;
+    setSelectedTask(task);
+  };
+
+  if (!projectId) {
+    return <div className="p-6 text-destructive">Project identifier is missing.</div>;
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 p-6 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading project backlog…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive" className="m-6">
+        <AlertTitle>Unable to load project</AlertTitle>
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!project) {
+    return <div className="p-6 text-destructive">We couldn&apos;t find that project.</div>;
+  }
+
+  const canManageBacklogs = Boolean(
+    project.viewer_role === "owner" || project.viewer_role === "admin" || project.viewer_is_owner
+  );
+
+  const backlogOptions = [
+    { id: UNASSIGNED_BACKLOG_ID, name: "Unassigned tasks" },
+    ...backlogs,
+  ];
 
   return (
     <div className="space-y-6 pb-10">
-      {backlogs.length === 0 ? (
-        renderEmptyBacklogsState()
-      ) : (
-        <Card className="border-border/80">
-          <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex w-full flex-col gap-2 lg:max-w-sm">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="inline-flex w-full items-center justify-between gap-2 rounded-xl border-border/70 bg-background/80 px-4 py-2 text-left text-sm font-medium text-foreground shadow-sm transition hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
-                  >
-                    <span className="truncate">{backlogDropdownLabel}</span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64">
-                  <DropdownMenuLabel>Select backlog</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={selectedBacklogId ?? backlogs[0]?.id ?? ""}
-                    onValueChange={(value) => setSelectedBacklogId(value)}
-                  >
-                    {backlogs.map((backlog) => (
-                      <DropdownMenuRadioItem key={backlog.id} value={backlog.id}>
-                        {backlog.name}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {selectedBacklog?.description ? (
-                <p className="text-sm text-muted-foreground">{selectedBacklog.description}</p>
-              ) : null}
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-              {selectedBacklog ? (
-                <Button type="button" className="gap-2" onClick={openCreateTaskDialog}>
-                  <Plus className="h-4 w-4" />
-                  New backlog task
+      <Card className="border-border/80">
+        <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex w-full flex-col gap-2 lg:max-w-sm">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="inline-flex w-full items-center justify-between gap-2 rounded-xl border-border/70 bg-background/80 px-4 py-2 text-left text-sm font-medium text-foreground shadow-sm transition hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+                >
+                  <span className="truncate">{backlogDropdownLabel}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
-              ) : null}
-              {canManageProject ? (
-                <Button type="button" variant="outline" className="gap-2" onClick={openCreateBacklogDialog}>
-                  <Plus className="h-4 w-4" />
-                  New backlog
-                </Button>
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {taskActionError ? (
-              <p className="mb-3 text-sm text-destructive">{taskActionError}</p>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuLabel>Select backlog</DropdownMenuLabel>
+                {backlogOptions.map((backlogOption) => (
+                  <DropdownMenuItem
+                    key={backlogOption.id}
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      setSelectedBacklogId(backlogOption.id);
+                    }}
+                    className={
+                      backlogOption.id === selectedBacklogId
+                        ? "bg-primary/5 text-primary focus:bg-primary/5 focus:text-primary"
+                        : undefined
+                    }
+                  >
+                    {backlogOption.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {selectedBacklog?.description ? (
+              <p className="text-sm text-muted-foreground">{selectedBacklog.description}</p>
             ) : null}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+            <Button type="button" className="gap-2" onClick={openCreateTaskDialog}>
+              <Plus className="h-4 w-4" />
+              New backlog task
+            </Button>
+            {canManageBacklogs ? (
+              <Button type="button" variant="outline" className="gap-2" onClick={openCreateBacklogDialog}>
+                <Plus className="h-4 w-4" />
+                New backlog
+              </Button>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {taskActionError ? (
+            <p className="mb-3 text-sm text-destructive">{taskActionError}</p>
+          ) : null}
+          {tasksError ? (
+            <Alert variant="destructive" className="mb-3">
+              <AlertTitle>Unable to load backlog tasks</AlertTitle>
+              <AlertDescription>{tasksError.message}</AlertDescription>
+            </Alert>
+          ) : null}
+          {tasksLoading ? (
+            <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading tasks…
+            </div>
+          ) : (
             <BacklogTaskTable
-              rows={backlogTaskRows}
-              onStatusChange={handleTaskStatusChange}
-              onDelete={handleTaskDelete}
+              rows={rows}
+              onStatusChange={handleStatusChange}
+              onDelete={handleDeleteTask}
+              onSelect={handleTaskSelect}
+              isReordering={isReorderingTasks}
+              onReorder={handleReorderTasks}
             />
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog
         open={isCreateBacklogOpen}
-        onOpenChange={(open: boolean) => {
+        onOpenChange={(open) => {
           if (!open && !createBacklogSubmitting) {
             setIsCreateBacklogOpen(open);
             setCreateBacklogError(null);
@@ -407,7 +524,7 @@ export function ProjectBacklogPage() {
 
       <Dialog
         open={isCreateTaskOpen}
-        onOpenChange={(open: boolean) => {
+        onOpenChange={(open) => {
           if (!open && !createTaskSubmitting) {
             setIsCreateTaskOpen(open);
             setCreateTaskError(null);
@@ -421,7 +538,7 @@ export function ProjectBacklogPage() {
               Capture work items here before promoting them into a workflow.
             </DialogDescription>
           </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreateBacklogTask}>
+          <form className="space-y-4" onSubmit={handleCreateTask}>
             <div className="space-y-2">
               <Label htmlFor="backlog-task-title">Title</Label>
               <Input
@@ -448,6 +565,23 @@ export function ProjectBacklogPage() {
                 disabled={createTaskSubmitting}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="backlog-task-sprint">Sprint</Label>
+              <select
+                id="backlog-task-sprint"
+                value={createTaskSprintId}
+                onChange={(event) => setCreateTaskSprintId(event.target.value)}
+                className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none"
+                disabled={createTaskSubmitting || sprints.length === 0}
+              >
+                <option value="">No sprint</option>
+                {sprints.map((sprint) => (
+                  <option key={sprint.id} value={sprint.id}>
+                    {sprint.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             {createTaskError ? <p className="text-sm text-destructive">{createTaskError}</p> : null}
             <DialogFooter className="gap-2">
               <Button
@@ -462,7 +596,7 @@ export function ProjectBacklogPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createTaskSubmitting || !selectedBacklogId} className="gap-2">
+              <Button type="submit" disabled={createTaskSubmitting} className="gap-2">
                 {createTaskSubmitting ? "Adding…" : "Add task"}
               </Button>
             </DialogFooter>

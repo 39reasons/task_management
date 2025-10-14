@@ -1,0 +1,14 @@
+type Sprint {
+  id: ID!
+  project_id: ID!
+  name: String!
+  goal: String
+  start_date: String
+  end_date: String
+  created_at: String
+  updated_at: String
+}
+
+extend type Query {
+  sprints(project_id: ID!): [Sprint!]!
+}

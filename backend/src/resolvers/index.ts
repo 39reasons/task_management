@@ -7,6 +7,7 @@ import { workflowResolvers } from "./workflowResolvers.js";
 import { notificationResolvers } from "./notificationResolvers.js";
 import { teamResolvers } from "./teamResolvers.js";
 import { backlogResolvers } from "./backlogResolvers.js";
+import { sprintResolvers } from "./sprintResolvers.js";
 
 export const resolvers = [
   taskResolvers,
@@ -18,4 +19,5 @@ export const resolvers = [
   notificationResolvers,
   teamResolvers,
   backlogResolvers,
+  sprintResolvers,
 ];

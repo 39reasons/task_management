@@ -4,28 +4,59 @@ import * as TagService from "./TagService.js";
 import * as StageService from "./StageService.js";
 import { publishTaskBoardEvent, type TaskBoardEvent, type TaskBoardEventAction } from "../events/taskBoardPubSub.js";
 
+type TaskRow = {
+  id: string;
+  project_id: string;
+  stage_id: string | null;
+  backlog_id: string | null;
+  sprint_id: string | null;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  priority: string | null;
+  estimate: number | null;
+  status: string;
+  position: number;
+  team_id: string;
+  workflow_id: string | null;
+  created_at: Date | string | null;
+  updated_at: Date | string | null;
+};
+
 const TASK_BASE_SELECT = `
   SELECT
     t.id,
+    t.project_id,
     t.stage_id,
+    t.backlog_id,
+    t.sprint_id,
     t.title,
     t.description,
     to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
     t.priority,
+    t.estimate,
     t.status,
-    w.project_id,
+    t.position,
     p.team_id,
-    t.position
+    s.workflow_id,
+    t.created_at,
+    t.updated_at
   FROM tasks t
-  JOIN stages s ON s.id = t.stage_id
-  JOIN workflows w ON w.id = s.workflow_id
-  JOIN projects p ON p.id = w.project_id
+  JOIN projects p ON p.id = t.project_id
+  LEFT JOIN stages s ON s.id = t.stage_id
 `;
 
 function normalizeDate(input?: string | null): string | null {
   if (!input) return null;
   const trimmed = input.trim();
   return trimmed.length === 0 ? null : trimmed;
+}
+
+function normalizeTimestamp(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value as string);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
 const VALID_TASK_STATUSES: ReadonlySet<Task["status"]> = new Set(["new", "active", "closed"]);
@@ -41,34 +72,35 @@ function sanitizeTaskStatus(input?: string | null): Task["status"] {
   throw new Error("Invalid task status.");
 }
 
-function mapTaskRow(row: Task & { project_id: string; team_id: string; position: number }): Task {
+function mapTaskRow(row: TaskRow): Task {
   return {
     id: row.id,
     title: row.title,
-    description: row.description,
+    description: row.description ?? undefined,
     due_date: row.due_date,
-    priority: row.priority as Task["priority"],
+    priority: (row.priority as Task["priority"]) ?? null,
+    estimate: row.estimate ?? null,
     status: sanitizeTaskStatus(row.status),
-    stage_id: row.stage_id,
+    stage_id: row.stage_id ?? null,
+    backlog_id: row.backlog_id ?? null,
+    sprint_id: row.sprint_id ?? null,
     project_id: row.project_id,
     team_id: row.team_id,
     position: row.position,
+    created_at: normalizeTimestamp(row.created_at),
+    updated_at: normalizeTimestamp(row.updated_at),
   };
 }
 
 async function ensureTaskHydrated(task: Task): Promise<Task> {
   const needsTags = !Array.isArray(task.tags);
   const needsAssignees = !Array.isArray(task.assignees);
-  const needsStage = !(task as unknown as { stage?: Task["stage"] }).stage;
-
-  if (!needsTags && !needsAssignees && !needsStage) {
-    return task;
-  }
+  const needsStage = task.stage_id ? !(task as unknown as { stage?: Task["stage"] }).stage : false;
 
   const [tags, assignees, stage] = await Promise.all([
     needsTags ? TagService.getTagsForTask(task.id) : Promise.resolve(task.tags ?? []),
     needsAssignees ? getTaskMembers(task.id) : Promise.resolve(task.assignees ?? []),
-    needsStage ? StageService.getStageById(task.stage_id) : Promise.resolve((task as unknown as { stage?: Task["stage"] }).stage ?? null),
+    needsStage && task.stage_id ? StageService.getStageById(task.stage_id) : Promise.resolve(null),
   ]);
 
   return {
@@ -99,23 +131,29 @@ async function emitTaskUpdateEvent(
   origin?: string | null,
   extra?: Partial<TaskBoardEvent>
 ): Promise<void> {
-  const stage = task.stage ?? (await StageService.getStageById(task.stage_id));
+  const stage = task.stage_id ? task.stage ?? (await StageService.getStageById(task.stage_id)) : null;
   await broadcastTaskEvent({
     action,
     project_id: task.project_id,
     team_id: task.team_id ?? null,
     workflow_id: stage?.workflow_id ?? null,
-    stage_id: task.stage_id,
+    stage_id: task.stage_id ?? null,
     task_id: task.id,
     origin: origin ?? null,
     ...extra,
   });
 }
 
-export async function getTasks(
-  filter: { team_id?: string; stage_id?: string; workflow_id?: string; project_id?: string },
-  user_id: string | null
-): Promise<Task[]> {
+type TaskFilter = {
+  team_id?: string;
+  project_id?: string;
+  stage_id?: string;
+  backlog_id?: string | null;
+  workflow_id?: string;
+  sprint_id?: string;
+};
+
+export async function getTasks(filter: TaskFilter, user_id: string | null): Promise<Task[]> {
   const params: unknown[] = [];
   const conditions: string[] = [];
 
@@ -124,9 +162,27 @@ export async function getTasks(
     conditions.push(`p.team_id = $${params.length}`);
   }
 
-  if (filter.stage_id) {
-    params.push(filter.stage_id);
-    conditions.push(`t.stage_id = $${params.length}`);
+  if (filter.project_id) {
+    params.push(filter.project_id);
+    conditions.push(`t.project_id = $${params.length}`);
+  }
+
+  if (filter.stage_id !== undefined) {
+    if (filter.stage_id === null) {
+      conditions.push(`t.stage_id IS NULL`);
+    } else {
+      params.push(filter.stage_id);
+      conditions.push(`t.stage_id = $${params.length}`);
+    }
+  }
+
+  if (filter.backlog_id !== undefined) {
+    if (filter.backlog_id === null) {
+      conditions.push(`t.backlog_id IS NULL`);
+    } else {
+      params.push(filter.backlog_id);
+      conditions.push(`t.backlog_id = $${params.length}`);
+    }
   }
 
   if (filter.workflow_id) {
@@ -134,9 +190,13 @@ export async function getTasks(
     conditions.push(`s.workflow_id = $${params.length}`);
   }
 
-  if (filter.project_id) {
-    params.push(filter.project_id);
-    conditions.push(`w.project_id = $${params.length}`);
+  if (filter.sprint_id !== undefined) {
+    if (filter.sprint_id === null) {
+      conditions.push(`t.sprint_id IS NULL`);
+    } else {
+      params.push(filter.sprint_id);
+      conditions.push(`t.sprint_id = $${params.length}`);
+    }
   }
 
   if (user_id) {
@@ -157,9 +217,9 @@ export async function getTasks(
   if (conditions.length > 0) {
     sql += ` WHERE ${conditions.join(" AND ")}`;
   }
-  sql += ` ORDER BY s.position ASC, t.position ASC, t.created_at ASC`;
+  sql += ` ORDER BY COALESCE(s.position, 0) ASC, t.position ASC, t.created_at ASC`;
 
-  const result = await query<Task & { project_id: string; team_id: string; position: number }>(sql, params);
+  const result = await query<TaskRow>(sql, params);
   return result.rows.map(mapTaskRow);
 }
 
@@ -168,51 +228,180 @@ export async function getAllVisibleTasks(user_id: string | null): Promise<Task[]
 }
 
 export async function getTaskById(id: string): Promise<Task | null> {
-  const result = await query<Task & { project_id: string; team_id: string; position: number }>(
-    `${TASK_BASE_SELECT} WHERE t.id = $1`,
-    [id]
-  );
-
+  const result = await query<TaskRow>(`${TASK_BASE_SELECT} WHERE t.id = $1`, [id]);
   if (result.rowCount === 0) return null;
   return mapTaskRow(result.rows[0]);
 }
 
-export async function createTask({
-  stage_id,
-  title,
-  description,
-  due_date,
-  priority,
-  status,
-}: {
-  stage_id: string;
-  title: string;
-  description?: string | null;
-  due_date?: string | null;
-  priority?: string | null;
-  status?: string | null;
-}, options?: { origin?: string | null }): Promise<Task> {
-  const normalizedStatus = sanitizeTaskStatus(status ?? undefined);
-  const result = await query<{ id: string }>(
+async function getProjectTeamForStage(stage_id: string): Promise<{ project_id: string; team_id: string } | null> {
+  return await getProjectIdForStage(stage_id);
+}
+
+async function assertStageMatchesProject(stage_id: string, project_id: string): Promise<void> {
+  const context = await getProjectTeamForStage(stage_id);
+  if (!context) {
+    throw new Error("Stage not found");
+  }
+  if (context.project_id !== project_id) {
+    throw new Error("Stage does not belong to the specified project");
+  }
+}
+
+async function assertBacklogMatchesProject(backlog_id: string, project_id: string): Promise<void> {
+  const result = await query<{ team_id: string }>(
     `
-    WITH next_position AS (
+      SELECT b.team_id
+      FROM backlogs b
+      JOIN projects p ON p.team_id = b.team_id
+      WHERE b.id = $1 AND p.id = $2
+    `,
+    [backlog_id, project_id]
+  );
+  if (result.rowCount === 0) {
+    throw new Error("Backlog does not belong to the specified project");
+  }
+}
+
+async function assertSprintMatchesProject(sprint_id: string, project_id: string): Promise<void> {
+  const result = await query<{ id: string }>(
+    `SELECT id FROM sprints WHERE id = $1 AND project_id = $2`,
+    [sprint_id, project_id]
+  );
+  if (result.rowCount === 0) {
+    throw new Error("Sprint does not belong to the specified project");
+  }
+}
+
+function buildPositionQuery(stage_id?: string | null, backlog_id?: string | null) {
+  if (stage_id) {
+    return {
+      sql: `
+        SELECT COALESCE(MAX(position) + 1, 0) AS pos
+        FROM tasks
+        WHERE stage_id = $1
+      `,
+      params: [stage_id],
+    };
+  }
+
+  if (backlog_id) {
+    return {
+      sql: `
+        SELECT COALESCE(MAX(position) + 1, 0) AS pos
+        FROM tasks
+        WHERE backlog_id = $1 AND stage_id IS NULL
+      `,
+      params: [backlog_id],
+    };
+  }
+
+  return {
+    sql: `
       SELECT COALESCE(MAX(position) + 1, 0) AS pos
       FROM tasks
-      WHERE stage_id = $1
-    )
-    INSERT INTO tasks (stage_id, title, description, due_date, priority, status, position)
-    VALUES (
-      $1,
-      $2,
-      $3,
-      COALESCE($4::DATE, NULL),
-      $5,
-      $6,
-      (SELECT pos FROM next_position)
-    )
-    RETURNING id
+      WHERE stage_id IS NULL AND backlog_id IS NULL AND project_id = $1
     `,
-    [stage_id, title, description ?? null, normalizeDate(due_date), priority ?? null, normalizedStatus]
+    params: [],
+  };
+}
+
+export async function createTask(
+  {
+    project_id,
+    stage_id,
+    backlog_id,
+    sprint_id,
+    title,
+    description,
+    due_date,
+    priority,
+    estimate,
+    status,
+  }: {
+    project_id: string;
+    stage_id?: string | null;
+    backlog_id?: string | null;
+    sprint_id?: string | null;
+    title: string;
+    description?: string | null;
+    due_date?: string | null;
+    priority?: string | null;
+    estimate?: number | null;
+    status?: string | null;
+  },
+  options?: { origin?: string | null }
+): Promise<Task> {
+  if (!project_id) {
+    throw new Error("Project is required to create a task");
+  }
+
+  if (stage_id) {
+    await assertStageMatchesProject(stage_id, project_id);
+  }
+
+  if (backlog_id) {
+    await assertBacklogMatchesProject(backlog_id, project_id);
+  }
+
+  if (sprint_id) {
+    await assertSprintMatchesProject(sprint_id, project_id);
+  }
+
+  const sanitizedStatus = sanitizeTaskStatus(status ?? undefined);
+  const normalizedStageId = stage_id ?? null;
+  const normalizedBacklogId = normalizedStageId ? null : backlog_id ?? null;
+  const normalizedSprintId = sprint_id ?? null;
+
+  const positionQuery = buildPositionQuery(normalizedStageId, normalizedBacklogId);
+  const positionResult = await query<{ pos: number }>(
+    positionQuery.sql,
+    positionQuery.params.length ? positionQuery.params : [project_id]
+  );
+  const nextPosition = positionResult.rows[0]?.pos ?? 0;
+
+  const result = await query<{ id: string }>(
+    `
+      INSERT INTO tasks (
+        project_id,
+        stage_id,
+        backlog_id,
+        sprint_id,
+        position,
+        title,
+        description,
+        due_date,
+        priority,
+        estimate,
+        status
+      )
+      VALUES (
+        $1,
+        $2::uuid,
+        $3::uuid,
+        $4::uuid,
+        $5,
+        $6,
+        $7,
+        COALESCE($8::DATE, NULL),
+        $9,
+        $10,
+        $11
+      )
+      RETURNING id
+    `,
+    [
+      project_id,
+      normalizedStageId,
+      normalizedBacklogId,
+      normalizedSprintId,
+      nextPosition,
+      title.trim(),
+      description ?? null,
+      normalizeDate(due_date),
+      priority ?? null,
+      estimate ?? null,
+      sanitizedStatus,
+    ]
   );
 
   const task = await getTaskById(result.rows[0].id);
@@ -229,37 +418,72 @@ export async function updateTask(
     description,
     due_date,
     priority,
-    stage_id,
-    position,
+    estimate,
     status,
+    stage_id,
+    backlog_id,
+    sprint_id,
+    position,
   }: {
     title?: string;
-    description?: string;
+    description?: string | null;
     due_date?: string | null;
     priority?: string | null;
-    stage_id?: string;
-    position?: number;
+    estimate?: number | null;
     status?: string | null;
+    stage_id?: string | null;
+    backlog_id?: string | null;
+    sprint_id?: string | null;
+    position?: number;
   },
   options?: { origin?: string | null }
 ): Promise<Task> {
-  const beforeUpdate = await getTaskById(id);
+  const existing = await getTaskById(id);
+  if (!existing) {
+    throw new Error("Task not found");
+  }
 
-  const normalizedStatus =
-    status === undefined || status === null ? null : sanitizeTaskStatus(status);
+  const targetProjectId = existing.project_id;
+
+  let normalizedStageId = stage_id === undefined ? existing.stage_id ?? null : stage_id;
+  let normalizedBacklogId =
+    backlog_id === undefined
+      ? existing.backlog_id ?? null
+      : backlog_id;
+
+  if (normalizedStageId) {
+    await assertStageMatchesProject(normalizedStageId, targetProjectId);
+    normalizedBacklogId = null;
+  } else if (normalizedBacklogId) {
+    await assertBacklogMatchesProject(normalizedBacklogId, targetProjectId);
+  }
+
+  let normalizedSprintId =
+    sprint_id === undefined ? existing.sprint_id ?? null : sprint_id;
+
+  if (normalizedSprintId) {
+    await assertSprintMatchesProject(normalizedSprintId, targetProjectId);
+  }
+
+  const sanitizedStatus = status === undefined ? null : sanitizeTaskStatus(status);
+
   const result = await query<{ id: string }>(
     `
-    UPDATE tasks
-    SET title = COALESCE($2, title),
+      UPDATE tasks
+      SET
+        title = COALESCE($2, title),
         description = COALESCE($3, description),
         due_date = COALESCE($4::DATE, due_date),
         priority = COALESCE($5, priority),
-        stage_id = COALESCE($6, stage_id),
-        position = COALESCE($7, position),
-        status = COALESCE($8, status),
+        estimate = COALESCE($6, estimate),
+        status = COALESCE($7, status),
+        stage_id = $8::uuid,
+        backlog_id = $9::uuid,
+        sprint_id = $10::uuid,
+        position = COALESCE($11, position),
         updated_at = now()
-    WHERE id = $1
-    RETURNING id
+      WHERE id = $1
+      RETURNING id
     `,
     [
       id,
@@ -267,22 +491,25 @@ export async function updateTask(
       description ?? null,
       normalizeDate(due_date),
       priority ?? null,
-      stage_id ?? null,
+      estimate ?? null,
+      sanitizedStatus,
+      normalizedStageId,
+      normalizedBacklogId,
+      normalizedSprintId,
       position ?? null,
-      normalizedStatus,
     ]
   );
 
-  if (result.rowCount === 0) throw new Error("Task not found");
+  if (result.rowCount === 0) {
+    throw new Error("Task not found");
+  }
 
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after update");
   const hydrated = await ensureTaskHydrated(task);
   await emitTaskUpdateEvent(hydrated, "TASK_UPDATED", options?.origin ?? null, {
     previous_stage_id:
-      beforeUpdate && beforeUpdate.stage_id !== hydrated.stage_id
-        ? beforeUpdate.stage_id
-        : null,
+      existing.stage_id && existing.stage_id !== hydrated.stage_id ? existing.stage_id : null,
   });
   return hydrated;
 }
@@ -294,19 +521,26 @@ export async function moveTask(
 ): Promise<Task> {
   const beforeMove = await getTaskById(task_id);
 
+  if (!beforeMove) {
+    throw new Error("Task not found");
+  }
+
+  await assertStageMatchesProject(to_stage_id, beforeMove.project_id);
+
   const result = await query<{ id: string }>(
     `
-    WITH next_position AS (
-      SELECT COALESCE(MAX(position) + 1, 0) AS pos
-      FROM tasks
-      WHERE stage_id = $2
-    )
-    UPDATE tasks
-    SET stage_id = $2,
-        position = (SELECT pos FROM next_position),
-        updated_at = now()
-    WHERE id = $1
-    RETURNING id
+      WITH next_position AS (
+        SELECT COALESCE(MAX(position) + 1, 0) AS pos
+        FROM tasks
+        WHERE stage_id = $2
+      )
+      UPDATE tasks
+      SET stage_id = $2,
+          backlog_id = NULL,
+          position = (SELECT pos FROM next_position),
+          updated_at = now()
+      WHERE id = $1
+      RETURNING id
     `,
     [task_id, to_stage_id]
   );
@@ -316,26 +550,23 @@ export async function moveTask(
   if (!task) throw new Error("Task not found after move");
   const hydrated = await ensureTaskHydrated(task);
   await emitTaskUpdateEvent(hydrated, "TASK_MOVED", options?.origin ?? null, {
-    previous_stage_id: beforeMove?.stage_id ?? null,
+    previous_stage_id: beforeMove.stage_id ?? null,
   });
   return hydrated;
 }
 
 export async function deleteTask(id: string, options?: { origin?: string | null }): Promise<boolean> {
   const task = await getTaskById(id);
-  const result = await query(
-    `DELETE FROM tasks WHERE id = $1`,
-    [id]
-  );
+  const result = await query(`DELETE FROM tasks WHERE id = $1`, [id]);
   const deleted = (result.rowCount ?? 0) > 0;
   if (deleted && task) {
-    const stage = task.stage ?? (task.stage_id ? await StageService.getStageById(task.stage_id) : null);
+    const stage = task.stage_id ? task.stage ?? (await StageService.getStageById(task.stage_id)) : null;
     await broadcastTaskEvent({
       action: "TASK_DELETED",
       project_id: task.project_id,
       team_id: task.team_id ?? null,
       workflow_id: stage?.workflow_id ?? null,
-      stage_id: task.stage_id,
+      stage_id: task.stage_id ?? null,
       task_id: task.id,
       origin: options?.origin ?? null,
     });
@@ -350,11 +581,11 @@ export async function updateTaskPriority(
 ): Promise<Task> {
   const result = await query<{ id: string }>(
     `
-    UPDATE tasks
-    SET priority = $2,
-        updated_at = now()
-    WHERE id = $1
-    RETURNING id
+      UPDATE tasks
+      SET priority = $2,
+          updated_at = now()
+      WHERE id = $1
+      RETURNING id
     `,
     [id, priority]
   );
@@ -372,9 +603,12 @@ export async function reorderTasks(
   task_ids: string[],
   options?: { origin?: string | null }
 ): Promise<void> {
-  if (task_ids.length > 0) {
-    await query(
-      `
+  if (task_ids.length === 0) {
+    return;
+  }
+
+  await query(
+    `
       WITH ordered AS (
         SELECT
           value AS id,
@@ -386,10 +620,9 @@ export async function reorderTasks(
           updated_at = now()
       FROM ordered
       WHERE t.id = ordered.id AND t.stage_id = $1
-      `,
-      [stage_id, task_ids]
-    );
-  }
+    `,
+    [stage_id, task_ids]
+  );
 
   const projectId = await getProjectIdForStage(stage_id);
   if (projectId) {
@@ -404,6 +637,68 @@ export async function reorderTasks(
       origin: options?.origin ?? null,
     });
   }
+}
+
+export async function reorderBacklogTasks(
+  project_id: string,
+  backlog_id: string | null,
+  task_ids: string[],
+  options?: { origin?: string | null }
+): Promise<void> {
+  if (task_ids.length === 0) {
+    return;
+  }
+
+  if (backlog_id) {
+    await assertBacklogMatchesProject(backlog_id, project_id);
+  } else {
+    // Ensure the project exists before attempting to reorder unassigned tasks.
+    const projectResult = await query<{ id: string }>(`SELECT id FROM projects WHERE id = $1`, [project_id]);
+    if (projectResult.rowCount === 0) {
+      throw new Error("Project not found");
+    }
+  }
+
+  const params: unknown[] = [project_id, task_ids];
+  let backlogCondition = "t.backlog_id IS NULL";
+
+  if (backlog_id) {
+    params.push(backlog_id);
+    backlogCondition = "t.backlog_id = $3::uuid";
+  }
+
+  await query(
+    `
+      WITH ordered AS (
+        SELECT
+          value AS id,
+          ordinality - 1 AS position
+        FROM unnest($2::uuid[]) WITH ORDINALITY AS u(value, ordinality)
+      )
+      UPDATE tasks t
+      SET position = ordered.position,
+          updated_at = now()
+      FROM ordered
+      WHERE t.id = ordered.id
+        AND t.stage_id IS NULL
+        AND ${backlogCondition}
+        AND t.project_id = $1
+    `,
+    params
+  );
+
+  const teamResult = await query<{ team_id: string }>(`SELECT team_id FROM projects WHERE id = $1`, [project_id]);
+  const teamId = teamResult.rows[0]?.team_id ?? null;
+
+  await broadcastTaskEvent({
+    action: "TASKS_REORDERED",
+    project_id,
+    team_id: teamId,
+    workflow_id: null,
+    stage_id: null,
+    task_ids,
+    origin: options?.origin ?? null,
+  });
 }
 
 export async function getProjectIdForStage(stage_id: string): Promise<{ project_id: string; team_id: string } | null> {

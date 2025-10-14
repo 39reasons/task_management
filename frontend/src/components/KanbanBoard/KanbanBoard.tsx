@@ -274,6 +274,9 @@ export function KanbanBoard({
       insertIndex = (tasksByStage.get(overId)?.length ?? 0);
     } else if (taskMap.has(overId)) {
       const targetTask = taskMap.get(overId)!;
+      if (!targetTask.stage_id) {
+        return;
+      }
       destinationStageId = targetTask.stage_id;
       const stageTasks = tasksByStage.get(destinationStageId) ?? [];
       insertIndex = stageTasks.findIndex((t) => String(t.id) === overId);
@@ -282,6 +285,7 @@ export function KanbanBoard({
     if (!destinationStageId || insertIndex === null) return;
 
     const sourceStageId = task.stage_id;
+    if (!sourceStageId) return;
 
     const applyPositions = (tasks: Task[], stageId: string) =>
       tasks.map((t, index) => ({ ...t, stage_id: stageId, position: index }));
