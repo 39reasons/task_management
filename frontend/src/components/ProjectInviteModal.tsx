@@ -74,6 +74,10 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
+    if (!projectId) {
+      return;
+    }
+
     const wasSuccessful = await inviteUsers(projectId, selectedUsers);
     if (wasSuccessful) {
       setSelectedUsers([]);
