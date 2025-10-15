@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState, KeyboardEvent } from "react";
 import { Loader2 } from "lucide-react";
 
-import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
-import { useInviteSearch } from "../hooks/useInviteSearch";
-import { useInviteUsers } from "../hooks/useInviteUsers";
-import { cn } from "../lib/utils";
-import type { InviteeSuggestion } from "../types/invitations";
-import { getFullName, getInitials } from "../utils/user";
-import { useModal } from "./ModalStack";
-import { SelectedInviteeChips } from "./SelectedInviteeChips";
+import { DEFAULT_AVATAR_COLOR } from "../../constants/colors";
+import { useInviteSearch } from "../../hooks/useInviteSearch";
+import { useInviteUsers } from "../../hooks/useInviteUsers";
+import { cn } from "../../lib/utils";
+import type { InviteeSuggestion } from "../../types/invitations";
+import { getFullName, getInitials } from "../../utils/user";
+import { useModal } from "../ModalStack";
+import { SelectedInviteeChips } from "../SelectedInviteeChips";
 import {
   Avatar,
   AvatarFallback,
@@ -22,7 +22,7 @@ import {
   Input,
   Label,
   ScrollArea,
-} from "./ui";
+} from "../ui";
 
 interface ProjectInviteModalProps {
   projectId: string | null;

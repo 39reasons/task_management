@@ -1,12 +1,12 @@
 import { type FormEvent, useState } from "react";
 import { useMutation } from "@apollo/client";
 import { Loader2 } from "lucide-react";
-import { ADD_TAG } from "../graphql";
-import { COLOR_WHEEL } from "../constants/colors";
-import { cn } from "../lib/utils";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+import { ADD_TAG } from "../../graphql";
+import { COLOR_WHEEL } from "../../constants/colors";
+import { cn } from "../../lib/utils";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 
 export function TagForm({ onCreated }: { onCreated?: () => void }) {
   const [name, setName] = useState("");

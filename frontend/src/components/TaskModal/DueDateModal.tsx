@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Task } from "@shared/types";
-import { useModal } from "./ModalStack";
+import { useModal } from "../ModalStack";
 import { DateCalendar } from "./DateCalendar";
 import {
   Button,
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "./ui";
+} from "../ui";
 
 interface DueDateModalProps {
   task: Task | null;

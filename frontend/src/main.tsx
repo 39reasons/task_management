@@ -9,7 +9,7 @@ import {
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { ThemeProvider } from "./components/theme-provider";
+import { ThemeProvider } from "./components/layout/theme-provider";
 import { setContext } from "@apollo/client/link/context";
 import { BrowserRouter } from "react-router-dom";
 import { getClientId } from "./utils/clientId";

@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import type { Task, AuthUser } from "@shared/types";
 import { Sparkles, X } from "lucide-react";
 
-import { DueDateModal } from "../DueDateModal";
+import { DueDateModal } from "./DueDateModal";
 import { Button, Dialog, DialogContent, DialogTitle, ScrollArea, Separator } from "../ui";
 import { TaskCommentsPanel } from "./TaskCommentsPanel";
 import { TaskDescriptionSection } from "./TaskDescriptionSection";

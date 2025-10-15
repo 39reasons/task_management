@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import type { AuthUser, Notification } from "@shared/types";
-import { useModal } from "./ModalStack";
-import { useNotifications } from "../hooks/useNotifications";
-import { getFullName } from "../utils/user";
+import { useModal } from "../ModalStack";
+import { useNotifications } from "../../hooks/useNotifications";
+import { getFullName } from "../../utils/user";
 import {
   Alert,
   AlertDescription,
@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
   ScrollArea,
-} from "./ui";
+} from "../ui";
 
 export function NotificationInbox({ currentUser }: { currentUser: AuthUser | null }) {
   const { modals, closeModal } = useModal();
