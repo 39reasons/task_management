@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useMutation, useQuery } from "@apollo/client";
-import type { Backlog, Project, Task, TaskStatus } from "@shared/types";
+import { useQuery } from "@apollo/client";
+import type { Project, Task } from "@shared/types";
 import {
   Alert,
   AlertDescription,
@@ -10,32 +10,20 @@ import {
   Card,
   CardContent,
   CardHeader,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-  Input,
-  Label,
-  Textarea,
 } from "../components/ui";
 import { ChevronDown, Loader2, Plus } from "lucide-react";
+
 import { BacklogTaskTable, type BacklogTaskRow } from "../components/Backlog/BacklogTaskTable";
-import {
-  GET_PROJECT,
-  GET_TASKS,
-  ADD_BACKLOG,
-  CREATE_TASK,
-  UPDATE_TASK,
-  DELETE_TASK,
-  REORDER_BACKLOG_TASKS,
-} from "../graphql";
+import { CreateBacklogDialog } from "../components/Backlog/CreateBacklogDialog";
+import { CreateBacklogTaskDialog } from "../components/Backlog/CreateBacklogTaskDialog";
+import { GET_PROJECT, GET_TASKS } from "../graphql";
+import { useBacklogCreation } from "../hooks/useBacklogCreation";
+import { useBacklogTaskActions } from "../hooks/useBacklogTaskActions";
 
 type ProjectBacklogPageProps = {
   setSelectedTask: (task: Task) => void;
@@ -56,25 +44,13 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
   const projectId = id ?? null;
 
   const [selectedBacklogId, setSelectedBacklogId] = useState<string>(UNASSIGNED_BACKLOG_ID);
-  const [isCreateBacklogOpen, setIsCreateBacklogOpen] = useState(false);
-  const [createBacklogName, setCreateBacklogName] = useState("");
-  const [createBacklogDescription, setCreateBacklogDescription] = useState("");
-  const [createBacklogSubmitting, setCreateBacklogSubmitting] = useState(false);
-  const [createBacklogError, setCreateBacklogError] = useState<string | null>(null);
 
-  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
-  const [createTaskTitle, setCreateTaskTitle] = useState("");
-  const [createTaskDescription, setCreateTaskDescription] = useState("");
-  const [createTaskSprintId, setCreateTaskSprintId] = useState<string>("");
-  const [createTaskSubmitting, setCreateTaskSubmitting] = useState(false);
-  const [createTaskError, setCreateTaskError] = useState<string | null>(null);
-
-  const [taskActionError, setTaskActionError] = useState<string | null>(null);
-  const [updatingTaskIds, setUpdatingTaskIds] = useState<Set<string>>(new Set());
-  const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(new Set());
-  const [isReorderingTasks, setIsReorderingTasks] = useState(false);
-
-  const { data: projectData, loading, error, refetch: refetchProject } = useQuery<ProjectQueryResult>(GET_PROJECT, {
+  const {
+    data: projectData,
+    loading,
+    error,
+    refetch: refetchProject,
+  } = useQuery<ProjectQueryResult>(GET_PROJECT, {
     variables: projectId ? { id: projectId } : undefined,
     skip: !projectId,
     fetchPolicy: "network-only",
@@ -82,8 +58,8 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
   });
 
   const project = projectData?.project ?? null;
-  const backlogs = project?.backlogs ?? [];
-  const sprints = project?.sprints ?? [];
+  const backlogs = useMemo(() => project?.backlogs ?? [], [project?.backlogs]);
+  const sprints = useMemo(() => project?.sprints ?? [], [project?.sprints]);
   const teamIdForBacklog = project?.team_id ?? null;
 
   useEffect(() => {
@@ -118,7 +94,37 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
     fetchPolicy: "network-only",
   });
 
-  const tasks = tasksData?.tasks ?? [];
+  const { backlogDialog, taskDialog } = useBacklogCreation({
+    projectId,
+    teamId: teamIdForBacklog,
+    selectedBacklogId,
+    isUnassignedView,
+    refetchProject,
+    refetchTasks,
+    onBacklogCreated: setSelectedBacklogId,
+  });
+
+  const {
+    taskActionError,
+    dismissTaskActionError,
+    updatingTaskIds,
+    deletingTaskIds,
+    isReorderingTasks,
+    handleStatusChange,
+    handleDeleteTask,
+    handleReorderTasks,
+  } = useBacklogTaskActions({
+    projectId,
+    selectedBacklogId,
+    isUnassignedView,
+    refetchTasks,
+  });
+
+  useEffect(() => {
+    dismissTaskActionError();
+  }, [dismissTaskActionError, selectedBacklogId]);
+
+  const tasks = useMemo(() => tasksData?.tasks ?? [], [tasksData?.tasks]);
 
   const rows = useMemo<BacklogTaskRow[]>(() => {
     return tasks.map((task) => ({
@@ -135,12 +141,6 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
     }));
   }, [tasks, updatingTaskIds, deletingTaskIds]);
 
-  const [addBacklog] = useMutation(ADD_BACKLOG);
-  const [createTaskMutation] = useMutation(CREATE_TASK);
-  const [updateTaskMutation] = useMutation(UPDATE_TASK);
-  const [deleteTaskMutation] = useMutation(DELETE_TASK);
-  const [reorderBacklogTasksMutation] = useMutation(REORDER_BACKLOG_TASKS);
-
   const selectedBacklog = isUnassignedView ? null : backlogs.find((backlog) => backlog.id === selectedBacklogId) ?? null;
 
   const backlogDropdownLabel = selectedBacklog
@@ -149,191 +149,8 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
     ? "Unassigned tasks"
     : "Backlog";
 
-  const openCreateBacklogDialog = () => {
-    setCreateBacklogError(null);
-    setCreateBacklogName("");
-    setCreateBacklogDescription("");
-    setIsCreateBacklogOpen(true);
-  };
-
-  const openCreateTaskDialog = () => {
-    setCreateTaskError(null);
-    setCreateTaskTitle("");
-    setCreateTaskDescription("");
-    setCreateTaskSprintId("");
-    setIsCreateTaskOpen(true);
-  };
-
-  const handleCreateBacklog = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!teamIdForBacklog) {
-      setCreateBacklogError("Team context is missing.");
-      return;
-    }
-    const trimmedName = createBacklogName.trim();
-    if (!trimmedName) {
-      setCreateBacklogError("Backlog name is required.");
-      return;
-    }
-
-    setCreateBacklogSubmitting(true);
-    setCreateBacklogError(null);
-    try {
-      const result = await addBacklog({
-        variables: {
-          team_id: teamIdForBacklog,
-          name: trimmedName,
-          description: createBacklogDescription.trim() || null,
-        },
-        refetchQueries: projectId ? [{ query: GET_PROJECT, variables: { id: projectId } }] : undefined,
-        awaitRefetchQueries: true,
-      });
-      await refetchProject();
-      const createdBacklog = (result.data?.addBacklog ?? null) as Backlog | null;
-      if (createdBacklog?.id) {
-        setSelectedBacklogId(createdBacklog.id);
-      }
-      setIsCreateBacklogOpen(false);
-      setCreateBacklogName("");
-      setCreateBacklogDescription("");
-    } catch (mutationError) {
-      setCreateBacklogError((mutationError as Error).message ?? "Unable to create backlog.");
-    } finally {
-      setCreateBacklogSubmitting(false);
-    }
-  };
-
-  const handleCreateTask = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!projectId) {
-      setCreateTaskError("Project context is missing.");
-      return;
-    }
-    const trimmedTitle = createTaskTitle.trim();
-    if (!trimmedTitle) {
-      setCreateTaskError("Task title is required.");
-      return;
-    }
-
-    setCreateTaskSubmitting(true);
-    setCreateTaskError(null);
-    try {
-      await createTaskMutation({
-        variables: {
-          project_id: projectId,
-          stage_id: null,
-          backlog_id: isUnassignedView ? null : selectedBacklogId,
-          sprint_id: createTaskSprintId || null,
-          title: trimmedTitle,
-          description: createTaskDescription.trim() || null,
-          status: "new",
-        },
-      });
-      await Promise.all([refetchTasks(), refetchProject()]);
-      setIsCreateTaskOpen(false);
-      setCreateTaskTitle("");
-      setCreateTaskDescription("");
-      setCreateTaskSprintId("");
-    } catch (mutationError) {
-      setCreateTaskError((mutationError as Error).message ?? "Unable to add task to backlog.");
-    } finally {
-      setCreateTaskSubmitting(false);
-    }
-  };
-
-  const setTaskUpdating = useCallback((taskId: string, next: boolean) => {
-    setUpdatingTaskIds((prev) => {
-      const nextSet = new Set(prev);
-      if (next) {
-        nextSet.add(taskId);
-      } else {
-        nextSet.delete(taskId);
-      }
-      return nextSet;
-    });
-  }, []);
-
-  const setTaskDeleting = useCallback((taskId: string, next: boolean) => {
-    setDeletingTaskIds((prev) => {
-      const nextSet = new Set(prev);
-      if (next) {
-        nextSet.add(taskId);
-      } else {
-        nextSet.delete(taskId);
-      }
-      return nextSet;
-    });
-  }, []);
-
-  const handleStatusChange = async (taskId: string, status: TaskStatus) => {
-    setTaskActionError(null);
-    setTaskUpdating(taskId, true);
-    try {
-      await updateTaskMutation({
-        variables: {
-          id: taskId,
-          status,
-          stage_id: null,
-          backlog_id: isUnassignedView ? null : selectedBacklogId,
-        },
-      });
-      await refetchTasks();
-    } catch (mutationError) {
-      setTaskActionError((mutationError as Error).message ?? "Unable to update task status.");
-    } finally {
-      setTaskUpdating(taskId, false);
-    }
-  };
-
-  const handleDeleteTask = async (taskId: string) => {
-    setTaskActionError(null);
-    setTaskDeleting(taskId, true);
-    try {
-      await deleteTaskMutation({ variables: { id: taskId } });
-      await refetchTasks();
-    } catch (mutationError) {
-      setTaskActionError((mutationError as Error).message ?? "Unable to delete task.");
-    } finally {
-      setTaskDeleting(taskId, false);
-    }
-  };
-
-  const handleReorderTasks = useCallback(
-    async (orderedIds: string[]) => {
-      if (!projectId || orderedIds.length === 0 || isReorderingTasks) {
-        return;
-      }
-
-      const backlogId = isUnassignedView ? null : selectedBacklogId;
-
-      setTaskActionError(null);
-      setIsReorderingTasks(true);
-
-      try {
-        await reorderBacklogTasksMutation({
-          variables: {
-            project_id: projectId,
-            backlog_id: backlogId,
-            task_ids: orderedIds,
-          },
-        });
-        await refetchTasks();
-      } catch (mutationError) {
-        setTaskActionError((mutationError as Error).message ?? "Unable to reorder tasks.");
-        throw mutationError;
-      } finally {
-        setIsReorderingTasks(false);
-      }
-    },
-    [
-      projectId,
-      isUnassignedView,
-      selectedBacklogId,
-      isReorderingTasks,
-      reorderBacklogTasksMutation,
-      refetchTasks,
-    ]
-  );
+  const openCreateBacklogDialog = backlogDialog.openDialog;
+  const openCreateTaskDialog = taskDialog.openDialog;
 
   const handleTaskSelect = (taskId: string) => {
     const task = tasks.find((item) => item.id === taskId);
@@ -430,9 +247,7 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
           </div>
         </CardHeader>
         <CardContent>
-          {taskActionError ? (
-            <p className="mb-3 text-sm text-destructive">{taskActionError}</p>
-          ) : null}
+          {taskActionError ? <p className="mb-3 text-sm text-destructive">{taskActionError}</p> : null}
           {tasksError ? (
             <Alert variant="destructive" className="mb-3">
               <AlertTitle>Unable to load backlog tasks</AlertTitle>
@@ -447,8 +262,12 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
           ) : (
             <BacklogTaskTable
               rows={rows}
-              onStatusChange={handleStatusChange}
-              onDelete={handleDeleteTask}
+              onStatusChange={(taskId, status) => {
+                void handleStatusChange(taskId, status);
+              }}
+              onDelete={(taskId) => {
+                void handleDeleteTask(taskId);
+              }}
               onSelect={handleTaskSelect}
               isReordering={isReorderingTasks}
               onReorder={handleReorderTasks}
@@ -457,152 +276,34 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
         </CardContent>
       </Card>
 
-      <Dialog
-        open={isCreateBacklogOpen}
-        onOpenChange={(open) => {
-          if (!open && !createBacklogSubmitting) {
-            setIsCreateBacklogOpen(open);
-            setCreateBacklogError(null);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create backlog</DialogTitle>
-            <DialogDescription>
-              Give your backlog a clear name and optional description. You can reorder and refine later.
-            </DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreateBacklog}>
-            <div className="space-y-2">
-              <Label htmlFor="backlog-name">Name</Label>
-              <Input
-                id="backlog-name"
-                value={createBacklogName}
-                onChange={(event: ChangeEvent<HTMLInputElement>) => setCreateBacklogName(event.target.value)}
-                placeholder="e.g. Product backlog"
-                maxLength={120}
-                autoFocus
-                disabled={createBacklogSubmitting}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="backlog-description">Description</Label>
-              <Textarea
-                id="backlog-description"
-                value={createBacklogDescription}
-                onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                  setCreateBacklogDescription(event.target.value)
-                }
-                placeholder="Optional context for this backlog"
-                className="min-h-[120px]"
-                disabled={createBacklogSubmitting}
-              />
-            </div>
-            {createBacklogError ? <p className="text-sm text-destructive">{createBacklogError}</p> : null}
-            <DialogFooter className="gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  if (createBacklogSubmitting) return;
-                  setIsCreateBacklogOpen(false);
-                  setCreateBacklogError(null);
-                }}
-                disabled={createBacklogSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createBacklogSubmitting} className="gap-2">
-                {createBacklogSubmitting ? "Creating…" : "Create backlog"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <CreateBacklogDialog
+        open={backlogDialog.open}
+        onOpenChange={backlogDialog.onOpenChange}
+        onSubmit={backlogDialog.onSubmit}
+        name={backlogDialog.name}
+        description={backlogDialog.description}
+        onNameChange={backlogDialog.onNameChange}
+        onDescriptionChange={backlogDialog.onDescriptionChange}
+        isSubmitting={backlogDialog.isSubmitting}
+        error={backlogDialog.error}
+        closeDialog={backlogDialog.closeDialog}
+      />
 
-      <Dialog
-        open={isCreateTaskOpen}
-        onOpenChange={(open) => {
-          if (!open && !createTaskSubmitting) {
-            setIsCreateTaskOpen(open);
-            setCreateTaskError(null);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add backlog task</DialogTitle>
-            <DialogDescription>
-              Capture work items here before promoting them into a workflow.
-            </DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreateTask}>
-            <div className="space-y-2">
-              <Label htmlFor="backlog-task-title">Title</Label>
-              <Input
-                id="backlog-task-title"
-                value={createTaskTitle}
-                onChange={(event: ChangeEvent<HTMLInputElement>) => setCreateTaskTitle(event.target.value)}
-                placeholder="e.g. Research customer feedback"
-                maxLength={256}
-                autoFocus
-                disabled={createTaskSubmitting}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="backlog-task-description">Description</Label>
-              <Textarea
-                id="backlog-task-description"
-                value={createTaskDescription}
-                onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                  setCreateTaskDescription(event.target.value)
-                }
-                placeholder="Optional context for this task"
-                className="min-h-[120px]"
-                disabled={createTaskSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="backlog-task-sprint">Sprint</Label>
-              <select
-                id="backlog-task-sprint"
-                value={createTaskSprintId}
-                onChange={(event) => setCreateTaskSprintId(event.target.value)}
-                className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none"
-                disabled={createTaskSubmitting || sprints.length === 0}
-              >
-                <option value="">No sprint</option>
-                {sprints.map((sprint) => (
-                  <option key={sprint.id} value={sprint.id}>
-                    {sprint.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {createTaskError ? <p className="text-sm text-destructive">{createTaskError}</p> : null}
-            <DialogFooter className="gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  if (createTaskSubmitting) return;
-                  setIsCreateTaskOpen(false);
-                  setCreateTaskError(null);
-                }}
-                disabled={createTaskSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createTaskSubmitting} className="gap-2">
-                {createTaskSubmitting ? "Adding…" : "Add task"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <CreateBacklogTaskDialog
+        open={taskDialog.open}
+        onOpenChange={taskDialog.onOpenChange}
+        onSubmit={taskDialog.onSubmit}
+        title={taskDialog.title}
+        description={taskDialog.description}
+        onTitleChange={taskDialog.onTitleChange}
+        onDescriptionChange={taskDialog.onDescriptionChange}
+        onSprintChange={taskDialog.onSprintChange}
+        sprintId={taskDialog.sprintId}
+        isSubmitting={taskDialog.isSubmitting}
+        error={taskDialog.error}
+        closeDialog={taskDialog.closeDialog}
+        sprints={sprints}
+      />
     </div>
   );
 }
