@@ -12,12 +12,19 @@ interface WriteTaskToCacheOptions {
 }
 
 export function normalizeTaskForCache(task: Task): Task {
-  return {
+  const normalizedTask = {
     ...task,
     status: task.status ?? "new",
     estimate: task.estimate ?? null,
     backlog_id: task.backlog_id ?? null,
     sprint_id: task.sprint_id ?? null,
+    sprint: task.sprint ?? null,
+    project_id: task.project_id ?? "",
+    team_id: task.team_id ?? null,
+    stage_id: task.stage_id ?? null,
+    position: task.position ?? 0,
+    created_at: task.created_at ?? null,
+    updated_at: task.updated_at ?? null,
     __typename: "Task" as const,
     tags: (task.tags ?? []).map((tag) => ({
       ...tag,
@@ -28,9 +35,11 @@ export function normalizeTaskForCache(task: Task): Task {
       ? ({
           ...task.assignee,
           __typename: "User" as const,
-        } as unknown as Task["assignee"])
+      } as unknown as Task["assignee"])
       : null,
-  };
+  } as Task & { __typename: "Task" };
+
+  return normalizedTask;
 }
 
 export function normalizeStageForCache(stage: Stage): Stage {
@@ -56,11 +65,13 @@ export function createOptimisticTask({
   stageId,
   projectId,
   title,
+  teamId,
 }: {
   stage?: Stage;
   stageId: string;
   projectId: string;
   title: string;
+  teamId?: string | null;
 }): { task: Task; optimisticId: string } {
   const optimisticId =
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -77,9 +88,13 @@ export function createOptimisticTask({
     stage_id: stageId,
     backlog_id: null,
     sprint_id: null,
+    sprint: null,
     estimate: null,
     project_id: projectId,
     position: stage?.tasks.length ?? 0,
+    team_id: teamId ?? null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
     assignee_id: null,
     assignee: null,
     tags: [],
@@ -146,4 +161,3 @@ export function writeTaskToCache({
 export function selectStages(workflow: Workflow | null): Stage[] {
   return workflow?.stages ?? [];
 }
-

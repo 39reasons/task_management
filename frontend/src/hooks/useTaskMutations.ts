@@ -11,7 +11,7 @@ import {
   GET_WORKFLOWS,
 } from "../graphql";
 
-import type { Stage, Task } from "@shared/types";
+import type { Stage, Task, Workflow } from "@shared/types";
 
 import {
   createOptimisticTask,
@@ -22,6 +22,7 @@ import {
 interface UseTaskMutationsOptions {
   projectId: string | null;
   stages: Stage[];
+  workflow: Workflow | null;
 }
 
 interface UseTaskMutationsResult {
@@ -41,6 +42,7 @@ const workflowRefetchQuery = (projectId: string | null) =>
 export function useTaskMutations({
   projectId,
   stages,
+  workflow,
 }: UseTaskMutationsOptions): UseTaskMutationsResult {
   const [createTaskMutation] = useMutation(CREATE_TASK);
   const [deleteTaskMutation] = useMutation(DELETE_TASK);
@@ -58,6 +60,7 @@ export function useTaskMutations({
         stage: stageMeta,
         stageId: stage_id,
         projectId,
+        teamId: workflow?.team_id ?? null,
         title,
       });
 
@@ -154,4 +157,3 @@ export function useTaskMutations({
     updatePriority,
   };
 }
-
