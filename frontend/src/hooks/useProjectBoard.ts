@@ -1,20 +1,9 @@
 import { useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useMutation, useQuery, useSubscription } from "@apollo/client";
-import {
-  GET_WORKFLOWS,
-  CREATE_TASK,
-  DELETE_TASK,
-  UPDATE_TASK,
-  UPDATE_TASK_PRIORITY,
-  MOVE_TASK,
-  ADD_STAGE,
-  DELETE_STAGE,
-  REORDER_TASKS,
-  REORDER_STAGES,
-  GENERATE_WORKFLOW_STAGES,
-  TASK_BOARD_EVENTS,
-} from "../graphql";
+import { useQuery, useSubscription } from "@apollo/client";
+
+import { GET_WORKFLOWS, TASK_BOARD_EVENTS } from "../graphql";
+
 import type { Stage, Task, Workflow } from "@shared/types";
 
 type TaskFallback = Partial<Task> & {
@@ -92,20 +81,22 @@ export function useProjectBoard(): UseProjectBoardResult {
   const { id } = useParams<{ id: string }>();
   const projectId = id ?? null;
 
-  const {
-    data,
-    loading,
-    error,
-    refetch,
-  } = useQuery<{ workflows: Workflow[] }>(GET_WORKFLOWS, {
-    variables: { project_id: projectId },
-    skip: !projectId,
-    fetchPolicy: "network-only",
-    nextFetchPolicy: "cache-first",
-  });
+  const { data, loading, error, refetch } = useQuery<{ workflows: Workflow[] }>(
+    GET_WORKFLOWS,
+    {
+      variables: { project_id: projectId },
+      skip: !projectId,
+      fetchPolicy: "network-only",
+      nextFetchPolicy: "cache-first",
+    }
+  );
 
-  const workflow = useMemo(() => data?.workflows?.[0] ?? null, [data]);
-  const stages = useMemo(() => workflow?.stages ?? [], [workflow]);
+  const workflow = useMemo(() => {
+    const fetchedWorkflow = data?.workflows?.[0];
+    return fetchedWorkflow ? normalizeWorkflow(fetchedWorkflow) : null;
+  }, [data]);
+
+  const stages = useMemo(() => selectStages(workflow), [workflow]);
 
   const refetchBoard = useCallback(async () => {
     if (!projectId) {
@@ -349,16 +340,9 @@ export function useProjectBoard(): UseProjectBoardResult {
     stages,
     loading,
     error,
-    createTask,
-    deleteTask,
-    moveTask,
-    updateTask,
-    updatePriority,
-    addStage,
-    generateWorkflowStages,
-    reorderStage,
-    reorderStagesOrder,
-    deleteStage,
+    ...taskMutations,
+    ...stageMutations,
     refetch: refetchWrapper,
   };
 }
+
