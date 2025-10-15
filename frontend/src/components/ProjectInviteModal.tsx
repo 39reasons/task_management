@@ -1,18 +1,17 @@
-import { useState, useEffect, useMemo, KeyboardEvent } from "react";
-import { useLazyQuery, useMutation } from "@apollo/client";
-import {
-  SEND_PROJECT_INVITE,
-  GET_NOTIFICATIONS,
-  SEARCH_USERS,
-} from "../graphql";
-import { useModal } from "./ModalStack";
-import type { User } from "@shared/types";
-import { getFullName, getInitials } from "../utils/user";
+import { useCallback, useEffect, useState, KeyboardEvent } from "react";
+import { Loader2 } from "lucide-react";
+
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import { useInviteSearch } from "../hooks/useInviteSearch";
+import { useInviteUsers } from "../hooks/useInviteUsers";
+import { cn } from "../lib/utils";
+import type { InviteeSuggestion } from "../types/invitations";
+import { getFullName, getInitials } from "../utils/user";
+import { useModal } from "./ModalStack";
+import { SelectedInviteeChips } from "./SelectedInviteeChips";
 import {
   Avatar,
   AvatarFallback,
-  Badge,
   Button,
   Dialog,
   DialogContent,
@@ -24,137 +23,95 @@ import {
   Label,
   ScrollArea,
 } from "./ui";
-import { Loader2, X } from "lucide-react";
-import { cn } from "../lib/utils";
 
 interface ProjectInviteModalProps {
   projectId: string | null;
   onClose?: () => void;
 }
 
-type UserSuggestion = Pick<User, "id" | "first_name" | "last_name" | "username" | "avatar_color">;
-
 export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalProps) {
   const { modals, closeModal } = useModal();
   const isOpen = modals.includes("invite");
 
-  const [query, setQuery] = useState("");
-  const [selectedUsers, setSelectedUsers] = useState<UserSuggestion[]>([]);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<InviteeSuggestion[]>([]);
 
-  const [sendInvite, { loading }] = useMutation(SEND_PROJECT_INVITE, {
-    refetchQueries: [{ query: GET_NOTIFICATIONS }],
-  });
-  const [runSearch, { data: searchData, loading: searching }] = useLazyQuery(SEARCH_USERS, {
-    fetchPolicy: "no-cache",
-  });
+  const {
+    query,
+    setQuery,
+    suggestions,
+    searching,
+    showSuggestions,
+    activeIndex,
+    handleKeyNavigation,
+    resetSearch,
+  } = useInviteSearch({ isOpen, selectedUsers });
 
-  const suggestions: UserSuggestion[] = useMemo(() => {
-    const results = (searchData?.searchUsers ?? []) as UserSuggestion[];
-    const selectedIds = new Set(selectedUsers.map((u) => u.id));
-    return results.filter((u) => !selectedIds.has(u.id));
-  }, [searchData, selectedUsers]);
+  const { inviteUsers, loading, error, success, clearStatus } = useInviteUsers();
 
   useEffect(() => {
     if (!isOpen) {
-      setQuery("");
       setSelectedUsers([]);
-      setActiveIndex(-1);
-      setError(null);
-      setSuccess(null);
-      setShowSuggestions(false);
+      resetSearch();
+      clearStatus();
       onClose?.();
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, resetSearch, clearStatus]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const trimmed = query.trim();
-    const handle = setTimeout(() => {
-      if (trimmed.length >= 2) {
-        setShowSuggestions(true);
-        setActiveIndex(-1);
-        runSearch({ variables: { query: trimmed } }).catch(() => {});
-      } else {
-        setShowSuggestions(false);
-        setActiveIndex(-1);
-      }
-    }, 200);
-    return () => clearTimeout(handle);
-  }, [query, isOpen, runSearch]);
+  const toggleUser = useCallback(
+    (user: InviteeSuggestion) => {
+      setSelectedUsers((prev) => {
+        if (prev.some((existing) => existing.id === user.id)) {
+          return prev.filter((existing) => existing.id !== user.id);
+        }
+        return [...prev, user];
+      });
+      resetSearch();
+      clearStatus();
+    },
+    [clearStatus, resetSearch]
+  );
 
-  if (!isOpen || !projectId) return null;
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-  const toggleUser = (user: UserSuggestion) => {
-    setSelectedUsers((prev) => {
-      if (prev.some((u) => u.id === user.id)) {
-        return prev.filter((u) => u.id !== user.id);
-      }
-      return [...prev, user];
-    });
-    setQuery("");
-    setShowSuggestions(false);
-    setActiveIndex(-1);
-    setError(null);
-    setSuccess(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    if (selectedUsers.length === 0) {
-      setError("Select at least one user to invite.");
-      return;
-    }
-
-    try {
-      for (const user of selectedUsers) {
-        await sendInvite({
-          variables: { project_id: projectId, username: user.username },
-        });
-      }
-      setSuccess(`Invited ${selectedUsers.length} user${selectedUsers.length > 1 ? "s" : ""}.`);
+    const wasSuccessful = await inviteUsers(projectId, selectedUsers);
+    if (wasSuccessful) {
       setSelectedUsers([]);
-      setQuery("");
-      setShowSuggestions(false);
+      resetSearch();
       setTimeout(() => {
         closeModal("invite");
       }, 800);
-    } catch (err: any) {
-      setError(err.message ?? "Failed to send invite");
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (!showSuggestions || suggestions.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIndex((prev) => (prev + 1) % suggestions.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === "Enter") {
-      if (activeIndex >= 0 && activeIndex < suggestions.length) {
-        e.preventDefault();
-        toggleUser(suggestions[activeIndex]);
-      }
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const selected = handleKeyNavigation(event);
+    if (selected) {
+      toggleUser(selected);
     }
   };
 
-  const removeSelected = (id: string) => {
-    setSelectedUsers((prev) => prev.filter((user) => user.id !== id));
-  };
+  const removeSelected = useCallback(
+    (id: string) => {
+      setSelectedUsers((prev) => prev.filter((user) => user.id !== id));
+      clearStatus();
+    },
+    [clearStatus]
+  );
 
   const handleDialogOpenChange = (open: boolean) => {
     if (!open) {
       closeModal("invite");
     }
   };
+
+  if (!projectId) {
+    return null;
+  }
+
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
@@ -172,7 +129,10 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
             <Input
               id="invite-search"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                clearStatus();
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Type a username or name"
               autoFocus
@@ -225,34 +185,7 @@ export function ProjectInviteModal({ projectId, onClose }: ProjectInviteModalPro
             ) : null}
           </div>
 
-          {selectedUsers.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {selectedUsers.map((user) => (
-                <Badge
-                  key={user.id}
-                  variant="secondary"
-                  className="flex items-center gap-2 border border-border bg-muted px-2 py-1 text-xs"
-                >
-                  <span
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold uppercase text-primary"
-                    style={{ backgroundColor: user.avatar_color || DEFAULT_AVATAR_COLOR }}
-                  >
-                    {getInitials(user)}
-                  </span>
-                  <span>{getFullName(user)}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeSelected(user.id)}
-                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </Badge>
-              ))}
-            </div>
-          ) : null}
+          <SelectedInviteeChips users={selectedUsers} onRemove={removeSelected} />
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {success ? <p className="text-sm text-emerald-400">{success}</p> : null}
