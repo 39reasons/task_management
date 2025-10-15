@@ -17,22 +17,52 @@ import {
 } from "../graphql";
 import type { Stage, Task, Workflow } from "@shared/types";
 
-function normalizeTaskForCache(task: Task) {
+type TaskFallback = Partial<Task> & {
+  stage?: Task["stage"] | null;
+  sprint?: Task["sprint"] | null;
+};
+
+function normalizeTaskForCache(task: Task, fallback: TaskFallback = {}) {
+  const merged = { ...fallback, ...task } as Task;
+  const projectId = merged.project_id ?? fallback.project_id ?? null;
+  const teamId = merged.team_id ?? fallback.team_id ?? null;
+
+  const stageValue = (merged.stage ?? fallback.stage ?? null)
+    ? ({
+        ...(merged.stage ?? fallback.stage ?? null)!,
+        __typename: "Stage" as const,
+      } as Task["stage"])
+    : null;
+
+  const sprintValue = (merged.sprint ?? fallback.sprint ?? null)
+    ? ({
+        ...(merged.sprint ?? fallback.sprint ?? null)!,
+        __typename: "Sprint" as const,
+      } as Task["sprint"])
+    : null;
+
   return {
-    ...task,
-    status: task.status ?? "new",
-    estimate: task.estimate ?? null,
-    backlog_id: task.backlog_id ?? null,
-    sprint_id: task.sprint_id ?? null,
+    ...merged,
+    status: merged.status ?? "new",
+    estimate: merged.estimate ?? null,
+    backlog_id: merged.backlog_id ?? null,
+    sprint_id: merged.sprint_id ?? null,
+    project_id: projectId,
+    team_id: teamId,
+    position: merged.position ?? fallback.position ?? 0,
+    created_at: merged.created_at ?? fallback.created_at ?? null,
+    updated_at: merged.updated_at ?? fallback.updated_at ?? null,
+    stage: stageValue,
+    sprint: sprintValue,
     __typename: "Task" as const,
-    tags: (task.tags ?? []).map((tag) => ({
+    tags: (merged.tags ?? fallback.tags ?? []).map((tag) => ({
       ...tag,
       __typename: "Tag" as const,
     })) as unknown as Task["tags"],
-    assignee_id: task.assignee_id ?? null,
-    assignee: task.assignee
+    assignee_id: merged.assignee_id ?? fallback.assignee_id ?? null,
+    assignee: merged.assignee ?? fallback.assignee
       ? ({
-          ...task.assignee,
+          ...(merged.assignee ?? fallback.assignee)!,
           __typename: "User" as const,
         } as unknown as Task["assignee"])
       : null,
@@ -114,6 +144,29 @@ export function useProjectBoard(): UseProjectBoardResult {
         ? crypto.randomUUID()
         : `temp-${Date.now()}`;
 
+    const nowIso = new Date().toISOString();
+    const stageFallback = stageMeta
+      ? {
+          id: stageMeta.id,
+          name: stageMeta.name,
+          position: stageMeta.position,
+          workflow_id: stageMeta.workflow_id,
+          tasks: stageMeta.tasks,
+        }
+      : null;
+
+    const fallbackProps = {
+      project_id: projectId,
+      team_id: workflow?.team_id ?? null,
+      stage_id,
+      stage: stageFallback,
+      sprint_id: null,
+      sprint: null,
+      created_at: nowIso,
+      updated_at: nowIso,
+      position: stageMeta?.tasks.length ?? 0,
+    };
+
     const optimisticTask = normalizeTaskForCache({
       id: optimisticId,
       title,
@@ -125,12 +178,10 @@ export function useProjectBoard(): UseProjectBoardResult {
       backlog_id: null,
       sprint_id: null,
       estimate: null,
-      project_id: projectId,
-      position: stageMeta?.tasks.length ?? 0,
       assignee_id: null,
       assignee: null,
       tags: [],
-    } as unknown as Task);
+    } as unknown as Task, fallbackProps);
 
     await createTaskMutation({
       variables: { project_id: projectId, stage_id, title, status: "new" },
@@ -150,7 +201,7 @@ export function useProjectBoard(): UseProjectBoardResult {
       },
       update: (cache, { data }) => {
         const created = data?.createTask
-          ? normalizeTaskForCache(data.createTask as Task)
+          ? normalizeTaskForCache(data.createTask as Task, fallbackProps)
           : optimisticTask;
 
         cache.updateQuery<{ workflows: Workflow[] }>(

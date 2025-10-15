@@ -13,6 +13,7 @@ export const TASK_FRAGMENT = gql`
     backlog_id
     sprint_id
     project_id
+    team_id
     position
     assignee_id
     assignee {

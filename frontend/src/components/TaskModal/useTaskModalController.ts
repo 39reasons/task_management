@@ -272,6 +272,7 @@ export function useTaskModalController({
         (data as { sprint?: Task["sprint"] | null }).sprint ?? (existing as { sprint?: Task["sprint"] | null })?.sprint ?? null;
 
       const normalizedTask = {
+        ...(existing ?? {}),
         ...data,
         status: data.status ?? "new",
         stage_id: data.stage_id ?? null,
@@ -284,6 +285,10 @@ export function useTaskModalController({
         sprint: sprintValue,
         created_at: data.created_at ?? existing?.created_at ?? null,
         updated_at: data.updated_at ?? existing?.updated_at ?? null,
+        project_id: data.project_id ?? existing?.project_id ?? task?.project_id ?? null,
+        team_id: data.team_id ?? existing?.team_id ?? task?.team_id ?? null,
+        position: data.position ?? existing?.position ?? 0,
+        tags: data.tags && data.tags.length > 0 ? data.tags : existing?.tags ?? [],
       } as Task;
 
       client.cache.writeFragment({
@@ -540,6 +545,15 @@ export function useTaskModalController({
 
       const normalizedTaskForCache = {
         ...finalTask,
+        project_id: finalTask.project_id ?? task?.project_id ?? null,
+        team_id: finalTask.team_id ?? task?.team_id ?? null,
+        stage_id: finalTask.stage_id ?? task?.stage_id ?? null,
+        sprint_id: finalTask.sprint_id ?? task?.sprint_id ?? null,
+        stage: (finalTask as { stage?: Task["stage"] | null }).stage ?? (task as unknown as { stage?: Task["stage"] | null })?.stage ?? null,
+        sprint: (finalTask as { sprint?: Task["sprint"] | null }).sprint ?? (task as unknown as { sprint?: Task["sprint"] | null })?.sprint ?? null,
+        created_at: finalTask.created_at ?? task?.created_at ?? null,
+        updated_at: finalTask.updated_at ?? task?.updated_at ?? null,
+        position: finalTask.position ?? task?.position ?? 0,
         tags: nextTagState,
       } as Task;
       writeTaskToCache(normalizedTaskForCache);
