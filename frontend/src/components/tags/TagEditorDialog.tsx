@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@apollo/client";
 import type { Tag } from "@shared/types";
-import { ADD_TAG, UPDATE_TAG } from "../graphql";
-import { COLOR_WHEEL } from "../constants/colors";
+import { ADD_TAG, UPDATE_TAG } from "../../graphql";
+import { COLOR_WHEEL } from "../../constants/colors";
 import {
   Button,
   Dialog,
@@ -13,8 +13,8 @@ import {
   DialogTitle,
   Input,
   Label,
-} from "./ui";
-import { cn } from "../lib/utils";
+} from "../ui";
+import { cn } from "../../lib/utils";
 
 export type TagEditorState = { mode: "create" } | { mode: "edit"; tag: Tag };
 

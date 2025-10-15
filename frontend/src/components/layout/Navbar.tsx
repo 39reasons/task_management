@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
 import { Bell, LogIn, LogOut, Settings } from "lucide-react";
 import type { AuthUser } from "@shared/types";
-import { useModal } from "./ModalStack";
-import { useNotifications } from "../hooks/useNotifications";
-import { getFullName, getInitials } from "../utils/user";
-import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
-import breadLogo from "../assets/menacing_bread.png";
+import { useModal } from "../ModalStack";
+import { useNotifications } from "../../hooks/useNotifications";
+import { getFullName, getInitials } from "../../utils/user";
+import { DEFAULT_AVATAR_COLOR } from "../../constants/colors";
+import breadLogo from "../../assets/menacing_bread.png";
 import {
   Avatar,
   AvatarFallback,
@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "./ui";
+} from "../ui";
 
 interface NavbarProps {
   user: AuthUser | null;

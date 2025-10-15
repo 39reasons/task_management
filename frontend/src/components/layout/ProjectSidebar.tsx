@@ -11,14 +11,14 @@ import {
   Gauge,
 } from "lucide-react";
 import { useQuery } from "@apollo/client";
-import { GET_PROJECT } from "../graphql";
+import { GET_PROJECT } from "../../graphql";
 import {
   Button,
   ScrollArea,
   Separator,
-} from "./ui";
-import { cn } from "../lib/utils";
-import { getNavItemHighlightClasses } from "../lib/navigation";
+} from "../ui";
+import { cn } from "../../lib/utils";
+import { getNavItemHighlightClasses } from "../../lib/navigation";
 
 interface ProjectSidebarProps {
   projectId: string;

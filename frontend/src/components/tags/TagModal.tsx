@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation } from "@apollo/client";
 import type { Task, Tag } from "@shared/types";
-import { ASSIGN_TAG_TO_TASK, REMOVE_TAG_FROM_TASK } from "../graphql";
-import { useModal } from "./ModalStack";
-import { COLOR_WHEEL } from "../constants/colors";
+import { ASSIGN_TAG_TO_TASK, REMOVE_TAG_FROM_TASK } from "../../graphql";
+import { useModal } from "../ModalStack";
+import { COLOR_WHEEL } from "../../constants/colors";
 import {
   Badge,
   Button,
@@ -15,11 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
   ScrollArea,
-} from "./ui";
-import { cn } from "../lib/utils";
+} from "../ui";
+import { cn } from "../../lib/utils";
 import { TagEditorDialog, TagEditorState } from "./TagEditorDialog";
-import { useProjectTagQueries } from "../hooks/useProjectTagQueries";
-import { useTagSelection } from "../hooks/useTagSelection";
+import { useProjectTagQueries } from "../../hooks/useProjectTagQueries";
+import { useTagSelection } from "../../hooks/useTagSelection";
 
 interface TagModalProps {
   task: Task | null;

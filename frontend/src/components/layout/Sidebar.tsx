@@ -16,10 +16,10 @@ import {
   ScrollArea,
   Separator,
   Textarea,
-} from "./ui";
-import { CREATE_TEAM } from "../graphql";
-import { useTeamContext } from "../providers/TeamProvider";
-import { getNavItemHighlightClasses } from "../lib/navigation";
+} from "../ui";
+import { CREATE_TEAM } from "../../graphql";
+import { useTeamContext } from "../../providers/TeamProvider";
+import { getNavItemHighlightClasses } from "../../lib/navigation";
 
 interface SidebarProps {
   user: AuthUser | null;

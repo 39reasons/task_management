@@ -8,7 +8,7 @@ import type { DraggableAttributes } from "@dnd-kit/core";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import type { CSSProperties } from "react";
 import { KanbanTask } from "./KanbanTask";
-import { TaskForm } from "../TaskForm";
+import { TaskForm } from "./TaskForm";
 import { X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";

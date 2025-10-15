@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, CornerDownLeft } from "lucide-react";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { cn } from "../lib/utils";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { cn } from "../../lib/utils";
 interface TaskFormProps {
   stageId: string;
   onAdd: (stage_id: string, title: string) => void;
