@@ -1,123 +1,24 @@
-import { useMemo, useState, useCallback } from "react";
-import { useMutation } from "@apollo/client";
+import { useCallback } from "react";
 import { FolderOpen, Sparkles, Users } from "lucide-react";
 import type { AuthUser, Team, Task } from "@shared/types";
 import { useTeamContext } from "../providers/TeamProvider";
-import { Button } from "../components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
-import { LEAVE_TEAM } from "../graphql";
 import { useNavigate } from "react-router-dom";
+import { useHomeTeamMetrics } from "../hooks/useHomeTeamMetrics";
+import { useLeaveTeam } from "../hooks/useLeaveTeam";
+import { TeamCard } from "../components/home/TeamCard";
+import { TeamsSnapshot } from "../components/home/TeamsSnapshot";
 
 interface HomePageProps {
   user: AuthUser | null;
   setSelectedTask: (task: Task) => void;
 }
 
-interface TeamsSnapshotProps {
-  totals: {
-    totalTeams: number;
-    totalProjects: number;
-    publicProjects: number;
-    privateProjects: number;
-    totalMembers: number;
-  };
-}
-
-function TeamsSnapshot({ totals }: TeamsSnapshotProps) {
-  return (
-    <div className="rounded-3xl border border-border/80 bg-slate-50 px-6 py-5 text-slate-900 shadow-lg shadow-slate-950/10 transition dark:border-white/10 dark:bg-white/10 dark:text-primary">
-      <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-900 dark:text-primary/80">
-        Teams snapshot
-      </p>
-      <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-900 dark:text-primary">
-        {totals.totalTeams}
-      </p>
-      <p className="text-sm text-slate-600 dark:text-primary/75">
-        teams collaborating on {totals.totalProjects} projects
-      </p>
-      <div className="mt-4 grid gap-2 rounded-xl border border-dashed border-border bg-muted/50 p-4 text-xs text-muted-foreground">
-        <div className="flex items-center justify-between">
-          <span>Projects</span>
-          <span className="text-sm font-semibold text-foreground">
-            {totals.publicProjects} public · {totals.privateProjects} private
-          </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span>Teammates</span>
-          <span className="text-sm font-semibold text-foreground">{totals.totalMembers}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function formatRole(role: Team["role"] | null | undefined): string {
-  if (!role) return "Member";
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
-
-function formatUpdatedAt(timestamp?: string | null): string {
-  if (!timestamp) return "recently";
-  const formatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
-  return formatter.format(new Date(timestamp));
-}
-
 export function HomePage({ user }: HomePageProps) {
   const { teams, loadingTeams, refetchTeams } = useTeamContext();
-  const [leaveTeamMutation] = useMutation(LEAVE_TEAM);
-  const [leavingTeamId, setLeavingTeamId] = useState<string | null>(null);
-  const [leaveTeamError, setLeaveTeamError] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  const { totals, teamCards } = useMemo(() => {
-    const aggregates = {
-      totalTeams: teams.length,
-      totalProjects: 0,
-      publicProjects: 0,
-      privateProjects: 0,
-      memberIds: new Set<string>(),
-    };
-
-    const cards = teams.map((team) => {
-      const projects = team.projects ?? [];
-      const members = team.members ?? [];
-      const projectCount = projects.length;
-      const publicProjects = projects.filter((project) => project.is_public).length;
-      const privateProjects = projectCount - publicProjects;
-
-      const teamMemberIds = new Set<string>();
-      for (const member of members) {
-        const memberId = member?.user?.id;
-        if (memberId) {
-          teamMemberIds.add(memberId);
-          aggregates.memberIds.add(memberId);
-        }
-      }
-
-      aggregates.totalProjects += projectCount;
-      aggregates.publicProjects += publicProjects;
-      aggregates.privateProjects += privateProjects;
-
-      return {
-        team,
-        projectCount,
-        publicProjects,
-        privateProjects,
-        memberCount: teamMemberIds.size,
-      };
-    });
-
-    return {
-      totals: {
-        totalTeams: aggregates.totalTeams,
-        totalProjects: aggregates.totalProjects,
-        publicProjects: aggregates.publicProjects,
-        privateProjects: aggregates.privateProjects,
-        totalMembers: aggregates.memberIds.size,
-      },
-      teamCards: cards,
-    };
-  }, [teams]);
+  const { totals, teamCards } = useHomeTeamMetrics(teams);
+  const { leaveTeam, isLeaving, error: leaveTeamError } = useLeaveTeam(refetchTeams);
 
   const noTeams = !loadingTeams && teamCards.length === 0;
 
@@ -135,18 +36,9 @@ export function HomePage({ user }: HomePageProps) {
       const confirmed = window.confirm(`Leave the team "${team.name}"?`);
       if (!confirmed) return;
 
-      setLeaveTeamError(null);
-      setLeavingTeamId(team.id);
-      try {
-        await leaveTeamMutation({ variables: { team_id: team.id } });
-        await refetchTeams();
-      } catch (error) {
-        setLeaveTeamError((error as Error).message ?? "Unable to leave team.");
-      } finally {
-        setLeavingTeamId(null);
-      }
+      await leaveTeam(team);
     },
-    [leaveTeamMutation, refetchTeams]
+    [leaveTeam]
   );
 
   return (
@@ -161,8 +53,8 @@ export function HomePage({ user }: HomePageProps) {
               {user ? "Choose a team to get started" : "Organize teams, projects, and workflows"}
             </h1>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Teams bring your projects, workflows, and teammates together. Keep track of ownership, membership, and
-              visibility before diving into the work itself.
+              Teams bring your projects, workflows, and teammates together. Keep track of ownership, membership, and visibility
+              before diving into the work itself.
             </p>
           </div>
           <div className="w-full max-w-xs">
@@ -216,68 +108,16 @@ export function HomePage({ user }: HomePageProps) {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            {teamCards.map(({ team, projectCount, publicProjects, privateProjects, memberCount }) => (
-              <div
+            {teamCards.map(({ team, ...metrics }) => (
+              <TeamCard
                 key={team.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open team ${team.name}`}
-                onClick={() => handleOpenTeam(team)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    handleOpenTeam(team);
-                  }
-                }}
-                className="flex flex-col rounded-2xl border border-border bg-card/60 p-6 outline-none transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{formatRole(team.role)}</p>
-                    <h3 className="mt-2 text-lg font-semibold text-foreground">{team.name}</h3>
-                    {team.description ? (
-                      <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{team.description}</p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-6 grid gap-3 rounded-xl border border-dashed border-border bg-muted/60 p-4 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between">
-                    <span>Projects</span>
-                    <span className="text-sm font-semibold text-foreground">{projectCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Visibility</span>
-                    <span className="text-sm font-semibold text-foreground">
-                      {publicProjects} public · {privateProjects} private
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Members</span>
-                    <span className="text-sm font-semibold text-foreground">{memberCount}</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  {team.role !== "owner" ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-2 text-destructive hover:text-destructive focus:text-destructive"
-                      disabled={leavingTeamId === team.id}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleLeaveTeam(team);
-                      }}
-                    >
-                      Leave team
-                    </Button>
-                  ) : null}
-                  <span className="text-xs text-muted-foreground">
-                    Updated {team.updated_at ? formatUpdatedAt(team.updated_at) : "recently"}
-                  </span>
-                </div>
-              </div>
+                team={team}
+                metrics={metrics}
+                onOpenTeam={handleOpenTeam}
+                onLeaveTeam={handleLeaveTeam}
+                canLeave={team.role !== "owner"}
+                isLeaving={isLeaving(team.id)}
+              />
             ))}
           </div>
         </section>
