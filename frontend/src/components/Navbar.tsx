@@ -5,6 +5,7 @@ import { useModal } from "./ModalStack";
 import { useNotifications } from "../hooks/useNotifications";
 import { getFullName, getInitials } from "../utils/user";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import breadLogo from "../assets/menacing_bread.png";
 import {
   Avatar,
   AvatarFallback,
@@ -35,11 +36,15 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
   return (
     <nav className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/65">
       <div className="flex h-16 w-full items-center justify-between px-4 sm:px-6">
-        <Link
-          to="/"
-          className="text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary sm:text-lg"
-        >
-          <span className="text-primary">Task</span> Manager
+        <Link to="/" className="group flex items-center gap-2">
+          <img
+            src={breadLogo}
+            alt="Task Manager logo"
+            className="h-10 w-10 rounded-full bg-muted object-cover shadow-sm"
+          />
+          <span className="text-base font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary sm:text-lg">
+            TBD
+          </span>
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-3">
