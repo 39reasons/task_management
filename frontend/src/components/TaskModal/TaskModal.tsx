@@ -85,7 +85,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     statusError={meta.statusError}
                     hasTags={tags.hasTags}
                     tags={tags.tags}
-                    assignee={assignee.assignee}
+                    assignee={assignee.assignee ?? null}
                     dueDate={meta.dueDate}
                     onAddTag={tags.openTagModal}
                     onAddDueDate={dueDateModal.openDueDateModal}
@@ -154,16 +154,14 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     loading={comments.loading}
                     commentText={comments.commentText}
                     onCommentTextChange={comments.changeCommentText}
-                    onSubmitComment={() => void comments.submitComment()}
+                    onSubmitComment={() => comments.submitComment()}
                     editingCommentId={comments.editingCommentId}
                     editingCommentText={comments.editingCommentText}
                     onEditCommentTextChange={comments.changeEditingCommentText}
                     onStartEditComment={comments.startEditComment}
                     onCancelEditComment={comments.cancelEditComment}
-                    onSubmitEditComment={() => void comments.submitCommentEdit()}
-                    onDeleteComment={(commentId) => {
-                      void comments.deleteComment(commentId);
-                    }}
+                    onSubmitEditComment={() => comments.submitCommentEdit()}
+                    onDeleteComment={comments.deleteComment}
                     currentUserId={currentUserId}
                   />
                 </div>

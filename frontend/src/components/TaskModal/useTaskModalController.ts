@@ -254,15 +254,22 @@ export function useTaskModalController({
       }
 
       let data: Task & { stage?: Task["stage"] | null } = next;
-      if (!(next as unknown as { stage?: Task["stage"] | null }).stage) {
-        const existing = client.cache.readFragment<Task & { stage?: Task["stage"] | null } | null>({
-          id: cacheId,
-          fragment: TASK_FRAGMENT,
-        });
-        if (existing?.stage) {
-          data = { ...next, stage: existing.stage } as Task & { stage?: Task["stage"] | null };
-        }
+      const existing = client.cache.readFragment<Task & { stage?: Task["stage"] | null; sprint?: Task["sprint"] | null } | null>({
+        id: cacheId,
+        fragment: TASK_FRAGMENT,
+      });
+
+      if (!(next as unknown as { stage?: Task["stage"] | null }).stage && existing?.stage) {
+        data = { ...data, stage: existing.stage } as Task & { stage?: Task["stage"] | null };
       }
+      if (!(next as unknown as { sprint?: Task["sprint"] | null }).sprint && existing?.sprint) {
+        data = { ...data, sprint: existing.sprint } as Task & { sprint?: Task["sprint"] | null };
+      }
+
+      const stageValue =
+        (data as { stage?: Task["stage"] | null }).stage ?? existing?.stage ?? null;
+      const sprintValue =
+        (data as { sprint?: Task["sprint"] | null }).sprint ?? (existing as { sprint?: Task["sprint"] | null })?.sprint ?? null;
 
       const normalizedTask = {
         ...data,
@@ -273,6 +280,10 @@ export function useTaskModalController({
         estimate: data.estimate ?? null,
         assignee_id: data.assignee_id ?? null,
         assignee: data.assignee ?? null,
+        stage: stageValue,
+        sprint: sprintValue,
+        created_at: data.created_at ?? existing?.created_at ?? null,
+        updated_at: data.updated_at ?? existing?.updated_at ?? null,
       } as Task;
 
       client.cache.writeFragment({
