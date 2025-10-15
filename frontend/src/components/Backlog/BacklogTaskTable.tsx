@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { BacklogRow } from "./BacklogRow";
 import { BacklogRowOverlay } from "./BacklogRowOverlay";
 import type { BacklogTaskRow } from "./types";
+export type { BacklogTaskRow } from "./types";
 import { useBacklogReorder } from "./useBacklogReorder";
 
 export type BacklogTaskTableProps = {
