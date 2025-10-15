@@ -145,17 +145,9 @@ export function useProjectBoard(): UseProjectBoardResult {
         : `temp-${Date.now()}`;
 
     const nowIso = new Date().toISOString();
-    const stageFallback = stageMeta
-      ? {
-          id: stageMeta.id,
-          name: stageMeta.name,
-          position: stageMeta.position,
-          workflow_id: stageMeta.workflow_id,
-          tasks: stageMeta.tasks,
-        }
-      : null;
+    const stageFallback = stageMeta ? stageMeta : null;
 
-    const fallbackProps = {
+    const fallbackProps: TaskFallback = {
       project_id: projectId,
       team_id: workflow?.team_id ?? null,
       stage_id,
@@ -229,24 +221,24 @@ export function useProjectBoard(): UseProjectBoardResult {
                   .map((task, index) => ({
                     ...task,
                     position: index,
-                  }));
+                  })) as Task[];
 
                 return {
                   ...stage,
                   tasks: nextTasks,
-                };
-              });
+                } as Stage;
+              }) as Stage[];
 
               return {
                 ...workflow,
                 stages: nextStages,
-              };
-            });
+              } as Workflow;
+            }) as Workflow[];
 
             return {
               ...existing,
               workflows,
-            };
+            } as { workflows: Workflow[] };
           }
         );
       },

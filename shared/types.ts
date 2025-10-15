@@ -11,9 +11,9 @@ export interface Task {
   project_id: string;
   backlog_id?: string | null;
   sprint_id?: string | null;
-  team_id?: string;
+  team_id?: string | null;
   tags?: Tag[];
-  stage?: Stage;
+  stage?: Stage | null;
   estimate?: number | null;
   sprint?: Sprint | null;
   position?: number;
