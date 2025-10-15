@@ -105,9 +105,9 @@ function areStagesEquivalent(
       ) {
         return false;
       }
-      const taskAssigneeIds = (task.assignees ?? []).map((member) => member.id).join(",");
-      const otherAssigneeIds = (other.assignees ?? []).map((member) => member.id).join(",");
-      if (taskAssigneeIds !== otherAssigneeIds) {
+      const taskAssigneeId = task.assignee_id ?? task.assignee?.id ?? null;
+      const otherAssigneeId = other.assignee_id ?? other.assignee?.id ?? null;
+      if (taskAssigneeId !== otherAssigneeId) {
         return false;
       }
       const taskTagIds = (task.tags ?? []).map((tag) => tag.id).join(",");

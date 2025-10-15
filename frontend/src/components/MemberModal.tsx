@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@apollo/client";
-import { GET_PROJECT_MEMBERS, SET_TASK_MEMBERS, GET_WORKFLOWS, GET_TASKS } from "../graphql";
+import { GET_PROJECT_MEMBERS, SET_TASK_ASSIGNEE, GET_WORKFLOWS, GET_TASKS } from "../graphql";
 import type { Task, User } from "@shared/types";
 import { useModal } from "./ModalStack";
 import { getFullName, getInitials } from "../utils/user";
@@ -9,7 +9,6 @@ import {
   Avatar,
   AvatarFallback,
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -38,13 +37,12 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
     skip: !isOpen || !project_id,
   });
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [setTaskMembers] = useMutation(SET_TASK_MEMBERS);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [setTaskAssignee] = useMutation(SET_TASK_ASSIGNEE);
 
   useEffect(() => {
     if (isOpen && task) {
-      const currentIds = (task.assignees ?? []).map((member) => member.id);
-      setSelectedIds(currentIds);
+      setSelectedId(task.assignee?.id ?? null);
     }
   }, [isOpen, task]);
 
@@ -59,20 +57,20 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
   ];
 
   const toggleMember = (memberId: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId]
-    );
+    setSelectedId((prev) => (prev === memberId ? null : memberId));
   };
 
   const handleSave = async () => {
-    await setTaskMembers({
-      variables: { task_id: task.id, member_ids: selectedIds },
+    await setTaskAssignee({
+      variables: { task_id: task.id, member_id: selectedId },
       refetchQueries,
     });
 
+    const assignedMember = members.find((member) => member.id === selectedId) ?? null;
     onAssign?.({
       ...task,
-      assignees: members.filter((member) => selectedIds.includes(member.id)),
+      assignee_id: selectedId,
+      assignee: assignedMember,
     });
     closeModal("member");
   };
@@ -83,7 +81,7 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
     }
   };
 
-  const clearAll = () => setSelectedIds([]);
+  const clearAll = () => setSelectedId(null);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
@@ -98,9 +96,11 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
         ) : (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Choose one or more members.</span>
+              <span className="text-sm text-muted-foreground">
+                Choose the teammate who should own this task.
+              </span>
               <Button type="button" variant="ghost" size="sm" onClick={clearAll} className="text-xs">
-                Clear all
+                Unassign
               </Button>
             </div>
 
@@ -110,7 +110,7 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
               <ScrollArea className="max-h-72 rounded-md border border-border">
                 <div className="space-y-2 p-2">
                   {members.map((member) => {
-                    const isSelected = selectedIds.includes(member.id);
+                    const isSelected = selectedId === member.id;
                     return (
                       <div
                         key={member.id}
@@ -146,13 +146,9 @@ export function MemberModal({ task, onAssign }: MemberModalProps) {
                             <span className="text-xs text-muted-foreground">@{member.username}</span>
                           </div>
                         </div>
-                        <Checkbox
-                          checked={isSelected}
-                          onClick={(event) => event.stopPropagation()}
-                          onKeyDown={(event) => event.stopPropagation()}
-                          onCheckedChange={() => toggleMember(member.id)}
-                          aria-label={`Toggle ${getFullName(member)}`}
-                        />
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {isSelected ? "Selected" : ""}
+                        </span>
                       </div>
                     );
                   })}

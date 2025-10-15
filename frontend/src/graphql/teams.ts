@@ -107,3 +107,9 @@ export const LEAVE_TEAM = gql`
     leaveTeam(team_id: $team_id)
   }
 `;
+
+export const REMOVE_TEAM_MEMBER = gql`
+  mutation RemoveTeamMember($team_id: ID!, $user_id: ID!) {
+    removeTeamMember(team_id: $team_id, user_id: $user_id)
+  }
+`;

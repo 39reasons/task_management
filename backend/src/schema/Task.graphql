@@ -14,7 +14,8 @@ type Task {
   tags: [Tag!]!
   stage: Stage
   sprint: Sprint
-  assignees: [User!]!
+  assignee_id: ID
+  assignee: User
   position: Int
   created_at: String
   updated_at: String
@@ -97,9 +98,9 @@ extend type Mutation {
     task_ids: [ID!]!
   ): Boolean!
 
-  setTaskMembers(
+  setTaskAssignee(
     task_id: ID!
-    member_ids: [ID!]!
+    member_id: ID
   ): Task!
 
   generateTaskDraft(input: TaskDraftInput!): TaskDraftSuggestion!

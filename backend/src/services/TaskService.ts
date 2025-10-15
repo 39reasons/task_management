@@ -2,6 +2,7 @@ import { query } from "../db/index.js";
 import type { Task, User } from "../../../shared/types.js";
 import * as TagService from "./TagService.js";
 import * as StageService from "./StageService.js";
+import * as UserService from "./UserService.js";
 import { publishTaskBoardEvent, type TaskBoardEvent, type TaskBoardEventAction } from "../events/taskBoardPubSub.js";
 
 type TaskRow = {
@@ -10,6 +11,7 @@ type TaskRow = {
   stage_id: string | null;
   backlog_id: string | null;
   sprint_id: string | null;
+  assignee_id: string | null;
   title: string;
   description: string | null;
   due_date: string | null;
@@ -30,6 +32,7 @@ const TASK_BASE_SELECT = `
     t.stage_id,
     t.backlog_id,
     t.sprint_id,
+    t.assignee_id,
     t.title,
     t.description,
     to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
@@ -82,31 +85,34 @@ function mapTaskRow(row: TaskRow): Task {
     estimate: row.estimate ?? null,
     status: sanitizeTaskStatus(row.status),
     stage_id: row.stage_id ?? null,
-    backlog_id: row.backlog_id ?? null,
-    sprint_id: row.sprint_id ?? null,
-    project_id: row.project_id,
-    team_id: row.team_id,
-    position: row.position,
-    created_at: normalizeTimestamp(row.created_at),
-    updated_at: normalizeTimestamp(row.updated_at),
+  backlog_id: row.backlog_id ?? null,
+  sprint_id: row.sprint_id ?? null,
+  assignee_id: row.assignee_id ?? null,
+  project_id: row.project_id,
+  team_id: row.team_id,
+  position: row.position,
+  created_at: normalizeTimestamp(row.created_at),
+  updated_at: normalizeTimestamp(row.updated_at),
   };
 }
 
 async function ensureTaskHydrated(task: Task): Promise<Task> {
   const needsTags = !Array.isArray(task.tags);
-  const needsAssignees = !Array.isArray(task.assignees);
   const needsStage = task.stage_id ? !(task as unknown as { stage?: Task["stage"] }).stage : false;
+  const needsAssignee = task.assignee_id
+    ? !(task as unknown as { assignee?: Task["assignee"] }).assignee
+    : false;
 
-  const [tags, assignees, stage] = await Promise.all([
+  const [tags, assignee, stage] = await Promise.all([
     needsTags ? TagService.getTagsForTask(task.id) : Promise.resolve(task.tags ?? []),
-    needsAssignees ? getTaskMembers(task.id) : Promise.resolve(task.assignees ?? []),
+    needsAssignee && task.assignee_id ? UserService.getUserById(task.assignee_id) : Promise.resolve(task.assignee ?? null),
     needsStage && task.stage_id ? StageService.getStageById(task.stage_id) : Promise.resolve(null),
   ]);
 
   return {
     ...task,
     tags: (tags ?? []) as Task["tags"],
-    assignees: (assignees ?? []) as Task["assignees"],
+    assignee: task.assignee_id ? (assignee ?? task.assignee ?? null) : null,
     ...(stage
       ? {
           stage: {
@@ -717,38 +723,31 @@ export async function getProjectIdForStage(stage_id: string): Promise<{ project_
   return row ? { project_id: row.project_id, team_id: row.team_id } : null;
 }
 
-export async function getTaskMembers(task_id: string): Promise<User[]> {
-  const result = await query<User>(
-    `
-    SELECT u.id, u.first_name, u.last_name, u.username, u.avatar_color, u.created_at, u.updated_at
-    FROM task_members tm
-    JOIN users u ON u.id = tm.user_id
-    WHERE tm.task_id = $1
-    ORDER BY u.first_name ASC, u.last_name ASC
-    `,
-    [task_id]
-  );
-
-  return result.rows;
+export async function getTaskAssignee(taskOrId: Task | string): Promise<User | null> {
+  const task = typeof taskOrId === "string" ? await getTaskById(taskOrId) : taskOrId;
+  if (!task || !task.assignee_id) {
+    return null;
+  }
+  if ((task as unknown as { assignee?: User | null }).assignee) {
+    return (task as unknown as { assignee?: User | null }).assignee ?? null;
+  }
+  return await UserService.getUserById(task.assignee_id);
 }
 
-export async function setTaskMembers(
+export async function setTaskAssignee(
   task_id: string,
-  member_ids: string[],
+  member_id: string | null,
   options?: { origin?: string | null }
 ): Promise<void> {
-  await query("DELETE FROM task_members WHERE task_id = $1", [task_id]);
-
-  if (member_ids.length > 0) {
-    await query(
-      `
-      INSERT INTO task_members (task_id, user_id)
-      SELECT $1, unnest($2::uuid[])
-      ON CONFLICT DO NOTHING
-      `,
-      [task_id, member_ids]
-    );
-  }
+  await query(
+    `
+    UPDATE tasks
+    SET assignee_id = $2,
+        updated_at = now()
+    WHERE id = $1
+    `,
+    [task_id, member_id]
+  );
 
   const task = await getTaskById(task_id);
   if (task) {

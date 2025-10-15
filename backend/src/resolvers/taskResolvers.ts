@@ -193,13 +193,13 @@ export const taskResolvers = {
       return true;
     },
 
-    setTaskMembers: async (
+    setTaskAssignee: async (
       _: unknown,
-      { task_id, member_ids }: { task_id: string; member_ids: string[] },
+      { task_id, member_id }: { task_id: string; member_id?: string | null },
       ctx: GraphQLContext
     ): Promise<Task> => {
       if (!ctx.user) throw new Error("Not authenticated");
-      await TaskService.setTaskMembers(task_id, member_ids, {
+      await TaskService.setTaskAssignee(task_id, member_id ?? null, {
         origin: ctx.clientId ?? null,
       });
       const task = await TaskService.getTaskById(task_id);
@@ -234,6 +234,6 @@ export const taskResolvers = {
     comments: (parent: Task) => CommentService.getCommentsByTask(parent.id),
     stage: (parent: Task) => (parent.stage_id ? StageService.getStageById(parent.stage_id) : null),
     sprint: (parent: Task) => (parent.sprint_id ? SprintService.getSprintById(parent.sprint_id) : null),
-    assignees: (parent: Task) => TaskService.getTaskMembers(parent.id),
+    assignee: (parent: Task) => TaskService.getTaskAssignee(parent),
   },
 };

@@ -108,6 +108,7 @@ CREATE TABLE tasks (
   stage_id UUID REFERENCES stages(id) ON DELETE SET NULL,
   backlog_id UUID REFERENCES backlogs(id) ON DELETE SET NULL,
   sprint_id UUID REFERENCES sprints(id) ON DELETE SET NULL,
+  assignee_id UUID REFERENCES users(id) ON DELETE SET NULL,
   position INT NOT NULL DEFAULT 0,
   title TEXT NOT NULL,
   description TEXT,
@@ -117,12 +118,6 @@ CREATE TABLE tasks (
   status TEXT NOT NULL DEFAULT 'new',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE task_members (
-  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  PRIMARY KEY (task_id, user_id)
 );
 
 CREATE TABLE notifications (
@@ -184,7 +179,6 @@ CREATE INDEX IF NOT EXISTS idx_stages_workflow ON stages (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows (project_id);
 CREATE INDEX IF NOT EXISTS idx_projects_team ON projects (team_id);
 CREATE INDEX IF NOT EXISTS idx_user_projects_project_user ON user_projects (project_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_task_members_task ON task_members (task_id);
 CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags (task_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members (team_id);

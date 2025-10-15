@@ -1,6 +1,6 @@
-import { useState, useEffect, Fragment, useCallback } from "react";
-import { useQuery, useMutation, useApolloClient } from "@apollo/client";
-import type { Task, AuthUser } from "@shared/types";
+import { useState, useEffect, Fragment, useCallback, useMemo } from "react";
+import { useQuery, useMutation, useApolloClient, useLazyQuery } from "@apollo/client";
+import type { Task, AuthUser, User } from "@shared/types";
 import {
   GET_COMMENTS,
   ADD_COMMENT,
@@ -9,9 +9,13 @@ import {
   UPDATE_TASK,
   GET_TASK_TAGS,
   REMOVE_TAG_FROM_TASK,
-  SET_TASK_MEMBERS,
+  SET_TASK_ASSIGNEE,
   GENERATE_TASK_DRAFT,
   ADD_TAG_TO_TASK,
+  GET_PROJECT_MEMBERS,
+  SEARCH_USERS,
+  GET_WORKFLOWS,
+  GET_TASKS,
 } from "../../graphql";
 import { Sparkles, X } from "lucide-react";
 import { useModal } from "../ModalStack";
@@ -22,7 +26,7 @@ import { TaskDescriptionSection } from "./TaskDescriptionSection";
 import { TaskCommentsPanel } from "./TaskCommentsPanel";
 import type { CommentWithUser, TaskDraftResponse } from "./types";
 import { TASK_FRAGMENT } from '../../graphql/tasks';
-import { Button, Dialog, DialogContent, ScrollArea, Separator } from "../ui";
+import { Button, Dialog, DialogContent, DialogTitle, ScrollArea, Separator } from "../ui";
 
 const TASK_TITLE_MAX_LENGTH = 512;
 
@@ -45,6 +49,8 @@ interface TaskModalProps {
   currentUser: AuthUser | null;
   onTaskUpdate?: (task: Task) => void;
 }
+
+type ProjectMember = Pick<User, "id" | "first_name" | "last_name" | "username" | "avatar_color">;
 
 export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const { modals, closeModal, openModal } = useModal();
@@ -72,6 +78,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [isAssigningAssignee, setIsAssigningAssignee] = useState(false);
 
   const { data, loading, refetch } = useQuery(GET_COMMENTS, {
     variables: { task_id: task?.id },
@@ -83,13 +90,58 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     skip: !task,
   });
 
+  const projectId = task?.project_id ?? null;
+
+  const { data: projectMembersData, loading: isMembersLoading } = useQuery(GET_PROJECT_MEMBERS, {
+    variables: { project_id: projectId },
+    skip: !isOpen || !projectId,
+  });
+
+  const projectMembers = useMemo(
+    () => (projectMembersData?.projectMembers ?? []) as ProjectMember[],
+    [projectMembersData]
+  );
+
+  const [searchUsersLazy, { loading: isSearchingMembers }] = useLazyQuery(SEARCH_USERS, {
+    fetchPolicy: "no-cache",
+  });
+
+  const handleSearchMembers = useCallback(
+    async (query: string) => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        return projectMembers;
+      }
+
+      try {
+        const { data: searchData } = await searchUsersLazy({
+          variables: { query: trimmed },
+        });
+
+        const results = (searchData?.searchUsers ?? []) as ProjectMember[];
+        const seen = new Set<string>();
+        return results.filter((user) => {
+          if (seen.has(user.id)) {
+            return false;
+          }
+          seen.add(user.id);
+          return true;
+        });
+      } catch (error) {
+        console.error("Failed to search users", error);
+        return [];
+      }
+    },
+    [projectMembers, searchUsersLazy]
+  );
+
   const [addComment] = useMutation(ADD_COMMENT);
   const [deleteCommentMutation] = useMutation(DELETE_COMMENT);
   const [updateCommentMutation] = useMutation(UPDATE_COMMENT);
 
   const [updateTask] = useMutation(UPDATE_TASK);
   const [removeTagFromTask] = useMutation(REMOVE_TAG_FROM_TASK);
-  const [updateTaskMembers] = useMutation(SET_TASK_MEMBERS);
+  const [setTaskAssigneeMutation] = useMutation(SET_TASK_ASSIGNEE);
   const [addTagToTaskMutation] = useMutation(ADD_TAG_TO_TASK);
   const [generateTaskDraftMutation, { loading: isGeneratingDraft }] =
     useMutation(GENERATE_TASK_DRAFT);
@@ -119,6 +171,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
         backlog_id: data.backlog_id ?? null,
         sprint_id: data.sprint_id ?? null,
         estimate: data.estimate ?? null,
+        assignee_id: data.assignee_id ?? null,
+        assignee: data.assignee ?? null,
       } as Task;
 
       client.cache.writeFragment({
@@ -656,9 +710,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     setCommentText("");
   };
 
-  const assignees = task.assignees ?? [];
+  const assignee = task.assignee ?? null;
   const hasTags = tags.length > 0;
-  const hasAssignees = assignees.length > 0;
   const comments = (data?.task?.comments ?? []) as CommentWithUser[];
 
   const handleRemoveTag = async (tagId: string) => {
@@ -678,18 +731,55 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     writeTaskToCache(nextTask);
   };
 
-  const handleRemoveMember = async (memberId: string) => {
-    if (!task) return;
-    const remaining = assignees.filter((member) => member.id !== memberId);
-    await updateTaskMembers({
-      variables: { task_id: task.id, member_ids: remaining.map((m) => m.id) },
-    });
-    const nextTask = {
-      ...task,
-      assignees: remaining,
-      stage: (task as unknown as { stage?: Task["stage"] | null }).stage ?? null,
-    } as Task;
-    writeTaskToCache(nextTask);
+  const handleAssignMember = useCallback(
+    async (memberId: string | null) => {
+      if (!task) return;
+
+      const currentAssigneeId = task.assignee?.id ?? null;
+      if (currentAssigneeId === memberId) {
+        return;
+      }
+
+      try {
+        setIsAssigningAssignee(true);
+        const { data: assignData } = await setTaskAssigneeMutation({
+          variables: { task_id: task.id, member_id: memberId },
+          refetchQueries:
+            task.project_id != null
+              ? [
+                  { query: GET_WORKFLOWS, variables: { project_id: task.project_id } },
+                  { query: GET_TASKS, variables: {} },
+                  { query: GET_TASKS, variables: { project_id: task.project_id } },
+                ]
+              : undefined,
+        });
+
+        const updatedTask = assignData?.setTaskAssignee as Task | undefined;
+        if (updatedTask) {
+          writeTaskToCache(updatedTask);
+        } else {
+          const fallbackTask = {
+            ...task,
+            assignee_id: memberId,
+            assignee:
+              memberId === null
+                ? null
+                : projectMembers.find((member) => member.id === memberId) ?? task.assignee ?? null,
+            stage: (task as unknown as { stage?: Task["stage"] | null }).stage ?? null,
+          } as Task;
+          writeTaskToCache(fallbackTask);
+        }
+      } catch (error) {
+        console.error("Failed to assign member", error);
+      } finally {
+        setIsAssigningAssignee(false);
+      }
+    },
+    [projectMembers, setTaskAssigneeMutation, task, writeTaskToCache]
+  );
+
+  const handleClearAssignee = () => {
+    void handleAssignMember(null);
   };
 
   const cancelDescriptionEdit = () => {
@@ -735,6 +825,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
           className="task-modal-theme max-w-[1100px] overflow-hidden border border-border bg-[hsl(var(--modal-background))] p-0 text-[hsl(var(--modal-foreground))] shadow-2xl"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
+          <DialogTitle className="sr-only">Task details</DialogTitle>
           <div className="flex h-[80vh] min-h-[560px] flex-col bg-[hsl(var(--background))]">
             <div className="flex items-center justify-between gap-4 border-b border-border/60 bg-[hsl(var(--background))] px-6 py-3">
               <p className="text-sm font-semibold text-muted-foreground">Task details</p>
@@ -772,15 +863,21 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     isStatusUpdating={isUpdatingStatus}
                     statusError={statusError}
                     hasTags={hasTags}
-                    hasAssignees={hasAssignees}
                     tags={tags}
-                    assignees={assignees}
+                    assignee={assignee}
                     dueDate={dueDate}
                     onAddTag={() => openModal("tag")}
-                    onAddMember={() => openModal("member")}
                     onAddDueDate={() => openModal("due-date")}
                     onRemoveTag={handleRemoveTag}
-                    onRemoveMember={handleRemoveMember}
+                    onAssignMember={(memberId) => {
+                      void handleAssignMember(memberId);
+                    }}
+                    onClearAssignee={handleClearAssignee}
+                    isAssigningAssignee={isAssigningAssignee}
+                    isMembersLoading={isMembersLoading}
+                    onSearchMembers={handleSearchMembers}
+                    isSearchingMembers={isSearchingMembers}
+                    members={projectMembers}
                     onClearDueDate={clearDueDate}
                   />
 

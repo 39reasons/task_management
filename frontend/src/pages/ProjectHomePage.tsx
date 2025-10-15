@@ -1,8 +1,20 @@
+import { useCallback, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@apollo/client";
+import { useMutation, useQuery } from "@apollo/client";
 import type { AuthUser, Project } from "@shared/types";
-import { Card, CardContent, Badge, Button, Avatar, AvatarFallback, Separator } from "../components/ui";
-import { GET_PROJECT } from "../graphql";
+import {
+  Card,
+  CardContent,
+  Badge,
+  Button,
+  Avatar,
+  AvatarFallback,
+  Separator,
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from "../components/ui";
+import { GET_PROJECT, LEAVE_PROJECT, REMOVE_PROJECT_MEMBER } from "../graphql";
 import { Loader2, Users, Layers, CalendarDays, AlertCircle } from "lucide-react";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
 import { getInitials, getFullName } from "../utils/user";
@@ -35,11 +47,63 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
   const projectId = id ?? null;
   const navigate = useNavigate();
 
-  const { data, loading, error } = useQuery<ProjectQueryResult>(GET_PROJECT, {
+  const { data, loading, error, refetch } = useQuery<ProjectQueryResult>(GET_PROJECT, {
     variables: projectId ? { id: projectId } : undefined,
     skip: !projectId,
     fetchPolicy: "network-only",
   });
+  const [removeProjectMemberMutation] = useMutation(REMOVE_PROJECT_MEMBER);
+  const [leaveProjectMutation] = useMutation(LEAVE_PROJECT);
+  const [memberActionError, setMemberActionError] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [leavingProject, setLeavingProject] = useState(false);
+
+  const project = data?.project ?? null;
+  const projectTeamId = project?.team?.id ?? null;
+  const viewerId = user?.id ?? null;
+  const projectName = project?.name ?? "this project";
+
+  const handleRemoveMember = useCallback(
+    async (memberId: string, memberName: string) => {
+      if (!projectId) return;
+      const confirmed = window.confirm(`Remove ${memberName} from this project?`);
+      if (!confirmed) return;
+
+      setMemberActionError(null);
+      setRemovingMemberId(memberId);
+      try {
+        await removeProjectMemberMutation({
+          variables: { project_id: projectId, user_id: memberId },
+        });
+        await refetch();
+      } catch (error) {
+        setMemberActionError((error as Error).message ?? "Unable to remove collaborator.");
+      } finally {
+        setRemovingMemberId(null);
+      }
+    },
+    [projectId, refetch, removeProjectMemberMutation]
+  );
+
+  const handleLeaveProject = useCallback(async () => {
+    if (!projectId) return;
+    const confirmed = window.confirm(`Leave the project "${projectName}"?`);
+    if (!confirmed) return;
+
+    setMemberActionError(null);
+    setLeavingProject(true);
+    try {
+      await leaveProjectMutation({
+        variables: { project_id: projectId },
+      });
+      await refetch().catch(() => {});
+      navigate(projectTeamId ? `/teams/${projectTeamId}` : "/");
+    } catch (error) {
+      setMemberActionError((error as Error).message ?? "Unable to leave project.");
+    } finally {
+      setLeavingProject(false);
+    }
+  }, [leaveProjectMutation, navigate, projectId, projectTeamId, projectName, refetch]);
 
   if (!projectId) {
     return <div className="p-6 text-destructive">Project identifier is missing.</div>;
@@ -62,8 +126,6 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
       </div>
     );
   }
-
-  const project = data?.project;
 
   if (!project) {
     return <div className="p-6 text-destructive">We couldn&apos;t find that project.</div>;
@@ -171,11 +233,18 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
             <p className="text-xs text-muted-foreground">
               Track workflow changes and new activity from the workflow board.
             </p>
-          </CardContent>
-        </Card>
-      </section>
+      </CardContent>
+    </Card>
+  </section>
 
-      <section className="rounded-3xl border border-border bg-card px-6 py-6 shadow-sm">
+  {memberActionError ? (
+    <Alert variant="destructive">
+      <AlertTitle>Unable to update collaborators</AlertTitle>
+      <AlertDescription>{memberActionError}</AlertDescription>
+    </Alert>
+  ) : null}
+
+  <section className="rounded-3xl border border-border bg-card px-6 py-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Project collaborators</h2>
@@ -192,24 +261,55 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {members.length > 0 ? (
-            members.map((member, index) => (
-              <Card key={member?.id ?? member?.username ?? `member-${index}`} className="border-border">
-                <CardContent className="flex items-center gap-3 py-4">
-                  <Avatar className="h-10 w-10 border border-border/60 shadow-sm">
-                    <AvatarFallback
-                      className="text-sm font-semibold uppercase text-primary-foreground"
-                      style={{ backgroundColor: member?.avatar_color ?? DEFAULT_AVATAR_COLOR }}
-                    >
-                      {getInitials(member)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{getFullName(member)}</p>
-                    <p className="text-xs text-muted-foreground">@{member?.username}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+            members.map((member, index) => {
+              const memberId = member?.id ?? `member-${index}`;
+              const fullName = getFullName(member);
+              const displayName = fullName || `@${member?.username ?? "user"}`;
+              const isViewer = member?.id === viewerId;
+              return (
+                <Card key={memberId} className="border-border">
+                  <CardContent className="flex items-center gap-3 py-4">
+                    <Avatar className="h-10 w-10 border border-border/60 shadow-sm">
+                      <AvatarFallback
+                        className="text-sm font-semibold uppercase text-primary-foreground"
+                        style={{ backgroundColor: member?.avatar_color ?? DEFAULT_AVATAR_COLOR }}
+                      >
+                        {getInitials(member)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{fullName || member?.username}</p>
+                      <p className="text-xs text-muted-foreground">@{member?.username}</p>
+                    </div>
+                    <div className="ml-auto flex items-center gap-2">
+                      {isViewer ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-destructive hover:text-destructive focus:text-destructive"
+                          onClick={() => void handleLeaveProject()}
+                          disabled={leavingProject}
+                        >
+                          {leavingProject ? "Leaving…" : "Leave"}
+                        </Button>
+                      ) : canManageProject && member?.id ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => void handleRemoveMember(member.id, displayName)}
+                          disabled={removingMemberId === member?.id}
+                        >
+                          {removingMemberId === member?.id ? "Removing…" : "Remove"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
           ) : (
             <div className="col-span-full rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
               No collaborators yet. Invite teammates to get started.

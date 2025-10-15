@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   KanbanSquare,
@@ -26,6 +26,7 @@ interface ProjectSidebarProps {
 
 export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data } = useQuery(GET_PROJECT, {
     variables: { id: projectId },
     skip: !projectId,
@@ -37,46 +38,55 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
   const teamId = data?.project?.team?.id ?? null;
 
   const navItems = useMemo(
-    () => [
-      {
-        to: `/projects/${projectId}`,
-        label: "Overview",
-        icon: LayoutDashboard,
-        exact: true,
-      },
-      {
-        to: `/projects/${projectId}/workflow`,
-        label: "Workflow",
-        icon: KanbanSquare,
-      },
-      {
-        to: `/projects/${projectId}/work-items`,
-        label: "Work items",
-        icon: ClipboardList,
-      },
-      {
-        to: `/projects/${projectId}/backlog`,
-        label: "Backlog",
-        icon: ListTodo,
-      },
-      {
-        to: `/projects/${projectId}/sprints`,
-        label: "Sprints",
-        icon: Gauge,
-      },
-      {
-        to: `/projects/${projectId}/members`,
-        label: "Members",
-        icon: Users,
-        disabled: true,
-      },
-      {
-        to: `/projects/${projectId}/settings`,
-        label: "Settings",
-        icon: Settings,
-        disabled: true,
-      },
-    ],
+    () =>
+      [
+        {
+          to: `/projects/${projectId}`,
+          label: "Overview",
+          icon: LayoutDashboard,
+          exact: true,
+        },
+        {
+          to: `/projects/${projectId}/workflow`,
+          label: "Workflow",
+          icon: KanbanSquare,
+        },
+        {
+          to: `/projects/${projectId}/work-items`,
+          label: "Work items",
+          icon: ClipboardList,
+          isActive: (path: string) => path.startsWith(`/projects/${projectId}/tasks`),
+        },
+        {
+          to: `/projects/${projectId}/backlog`,
+          label: "Backlog",
+          icon: ListTodo,
+        },
+        {
+          to: `/projects/${projectId}/sprints`,
+          label: "Sprints",
+          icon: Gauge,
+        },
+        {
+          to: `/projects/${projectId}/members`,
+          label: "Members",
+          icon: Users,
+          disabled: true,
+        },
+        {
+          to: `/projects/${projectId}/settings`,
+          label: "Settings",
+          icon: Settings,
+          disabled: true,
+        },
+      ] as Array<{
+        to: string;
+        label: string;
+        icon: typeof LayoutDashboard;
+        disabled?: boolean;
+        exact?: boolean;
+        isActive?: (path: string) => boolean;
+      }>,
     [projectId]
   );
 
@@ -107,14 +117,14 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
 
       <ScrollArea className="flex-1 px-4 py-4">
         <nav className="space-y-1">
-          {navItems.map(({ to, label, icon: Icon, disabled, exact }) => (
+          {navItems.map(({ to, label, icon: Icon, disabled, exact, isActive: isActiveOverride }) => (
             <NavLink
               key={to}
               to={to}
               end={Boolean(exact)}
               className={({ isActive }) =>
                 getNavItemHighlightClasses({
-                  isActive,
+                  isActive: isActive || Boolean(isActiveOverride?.(location.pathname)),
                   className: cn(
                     "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition hover:bg-blue-500/10 hover:text-blue-600 dark:hover:bg-white/10 dark:hover:text-primary",
                     disabled && "cursor-not-allowed opacity-60"

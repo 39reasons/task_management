@@ -41,4 +41,5 @@ extend type Mutation {
 
   reorderProjects(team_id: ID!, project_ids: [ID!]!): Boolean!
   leaveProject(project_id: ID!): Boolean!
+  removeProjectMember(project_id: ID!, user_id: ID!): Boolean!
 }

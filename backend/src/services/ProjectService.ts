@@ -431,16 +431,44 @@ export async function leaveProject(project_id: string, user_id: string): Promise
     throw new Error("You are not a member of this project");
   }
 
-  const projectRoleRes = await query<{ role: string }>(
+  await ensureProjectOwnerCanBeRemoved(project_id, user_id);
+  await removeProjectMemberRecords(project_id, user_id);
+
+  return true;
+}
+
+async function ensureProjectOwnerCanBeRemoved(project_id: string, user_id: string): Promise<void> {
+  const roleRes = await query<{ role: string | null }>(
     `
     SELECT role
     FROM user_projects
-    WHERE project_id = $1 AND user_id = $2
+    WHERE project_id = $1
+      AND user_id = $2
     `,
     [project_id, user_id]
   );
 
-  const projectRole = projectRoleRes.rows[0]?.role ?? null;
+  const role = roleRes.rows[0]?.role ?? null;
+  if (role !== "owner") {
+    return;
+  }
+
+  const ownerCountRes = await query<{ count: string }>(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM user_projects
+    WHERE project_id = $1
+      AND role = 'owner'
+    `,
+    [project_id]
+  );
+
+  if (Number(ownerCountRes.rows[0]?.count ?? 0) <= 1) {
+    throw new Error("Transfer ownership before removing the last owner");
+  }
+}
+
+async function removeProjectMemberRecords(project_id: string, user_id: string): Promise<void> {
   await query(
     `
     DELETE FROM user_projects
@@ -451,16 +479,48 @@ export async function leaveProject(project_id: string, user_id: string): Promise
 
   await query(
     `
-    DELETE FROM task_members
-    WHERE user_id = $2
-      AND task_id IN (
-        SELECT t.id
-        FROM tasks t
-        WHERE t.project_id = $1
-      )
+    UPDATE tasks
+    SET assignee_id = NULL,
+        updated_at = now()
+    WHERE project_id = $1
+      AND assignee_id = $2::uuid
     `,
     [project_id, user_id]
   );
+}
+
+export async function removeProjectMember(
+  project_id: string,
+  member_id: string,
+  actor_id: string
+): Promise<boolean> {
+  if (member_id === actor_id) {
+    return await leaveProject(project_id, actor_id);
+  }
+
+  const actorMembership = await getProjectMembership(project_id, actor_id);
+  if (!actorMembership) {
+    throw new Error("Project not found or not accessible");
+  }
+
+  const actorProjectRole = actorMembership.project_role as TeamRole | null;
+  const actorTeamRole = actorMembership.team_role;
+  const canManage =
+    actorTeamRole === "owner" ||
+    actorTeamRole === "admin" ||
+    actorProjectRole === "owner";
+
+  if (!canManage) {
+    throw new Error("Only project or team owners/admins can remove members");
+  }
+
+  const targetMembership = await getProjectMembership(project_id, member_id);
+  if (!targetMembership || !targetMembership.project_role) {
+    throw new Error("User is not a member of this project");
+  }
+
+  await ensureProjectOwnerCanBeRemoved(project_id, member_id);
+  await removeProjectMemberRecords(project_id, member_id);
 
   return true;
 }

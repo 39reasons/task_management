@@ -45,7 +45,8 @@ export const GET_PROJECTS = gql`
             project_id
             team_id
             position
-            assignees {
+            assignee_id
+            assignee {
               id
               first_name
               last_name
@@ -110,7 +111,8 @@ export const GET_PROJECT = gql`
             stage_id
             backlog_id
             sprint_id
-            assignees {
+            assignee_id
+            assignee {
               id
               first_name
               last_name
@@ -201,7 +203,8 @@ export const ADD_PROJECT = gql`
             project_id
             team_id
             position
-            assignees {
+            assignee_id
+            assignee {
               id
               first_name
               last_name
@@ -268,7 +271,8 @@ export const UPDATE_PROJECT = gql`
             project_id
             team_id
             position
-            assignees {
+            assignee_id
+            assignee {
               id
               first_name
               last_name
@@ -301,6 +305,12 @@ export const REORDER_PROJECTS = gql`
 export const LEAVE_PROJECT = gql`
   mutation LeaveProject($project_id: ID!) {
     leaveProject(project_id: $project_id)
+  }
+`;
+
+export const REMOVE_PROJECT_MEMBER = gql`
+  mutation RemoveProjectMember($project_id: ID!, $user_id: ID!) {
+    removeProjectMember(project_id: $project_id, user_id: $user_id)
   }
 `;
 
@@ -347,7 +357,8 @@ export const GET_PROJECTS_OVERVIEW = gql`
             project_id
             team_id
             position
-            assignees {
+            assignee_id
+            assignee {
               id
               first_name
               last_name

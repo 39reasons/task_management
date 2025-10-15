@@ -42,4 +42,5 @@ extend type Mutation {
   updateTeam(id: ID!, name: String, description: String): Team!
   deleteTeam(id: ID!): Boolean!
   leaveTeam(team_id: ID!): Boolean!
+  removeTeamMember(team_id: ID!, user_id: ID!): Boolean!
 }

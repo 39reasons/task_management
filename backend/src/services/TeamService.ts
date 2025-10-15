@@ -263,29 +263,33 @@ export async function getTeamMembers(team_id: string): Promise<TeamMember[]> {
   return result.rows.map(mapTeamMemberRow);
 }
 
-export async function leaveTeam(team_id: string, user_id: string): Promise<boolean> {
+async function ensureOwnerCanBeRemoved(team_id: string, user_id: string): Promise<void> {
   const membership = await getTeamMembership(team_id, user_id);
   if (!membership) {
-    throw new Error("You are not a member of this team");
+    throw new Error("User is not a member of this team");
   }
 
-  if (membership.role === "owner") {
-    const ownerCount = await query<{ count: string }>(
-      `
-      SELECT COUNT(*)::int AS count
-      FROM team_members
-      WHERE team_id = $1
-        AND role = 'owner'
-        AND status = 'active'
-      `,
-      [team_id]
-    );
-
-    if (Number(ownerCount.rows[0]?.count ?? 0) <= 1) {
-      throw new Error("Transfer ownership before leaving the team");
-    }
+  if (membership.role !== "owner") {
+    return;
   }
 
+  const ownerCount = await query<{ count: string }>(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM team_members
+    WHERE team_id = $1
+      AND role = 'owner'
+      AND status = 'active'
+    `,
+    [team_id]
+  );
+
+  if (Number(ownerCount.rows[0]?.count ?? 0) <= 1) {
+    throw new Error("Transfer ownership before removing the last owner");
+  }
+}
+
+async function removeTeamMemberRecords(team_id: string, user_id: string): Promise<void> {
   await query(
     `
     DELETE FROM team_members
@@ -307,17 +311,51 @@ export async function leaveTeam(team_id: string, user_id: string): Promise<boole
 
   await query(
     `
-    DELETE FROM task_members
-    WHERE user_id = $2
-      AND task_id IN (
-        SELECT t.id
-        FROM tasks t
-        JOIN projects p ON p.id = t.project_id
-        WHERE p.team_id = $1
-      )
+    UPDATE tasks
+    SET assignee_id = NULL,
+        updated_at = now()
+    WHERE project_id IN (
+      SELECT id FROM projects WHERE team_id = $1
+    )
+      AND assignee_id = $2::uuid
     `,
     [team_id, user_id]
   );
+}
+
+export async function leaveTeam(team_id: string, user_id: string): Promise<boolean> {
+  const membership = await getTeamMembership(team_id, user_id);
+  if (!membership) {
+    throw new Error("You are not a member of this team");
+  }
+
+  await ensureOwnerCanBeRemoved(team_id, user_id);
+  await removeTeamMemberRecords(team_id, user_id);
+
+  return true;
+}
+
+export async function removeTeamMember(
+  team_id: string,
+  member_id: string,
+  actor_id: string
+): Promise<boolean> {
+  if (member_id === actor_id) {
+    return await leaveTeam(team_id, actor_id);
+  }
+
+  const actorMembership = await getTeamMembership(team_id, actor_id);
+  if (!actorMembership || actorMembership.role !== "owner") {
+    throw new Error("Only team owners can remove members");
+  }
+
+  const targetMembership = await getTeamMembership(team_id, member_id);
+  if (!targetMembership) {
+    throw new Error("User is not a member of this team");
+  }
+
+  await ensureOwnerCanBeRemoved(team_id, member_id);
+  await removeTeamMemberRecords(team_id, member_id);
 
   return true;
 }

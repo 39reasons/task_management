@@ -76,7 +76,8 @@ export const REMOVE_TAG_FROM_TASK = gql`
       stage_id
       project_id
       position
-      assignees {
+      assignee_id
+      assignee {
         id
         first_name
         last_name

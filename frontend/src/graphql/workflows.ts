@@ -23,7 +23,8 @@ export const GET_WORKFLOWS = gql`
           project_id
           team_id
           position
-          assignees {
+          assignee_id
+          assignee {
             id
             first_name
             last_name
@@ -64,7 +65,8 @@ export const GET_WORKFLOW = gql`
           project_id
           team_id
           position
-          assignees {
+          assignee_id
+          assignee {
             id
             first_name
             last_name

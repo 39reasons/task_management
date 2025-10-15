@@ -17,7 +17,8 @@ export interface Task {
   estimate?: number | null;
   sprint?: Sprint | null;
   position?: number;
-  assignees?: User[];
+  assignee_id?: string | null;
+  assignee?: User | null;
   created_at?: string;
   updated_at?: string;
 }

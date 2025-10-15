@@ -29,10 +29,13 @@ function normalizeTaskForCache(task: Task) {
       ...tag,
       __typename: "Tag" as const,
     })) as unknown as Task["tags"],
-    assignees: (task.assignees ?? []).map((user) => ({
-      ...user,
-      __typename: "User" as const,
-    })) as unknown as Task["assignees"],
+    assignee_id: task.assignee_id ?? null,
+    assignee: task.assignee
+      ? ({
+          ...task.assignee,
+          __typename: "User" as const,
+        } as unknown as Task["assignee"])
+      : null,
   };
 }
 
@@ -124,7 +127,8 @@ export function useProjectBoard(): UseProjectBoardResult {
       estimate: null,
       project_id: projectId,
       position: stageMeta?.tasks.length ?? 0,
-      assignees: [],
+      assignee_id: null,
+      assignee: null,
       tags: [],
     } as unknown as Task);
 

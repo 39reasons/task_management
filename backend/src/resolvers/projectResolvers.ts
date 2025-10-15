@@ -84,6 +84,14 @@ export const projectResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await ProjectService.leaveProject(args.project_id, ctx.user.id);
     },
+    removeProjectMember: async (
+      _: unknown,
+      args: { project_id: string; user_id: string },
+      ctx: GraphQLContext
+    ): Promise<boolean> => {
+      if (!ctx.user) throw new Error("Not authenticated");
+      return await ProjectService.removeProjectMember(args.project_id, args.user_id, ctx.user.id);
+    },
   },
 
   Project: {

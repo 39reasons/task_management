@@ -1,5 +1,54 @@
 import { gql } from "@apollo/client";
 
+export const TASK_FRAGMENT = gql`
+  fragment TaskModalTaskFields on Task {
+    id
+    title
+    description
+    due_date
+    priority
+    estimate
+    status
+    stage_id
+    backlog_id
+    sprint_id
+    project_id
+    position
+    assignee_id
+    assignee {
+      id
+      first_name
+      last_name
+      username
+      avatar_color
+      __typename
+    }
+    stage {
+      id
+      name
+      position
+      workflow_id
+      __typename
+    }
+    sprint {
+      id
+      name
+      start_date
+      end_date
+      __typename
+    }
+    tags {
+      id
+      name
+      color
+      __typename
+    }
+    created_at
+    updated_at
+    __typename
+  }
+`;
+
 export const GET_TASKS = gql`
   query GetTasks(
     $team_id: ID
@@ -30,7 +79,8 @@ export const GET_TASKS = gql`
       project_id
       team_id
       position
-      assignees {
+      assignee_id
+      assignee {
         id
         first_name
         last_name
@@ -58,6 +108,15 @@ export const GET_TASKS = gql`
       }
     }
   }
+`;
+
+export const GET_TASK = gql`
+  query GetTask($id: ID!) {
+    task(id: $id) {
+      ...TaskModalTaskFields
+    }
+  }
+  ${TASK_FRAGMENT}
 `;
 
 export const CREATE_TASK = gql`
@@ -98,7 +157,8 @@ export const CREATE_TASK = gql`
       project_id
       team_id
       position
-      assignees {
+      assignee_id
+      assignee {
         id
         first_name
         last_name
@@ -184,7 +244,8 @@ export const UPDATE_TASK = gql`
       project_id
       team_id
       position
-      assignees {
+      assignee_id
+      assignee {
         id
         first_name
         last_name
@@ -225,7 +286,8 @@ export const MOVE_TASK = gql`
       sprint_id
       position
       status
-      assignees {
+      assignee_id
+      assignee {
         id
         first_name
         last_name
@@ -254,22 +316,13 @@ export const REORDER_BACKLOG_TASKS = gql`
   }
 `;
 
-export const SET_TASK_MEMBERS = gql`
-  mutation SetTaskMembers($task_id: ID!, $member_ids: [ID!]!) {
-    setTaskMembers(task_id: $task_id, member_ids: $member_ids) {
-      id
-      status
-      stage_id
-      backlog_id
-      assignees {
-        id
-        first_name
-        last_name
-        username
-        avatar_color
-      }
+export const SET_TASK_ASSIGNEE = gql`
+  mutation SetTaskAssignee($task_id: ID!, $member_id: ID) {
+    setTaskAssignee(task_id: $task_id, member_id: $member_id) {
+      ...TaskModalTaskFields
     }
   }
+  ${TASK_FRAGMENT}
 `;
 
 export const GENERATE_TASK_DRAFT = gql`
@@ -282,53 +335,5 @@ export const GENERATE_TASK_DRAFT = gql`
       tags
       subtasks
     }
-  }
-`;
-
-export const TASK_FRAGMENT = gql`
-  fragment TaskModalTaskFields on Task {
-    id
-    title
-    description
-    due_date
-    priority
-    estimate
-    status
-    stage_id
-    backlog_id
-    sprint_id
-    project_id
-    position
-    assignees {
-      id
-      first_name
-      last_name
-      username
-      avatar_color
-      __typename
-    }
-    stage {
-      id
-      name
-      position
-      workflow_id
-      __typename
-    }
-    sprint {
-      id
-      name
-      start_date
-      end_date
-      __typename
-    }
-    tags {
-      id
-      name
-      color
-      __typename
-    }
-    created_at
-    updated_at
-    __typename
   }
 `;

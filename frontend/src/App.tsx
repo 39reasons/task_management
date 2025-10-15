@@ -11,7 +11,6 @@ import { TaskModal } from "./components/TaskModal/TaskModal";
 import { TagModal } from "./components/TagModal";
 import { NotificationInbox } from "./components/NotificationInbox";
 import { ProjectInviteModal } from "./components/ProjectInviteModal";
-import { MemberModal } from "./components/MemberModal";
 import { HomePage } from "./pages/HomePage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import { ProjectHomePage } from "./pages/ProjectHomePage";
@@ -25,6 +24,7 @@ import SignUpPage from "./pages/SignUpPage";
 import { GET_TASKS } from "./graphql";
 import { TeamProvider } from "./providers/TeamProvider";
 import { TeamPage } from "./pages/TeamPage";
+import { TaskDetailsPage } from "./pages/TaskDetailsPage";
 
 function AppContent() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -150,6 +150,10 @@ function AppContent() {
                     element={<ProjectWorkItemsPage user={user} />}
                   />
                   <Route
+                    path="/projects/:id/tasks/:taskId"
+                    element={<TaskDetailsPage user={user} />}
+                  />
+                  <Route
                     path="/projects/:id/backlog"
                     element={
                       <ProjectBacklogPage
@@ -206,12 +210,6 @@ function AppContent() {
           />
         )}
         {modals.includes("tag") && <TagModal task={selectedTask} />}
-        {modals.includes("member") && (
-          <MemberModal
-            task={selectedTask}
-            onAssign={(updated) => setSelectedTask(updated)}
-          />
-        )}
         {modals.includes("notifications") && <NotificationInbox currentUser={user} />}
         {modals.includes("invite") && (
           <ProjectInviteModal
