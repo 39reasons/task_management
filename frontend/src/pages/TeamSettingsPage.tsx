@@ -3,6 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@apollo/client";
 import type { AuthUser, Team as TeamType } from "@shared/types";
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Avatar,
+  AvatarFallback,
+  Badge,
   Button,
   Card,
   CardContent,
@@ -10,14 +16,14 @@ import {
   CardTitle,
   Input,
   Label,
-  Textarea,
   Separator,
-  Alert,
-  AlertTitle,
-  AlertDescription,
+  Textarea,
 } from "../components/ui";
 import { GET_TEAM, UPDATE_TEAM } from "../graphql";
 import { useTeamContext } from "../providers/TeamProvider";
+import { useTeamMembershipActions } from "../hooks/useTeamMembershipActions";
+import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import { getFullName, getInitials } from "../utils/user";
 
 interface TeamSettingsPageProps {
   user: AuthUser | null;
@@ -57,6 +63,17 @@ export function TeamSettingsPage({ user }: TeamSettingsPageProps) {
   const canManageTeam = useMemo(() => {
     return Boolean(user && team?.role === "owner");
   }, [team?.role, user]);
+
+  const {
+    handleRemoveMember,
+    removingMemberId,
+    teamActionError,
+  } = useTeamMembershipActions({
+    teamId,
+    team,
+    refetchTeam: () => refetch(),
+    refetchTeams,
+  });
 
   const hasChanges = useMemo(() => {
     const originalName = team?.name ?? "";
@@ -196,6 +213,91 @@ export function TeamSettingsPage({ user }: TeamSettingsPageProps) {
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Team members</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Owners can remove teammates who no longer need access to this team.
+          </p>
+
+          {teamActionError ? (
+            <Alert variant="destructive">
+              <AlertTitle>Unable to update membership</AlertTitle>
+              <AlertDescription>{teamActionError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <div className="space-y-3">
+            {(team.members ?? []).length > 0 ? (
+              (team.members ?? []).map((member) => {
+                if (!member?.user) return null;
+                const memberUser = member.user;
+                const fullName = getFullName(memberUser);
+                const displayName = fullName || `@${memberUser.username}`;
+                const isViewer = memberUser.id === user?.id;
+                const statusLabel =
+                  member.status === "active"
+                    ? "Active"
+                    : member.status === "invited"
+                    ? "Invited"
+                    : "Removed";
+
+                return (
+                  <div
+                    key={`${member.team_id}-${memberUser.id}`}
+                    className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-3"
+                  >
+                    <Avatar className="h-10 w-10 border border-border/60">
+                      <AvatarFallback
+                        className="text-sm font-semibold uppercase text-primary"
+                        style={{ backgroundColor: memberUser.avatar_color ?? DEFAULT_AVATAR_COLOR }}
+                      >
+                        {getInitials(memberUser)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{displayName}</p>
+                      <p className="text-xs text-muted-foreground">@{memberUser.username}</p>
+                    </div>
+                    <div className="ml-auto flex items-center gap-2">
+                      <Badge variant="outline" className="text-[11px] uppercase tracking-wide">
+                        {member.role}
+                      </Badge>
+                      <Badge
+                        variant={member.status === "active" ? "secondary" : "outline"}
+                        className="text-[10px] uppercase tracking-wide"
+                      >
+                        {statusLabel}
+                      </Badge>
+                      {isViewer ? (
+                        <span className="text-xs text-muted-foreground">You</span>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => void handleRemoveMember(memberUser.id, displayName)}
+                          disabled={removingMemberId === memberUser.id}
+                        >
+                          {removingMemberId === memberUser.id ? "Removing…" : "Remove"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                No members found for this team.
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

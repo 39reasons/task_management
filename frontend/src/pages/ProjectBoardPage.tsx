@@ -5,13 +5,21 @@ import { ArrowLeft, Loader2, Settings, Sparkles, UserPlus2 } from "lucide-react"
 import type { AuthUser, Task, Project } from "@shared/types";
 import { KanbanBoard } from "../components/KanbanBoard/KanbanBoard";
 import { useProjectBoard } from "../hooks/useProjectBoard";
-import { GET_PROJECT, UPDATE_PROJECT, DELETE_PROJECT, GET_PROJECTS_OVERVIEW, LEAVE_PROJECT } from "../graphql";
+import {
+  GET_PROJECT,
+  UPDATE_PROJECT,
+  DELETE_PROJECT,
+  GET_PROJECTS_OVERVIEW,
+  LEAVE_PROJECT,
+  REMOVE_PROJECT_MEMBER,
+} from "../graphql";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
 import { Separator } from "../components/ui/separator";
+import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +42,8 @@ import {
 } from "../hooks/useProjectSettingsDialog";
 import { ProjectDangerZone } from "../components/ProjectBoard/ProjectDangerZone";
 import { WorkflowGenerator } from "../components/ProjectBoard/WorkflowGenerator";
+import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import { getFullName, getInitials } from "../utils/user";
 
 export function ProjectBoardPage({
   user,
@@ -90,6 +100,7 @@ export function ProjectBoardPage({
 
   const [updateProject] = useMutation(UPDATE_PROJECT);
   const [removeProject] = useMutation(DELETE_PROJECT);
+  const [removeProjectMemberMutation] = useMutation(REMOVE_PROJECT_MEMBER);
   const [leaveProjectMutation] = useMutation(LEAVE_PROJECT);
 
   const {
@@ -108,12 +119,14 @@ export function ProjectBoardPage({
     closeSettings,
     saveSettings,
     deleteState,
+    membershipState,
   } = useProjectSettingsDialog({
     project,
     projectTeamId,
     overviewRefetchDocument: GET_PROJECTS_OVERVIEW,
     updateProject,
     removeProject,
+    removeProjectMember: removeProjectMemberMutation,
     refetchProject,
     onProjectDeleted: () => {
       if (projectId && project?.id === projectId) {
@@ -121,6 +134,11 @@ export function ProjectBoardPage({
       }
     },
   });
+  const {
+    removeMember: removeProjectCollaborator,
+    removingMemberId: removingCollaboratorId,
+    memberActionError: projectMemberActionError,
+  } = membershipState;
 
   const [leaveProjectLoading, setLeaveProjectLoading] = useState(false);
   const [leaveProjectError, setLeaveProjectError] = useState<string | null>(null);
@@ -410,6 +428,99 @@ export function ProjectBoardPage({
                   </div>
 
                   {settingsError ? <p className="text-sm text-destructive">{settingsError}</p> : null}
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">Collaborators</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Remove teammates who no longer need access to this project.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="gap-2"
+                        onClick={() => {
+                          if (!dialogProject?.id) return;
+                          closeSettings();
+                          onInvite(dialogProject.id);
+                        }}
+                      >
+                        <UserPlus2 className="h-4 w-4" />
+                        Invite
+                      </Button>
+                    </div>
+
+                    {projectMemberActionError ? (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                        {projectMemberActionError}
+                      </div>
+                    ) : null}
+
+                    <div className="space-y-3">
+                      {(dialogProject.members ?? []).length > 0 ? (
+                        (dialogProject.members ?? []).map((member) => {
+                          if (!member) return null;
+                          const fullName = getFullName(member);
+                          const displayName = fullName || `@${member.username}`;
+                          const isViewer = member.id === user?.id;
+
+                          return (
+                            <div
+                              key={member.id}
+                              className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-3"
+                            >
+                              <Avatar className="h-9 w-9 border border-border/60">
+                                <AvatarFallback
+                                  className="text-xs font-semibold uppercase text-primary-foreground"
+                                  style={{ backgroundColor: member.avatar_color ?? DEFAULT_AVATAR_COLOR }}
+                                >
+                                  {getInitials(member)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground">
+                                  {displayName}
+                                </p>
+                                <p className="text-xs text-muted-foreground">@{member.username}</p>
+                              </div>
+                              <div className="ml-auto flex items-center gap-2">
+                                {isViewer ? (
+                                  <span className="text-xs text-muted-foreground">You</span>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => {
+                                      const confirmed = window.confirm(
+                                        `Remove ${displayName} from the project "${dialogProject.name ?? "this project"}"?`
+                                      );
+                                      if (!confirmed) return;
+                                      void removeProjectCollaborator(member.id);
+                                    }}
+                                    disabled={removingCollaboratorId === member.id}
+                                  >
+                                    {removingCollaboratorId === member.id ? "Removing…" : "Remove"}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center text-xs text-muted-foreground">
+                          No collaborators yet. Invite teammates to get started.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <Separator />
 
                   <ProjectDangerZone
                     projectName={dialogProject.name ?? "this project"}

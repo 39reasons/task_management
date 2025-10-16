@@ -16,6 +16,7 @@ interface UseProjectSettingsDialogOptions {
   overviewRefetchDocument: DocumentNode;
   updateProject: (options: MutationOptions) => Promise<unknown>;
   removeProject: (options: MutationOptions) => Promise<unknown>;
+  removeProjectMember: (options: MutationOptions) => Promise<unknown>;
   refetchProject: () => Promise<unknown>;
   onProjectDeleted?: () => void;
 }
@@ -26,6 +27,7 @@ export function useProjectSettingsDialog({
   overviewRefetchDocument,
   updateProject,
   removeProject,
+  removeProjectMember,
   refetchProject,
   onProjectDeleted,
 }: UseProjectSettingsDialogOptions) {
@@ -41,6 +43,9 @@ export function useProjectSettingsDialog({
   const [isDeleteSectionOpen, setIsDeleteSectionOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [memberActionError, setMemberActionError] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+
   const isOpen = Boolean(dialogProject);
 
   const openSettings = useCallback(() => {
@@ -54,6 +59,8 @@ export function useProjectSettingsDialog({
     setDeleteError(null);
     setDeleteConfirmation("");
     setIsDeleteSectionOpen(false);
+    setMemberActionError(null);
+    setRemovingMemberId(null);
   }, [project]);
 
   const closeSettings = useCallback(() => {
@@ -62,6 +69,8 @@ export function useProjectSettingsDialog({
     setDeleteError(null);
     setDeleteConfirmation("");
     setIsDeleteSectionOpen(false);
+    setMemberActionError(null);
+    setRemovingMemberId(null);
   }, []);
 
   const hasChanges = useMemo(() => {
@@ -172,6 +181,41 @@ export function useProjectSettingsDialog({
     removeProject,
   ]);
 
+  const removeMember = useCallback(
+    async (memberId: string) => {
+      const currentProjectId = dialogProject?.id;
+      if (!currentProjectId) return;
+
+      setMemberActionError(null);
+      setRemovingMemberId(memberId);
+
+      try {
+        await removeProjectMember({
+          variables: { project_id: currentProjectId, user_id: memberId },
+          refetchQueries,
+        });
+
+        setDialogProject((previous) => {
+          if (!previous || previous.id !== currentProjectId) {
+            return previous;
+          }
+
+          const remainingMembers = (previous.members ?? []).filter((member) => member?.id !== memberId);
+          return { ...previous, members: remainingMembers };
+        });
+
+        await refetchProject();
+      } catch (err) {
+        setMemberActionError((err as Error).message ?? "Unable to remove collaborator.");
+      } finally {
+        setRemovingMemberId(null);
+      }
+    },
+    [dialogProject?.id, refetchProject, refetchQueries, removeProjectMember]
+  );
+
+  const resetMemberActionError = useCallback(() => setMemberActionError(null), []);
+
   const toggleDeleteSection = useCallback(() => {
     setIsDeleteSectionOpen((previous) => {
       const next = !previous;
@@ -206,6 +250,12 @@ export function useProjectSettingsDialog({
       deleteError,
       isDeleting,
       deleteProject,
+    },
+    membershipState: {
+      removeMember,
+      removingMemberId,
+      memberActionError,
+      resetMemberActionError,
     },
   };
 }

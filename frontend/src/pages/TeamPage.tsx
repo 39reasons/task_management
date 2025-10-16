@@ -199,17 +199,6 @@ export function TeamPage({ user }: TeamPageProps) {
             </div>
           </div>
           <div className="flex items-start justify-end gap-2">
-            {viewerId ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="gap-2 text-destructive hover:text-destructive focus:text-destructive"
-                onClick={() => void handleLeaveTeam()}
-                disabled={leavingTeam}
-              >
-                {leavingTeam ? "Leaving…" : "Leave team"}
-              </Button>
-            ) : null}
             {canManageTeam ? (
               <Button
                 type="button"
