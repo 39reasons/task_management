@@ -1,15 +1,32 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@apollo/client";
+import { useQuery, useMutation } from "@apollo/client";
 import type { AuthUser, Team as TeamType, Project as ProjectType } from "@shared/types";
-import { Badge, Button, Separator, Alert, AlertTitle, AlertDescription } from "../components/ui";
-import { Settings } from "lucide-react";
-import { GET_TEAM } from "../graphql";
+import {
+  Badge,
+  Button,
+  Separator,
+  Alert,
+  AlertTitle,
+  AlertDescription,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Switch,
+  Textarea,
+} from "../components/ui";
+import { Loader2, Settings } from "lucide-react";
+import { ADD_PROJECT, GET_TEAM } from "../graphql";
 import { useTeamContext } from "../providers/TeamProvider";
 import { useEnsureTeamInCache } from "../hooks/useEnsureTeamInCache";
 import { useTeamMembershipActions } from "../hooks/useTeamMembershipActions";
 import { TeamProjectsCard } from "../components/team/TeamProjectsCard";
 import { TeamMembersCard } from "../components/team/TeamMembersCard";
+import { DESCRIPTION_MAX_LENGTH, NAME_MAX_LENGTH } from "../hooks/useProjectSettingsDialog";
 
 interface TeamPageProps {
   user: AuthUser | null;
@@ -37,6 +54,12 @@ export function TeamPage({ user }: TeamPageProps) {
   const { teamId } = useParams();
   const navigate = useNavigate();
   const { teams, refetchTeams, loadingTeams } = useTeamContext();
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+  const [createProjectName, setCreateProjectName] = useState("");
+  const [createProjectDescription, setCreateProjectDescription] = useState("");
+  const [createProjectIsPublic, setCreateProjectIsPublic] = useState(false);
+  const [createProjectError, setCreateProjectError] = useState<string | null>(null);
+  const [createProjectMutation, { loading: creatingProject }] = useMutation(ADD_PROJECT);
 
   useEnsureTeamInCache({ teamId, teams, loadingTeams, refetchTeams });
 
@@ -65,6 +88,66 @@ export function TeamPage({ user }: TeamPageProps) {
     [navigate]
   );
 
+  const resetCreateProjectState = useCallback(() => {
+    setCreateProjectName("");
+    setCreateProjectDescription("");
+    setCreateProjectIsPublic(false);
+    setCreateProjectError(null);
+  }, []);
+
+  const handleCloseCreateProject = useCallback(() => {
+    setIsCreateProjectOpen(false);
+    resetCreateProjectState();
+  }, [resetCreateProjectState]);
+
+  const handleSubmitCreateProject = useCallback(async () => {
+    if (!teamId) return;
+    const trimmedName = createProjectName.trim();
+    const trimmedDescription = createProjectDescription.trim();
+
+    if (!trimmedName) {
+      setCreateProjectError("Project name is required.");
+      return;
+    }
+
+    if (trimmedName.length > NAME_MAX_LENGTH) {
+      setCreateProjectError(`Project name cannot exceed ${NAME_MAX_LENGTH} characters.`);
+      return;
+    }
+
+    if (trimmedDescription.length > DESCRIPTION_MAX_LENGTH) {
+      setCreateProjectError(`Description cannot exceed ${DESCRIPTION_MAX_LENGTH} characters.`);
+      return;
+    }
+
+    setCreateProjectError(null);
+
+    try {
+      await createProjectMutation({
+        variables: {
+          team_id: teamId,
+          name: trimmedName,
+          description: trimmedDescription || null,
+          is_public: createProjectIsPublic,
+        },
+      });
+
+      await Promise.all([refetch(), refetchTeams()]);
+      handleCloseCreateProject();
+    } catch (mutationError) {
+      setCreateProjectError((mutationError as Error).message ?? "Unable to create project.");
+    }
+  }, [
+    createProjectDescription,
+    createProjectIsPublic,
+    createProjectMutation,
+    createProjectName,
+    handleCloseCreateProject,
+    refetch,
+    refetchTeams,
+    teamId,
+  ]);
+
   if (!teamId) {
     return <div className="p-6 text-destructive">Team identifier is missing.</div>;
   }
@@ -83,6 +166,7 @@ export function TeamPage({ user }: TeamPageProps) {
 
   const projects = team.projects ?? [];
   const canManageTeam = Boolean(user && team.role === "owner");
+  const canCreateProject = Boolean(user && (team.role === "owner" || team.role === "admin"));
   const viewerId = user?.id ?? null;
 
   return (
@@ -149,7 +233,18 @@ export function TeamPage({ user }: TeamPageProps) {
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <TeamProjectsCard projects={projects} onOpenProject={handleOpenProject} formatDate={formatDate} />
+        <TeamProjectsCard
+          projects={projects}
+          onOpenProject={handleOpenProject}
+          formatDate={formatDate}
+          canCreateProject={canCreateProject}
+          onCreateProject={() => {
+            if (!canCreateProject) return;
+            setCreateProjectError(null);
+            setIsCreateProjectOpen(true);
+          }}
+          isCreatingProject={creatingProject}
+        />
         <TeamMembersCard
           members={team.members}
           viewerId={viewerId}
@@ -160,6 +255,79 @@ export function TeamPage({ user }: TeamPageProps) {
           onRemoveMember={handleRemoveMember}
         />
       </div>
+
+      <Dialog
+        open={isCreateProjectOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsCreateProjectOpen(true);
+            return;
+          }
+          handleCloseCreateProject();
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create a new project</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="team-project-name">Project name</Label>
+              <Input
+                id="team-project-name"
+                value={createProjectName}
+                onChange={(event) => setCreateProjectName(event.target.value)}
+                placeholder="e.g. Website redesign"
+                disabled={creatingProject}
+                maxLength={NAME_MAX_LENGTH}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="team-project-description">Description</Label>
+              <Textarea
+                id="team-project-description"
+                value={createProjectDescription}
+                onChange={(event) => setCreateProjectDescription(event.target.value)}
+                placeholder="Share what this project will focus on"
+                disabled={creatingProject}
+                maxLength={DESCRIPTION_MAX_LENGTH}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/70 bg-muted/30 px-3 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Public project</p>
+                <p className="text-xs text-muted-foreground">
+                  Team members can discover and join public projects.
+                </p>
+              </div>
+              <Switch
+                id="team-project-public"
+                checked={createProjectIsPublic}
+                onCheckedChange={(checked) => setCreateProjectIsPublic(Boolean(checked))}
+                disabled={creatingProject}
+              />
+            </div>
+            {createProjectError ? (
+              <p className="text-sm text-destructive">{createProjectError}</p>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2 sm:space-x-0">
+            <Button type="button" variant="outline" onClick={handleCloseCreateProject} disabled={creatingProject}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleSubmitCreateProject()}
+              disabled={creatingProject}
+              className="gap-2"
+            >
+              {creatingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {creatingProject ? "Creating…" : "Create project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

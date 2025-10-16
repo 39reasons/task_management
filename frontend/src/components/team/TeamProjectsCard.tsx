@@ -1,19 +1,44 @@
 import type { Project as ProjectType } from "@shared/types";
-import { Badge, Card, CardContent, CardHeader, CardTitle } from "../ui";
+import { Loader2, Plus } from "lucide-react";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "../ui";
 
 interface TeamProjectsCardProps {
   projects: ProjectType[];
   onOpenProject: (project: ProjectType) => void;
   formatDate: (timestamp?: string | null) => string;
+  canCreateProject?: boolean;
+  onCreateProject?: () => void;
+  isCreatingProject?: boolean;
 }
 
-export function TeamProjectsCard({ projects, onOpenProject, formatDate }: TeamProjectsCardProps) {
+export function TeamProjectsCard({
+  projects,
+  onOpenProject,
+  formatDate,
+  canCreateProject = false,
+  onCreateProject,
+  isCreatingProject = false,
+}: TeamProjectsCardProps) {
   const hasProjects = projects.length > 0;
+  const disableCreateButton = !onCreateProject || isCreatingProject;
 
   return (
     <Card className="border-border/80" id="team-projects">
-      <CardHeader>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Projects</CardTitle>
+        {canCreateProject ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-2"
+            onClick={onCreateProject}
+            disabled={disableCreateButton}
+          >
+            {isCreatingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {isCreatingProject ? "Creating…" : "New project"}
+          </Button>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {hasProjects ? (
@@ -57,8 +82,20 @@ export function TeamProjectsCard({ projects, onOpenProject, formatDate }: TeamPr
             </div>
           ))
         ) : (
-          <div className="rounded-xl border border-dashed border-border bg-muted/70 px-4 py-6 text-sm text-muted-foreground">
-            No projects yet. Use the sidebar to create one and kick off your first workflow.
+          <div className="space-y-3 rounded-xl border border-dashed border-border bg-muted/70 px-4 py-6 text-sm text-muted-foreground">
+            <p className="text-muted-foreground">No projects yet. Create one to kick off your first workflow.</p>
+            {canCreateProject ? (
+              <Button
+                type="button"
+                size="sm"
+                className="w-fit gap-2"
+                onClick={onCreateProject}
+                disabled={disableCreateButton}
+              >
+                {isCreatingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {isCreatingProject ? "Creating…" : "Create your first project"}
+              </Button>
+            ) : null}
           </div>
         )}
       </CardContent>
