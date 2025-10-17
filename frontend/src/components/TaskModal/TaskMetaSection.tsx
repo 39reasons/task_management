@@ -21,7 +21,7 @@ interface TaskMetaSectionProps {
   onAddDueDate: () => void;
   onRemoveTag: (id: string) => void;
   onAddExistingTag: (id: string) => void;
-  onCreateTag: (name: string) => Promise<void>;
+  onCreateTag: (input: { name: string; color: string }) => Promise<void>;
   onAssignMember: (memberId: string) => Promise<void> | void;
   onClearAssignee: () => void;
   onClearDueDate: () => void;

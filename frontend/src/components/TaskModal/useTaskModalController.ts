@@ -313,7 +313,7 @@ interface TagControls {
   tags: { id: string; name: string; color: string | null }[];
   removeTag: (tagId: string) => void;
   addExistingTag: (tagId: string) => void;
-  createTag: (name: string) => Promise<void>;
+  createTag: (input: { name: string; color: string }) => Promise<void>;
   availableTags: { id: string; name: string; color: string | null }[];
   loadingAvailableTags: boolean;
 }
@@ -1056,14 +1056,16 @@ export function useTaskModalController({
   );
 
   const handleCreateTag = useCallback(
-    async (name: string) => {
+    async ({ name, color }: { name: string; color: string }) => {
       if (!projectId) return;
       const trimmed = name.trim();
+      const trimmedColor = color.trim();
+      const colorVariable = trimmedColor || undefined;
       if (!trimmed) return;
 
       try {
         const { data } = await createTagMutation({
-          variables: { project_id: projectId, name: trimmed },
+          variables: { project_id: projectId, name: trimmed, color: colorVariable },
         });
 
         await refetchProjectTags().catch(() => undefined);
