@@ -48,6 +48,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     assignee,
     comments,
     history,
+    save,
     dueDateModal,
     currentUserId,
   } = controller;
@@ -60,24 +61,55 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <DialogTitle className="sr-only">Task details</DialogTitle>
-          <div className="flex h-[80vh] min-h-[560px] flex-col bg-[hsl(var(--background))]">
+          <div className="flex h-[80vh] min-h-[560px] max-h-[90vh] flex-col overflow-hidden bg-[hsl(var(--background))]">
             <div className="flex items-center justify-between gap-4 border-b border-border/60 bg-[hsl(var(--background))] px-6 py-3">
               <p className="text-sm font-semibold text-muted-foreground">Task details</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => void dialog.handleClose()}
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 rounded-full border border-border/60 bg-[hsl(var(--card))] px-3 py-1.5 shadow-sm">
+                  {save.hasUnsavedChanges ? (
+                    <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+                      Unsaved changes
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-muted-foreground">All changes saved</span>
+                  )}
+                  <div className="h-4 w-px bg-border/50" />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={save.discard}
+                    disabled={!save.hasUnsavedChanges || save.isSaving}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    Discard
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void save.save()}
+                    disabled={!save.hasUnsavedChanges || save.isSaving}
+                    className="px-4"
+                  >
+                    {save.isSaving ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => void dialog.handleClose()}
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
-            <div className="grid flex-1 gap-0 bg-[hsl(var(--background))] md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+            <div className="grid flex-1 gap-0 overflow-hidden bg-[hsl(var(--background))] md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
               <ScrollArea className="h-full min-h-0 border-b border-border/60 bg-[hsl(var(--background))] md:border-b-0 md:border-r">
-                <div className="flex flex-col gap-4 px-6 py-5">
+                <div className="flex flex-col gap-4 px-6 py-5 pb-24">
                   <TaskTitleEditor
                     title={title.value}
                     isEditing={title.isEditing}
@@ -85,31 +117,27 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     maxLength={TASK_TITLE_MAX_LENGTH}
                     onStartEdit={title.startEdit}
                     onChange={title.change}
-                    onCommit={() => void title.commit()}
+                    onCommit={title.commit}
                     onCancel={title.cancel}
                   />
 
                   <TaskMetaSection
                     status={meta.status}
-                    onStatusChange={(nextStatus) => {
-                      void meta.handleStatusChange(nextStatus);
-                    }}
+                    onStatusChange={meta.handleStatusChange}
                     isStatusUpdating={meta.isStatusUpdating}
                     statusError={meta.statusError}
-                    hasTags={tags.hasTags}
                     tags={tags.tags}
+                    availableTags={tags.availableTags}
+                    loadingTags={tags.loadingAvailableTags}
                     assignee={assignee.assignee ?? null}
                     dueDate={meta.dueDate}
-                    onAddTag={tags.openTagModal}
                     onAddDueDate={dueDateModal.openDueDateModal}
-                    onRemoveTag={(tagId) => {
-                      void tags.removeTag(tagId);
-                    }}
-                    onAssignMember={(memberId) => assignee.handleAssignMember(memberId)}
+                    onRemoveTag={tags.removeTag}
+                    onAddExistingTag={tags.addExistingTag}
+                    onCreateTag={tags.createTag}
+                    onAssignMember={assignee.handleAssignMember}
                     onClearAssignee={assignee.clearAssignee}
-                    onClearDueDate={() => {
-                      void meta.clearDueDate();
-                    }}
+                    onClearDueDate={meta.clearDueDate}
                     isAssigningAssignee={assignee.isAssigning}
                     isMembersLoading={assignee.isMembersLoading}
                     onSearchMembers={assignee.handleSearchMembers}
@@ -125,7 +153,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     isEditing={description.isEditing}
                     onChange={description.change}
                     onStartEdit={description.startEdit}
-                    onSave={() => void description.save()}
+                    onSave={description.save}
                     onCancel={description.cancel}
                     isDraftPromptVisible={draft.isPromptVisible}
                     draftPrompt={draft.prompt}
@@ -160,17 +188,27 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                 </div>
               </ScrollArea>
 
-              <div className="flex h-full flex-col bg-[hsl(var(--background))]">
-                <Tabs defaultValue="comments" className="flex h-full flex-col">
+              <div className="flex h-full min-h-0 flex-col bg-[hsl(var(--background))]">
+                <Tabs defaultValue="comments" className="flex h-full min-h-0 flex-col">
                   <div className="px-6 pt-5">
-                    <TabsList className="grid h-10 w-full grid-cols-2 bg-muted/70">
-                      <TabsTrigger value="comments">Comments</TabsTrigger>
-                      <TabsTrigger value="history">History</TabsTrigger>
+                    <TabsList className="grid h-10 w-full grid-cols-2 rounded-full bg-muted/60 p-1">
+                      <TabsTrigger
+                        value="comments"
+                        className="group/trigger rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground data-[state=active]:bg-background data-[state=active]:shadow"
+                      >
+                        Comments
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="history"
+                        className="group/trigger rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground data-[state=active]:bg-background data-[state=active]:shadow"
+                      >
+                        History
+                      </TabsTrigger>
                     </TabsList>
                   </div>
-                  <div className="flex-1">
-                    <TabsContent value="comments" className="mt-0 h-full">
-                      <ScrollArea className="h-full px-6 py-5">
+                  <div className="flex-1 min-h-0">
+                    <TabsContent value="comments" className="mt-0 h-full min-h-0">
+                      <ScrollArea className="h-full min-h-0 px-6 py-5">
                         <TaskCommentsPanel
                           comments={comments.comments}
                           loading={comments.loading}
@@ -188,8 +226,8 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                         />
                       </ScrollArea>
                     </TabsContent>
-                    <TabsContent value="history" className="mt-0 h-full">
-                      <ScrollArea className="h-full px-6 py-5">
+                    <TabsContent value="history" className="mt-0 h-full min-h-0">
+                      <ScrollArea className="h-full min-h-0 px-6 py-5">
                         <TaskHistoryPanel
                           events={history.events}
                           loading={history.loading}

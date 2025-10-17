@@ -8,11 +8,11 @@ import {
   DELETE_COMMENT,
   UPDATE_COMMENT,
   UPDATE_TASK,
-  GET_TASK_TAGS,
   REMOVE_TAG_FROM_TASK,
   SET_TASK_ASSIGNEE,
   GENERATE_TASK_DRAFT,
-  ADD_TAG_TO_TASK,
+  ASSIGN_TAG_TO_TASK,
+  ADD_TAG,
   GET_PROJECT_MEMBERS,
   SEARCH_USERS,
   GET_WORKFLOWS,
@@ -22,20 +22,7 @@ import {
 import { useModal } from "../ModalStack";
 import { TASK_FRAGMENT } from "../../graphql/tasks";
 import type { CommentWithUser, TaskDraftResponse, ProjectMember, TaskHistoryEntry } from "./types";
-
-const TAG_COLOR_PALETTE = [
-  "#38BDF8",
-  "#22D3EE",
-  "#34D399",
-  "#FBBF24",
-  "#F472B6",
-  "#A855F7",
-  "#60A5FA",
-];
-
-const getColorForTagByIndex = (index: number): string => {
-  return TAG_COLOR_PALETTE[index % TAG_COLOR_PALETTE.length];
-};
+import { useProjectTags } from "../../hooks/useProjectTags";
 
 export const TASK_TITLE_MAX_LENGTH = 512;
 const HISTORY_FETCH_LIMIT = 50;
@@ -324,9 +311,11 @@ interface AssigneeControls {
 
 interface TagControls {
   tags: { id: string; name: string; color: string | null }[];
-  hasTags: boolean;
-  removeTag: (tagId: string) => Promise<void>;
-  openTagModal: () => void;
+  removeTag: (tagId: string) => void;
+  addExistingTag: (tagId: string) => void;
+  createTag: (name: string) => Promise<void>;
+  availableTags: { id: string; name: string; color: string | null }[];
+  loadingAvailableTags: boolean;
 }
 
 interface CommentControls {
@@ -351,6 +340,13 @@ interface HistoryControls {
   refetch: () => Promise<void>;
 }
 
+interface SaveControls {
+  hasUnsavedChanges: boolean;
+  isSaving: boolean;
+  save: () => Promise<void>;
+  discard: () => void;
+}
+
 interface ModalShortcuts {
   openDueDateModal: () => void;
 }
@@ -365,6 +361,7 @@ export interface TaskModalController {
   tags: TagControls;
   comments: CommentControls;
   history: HistoryControls;
+  save: SaveControls;
   dueDateModal: ModalShortcuts;
   currentUserId: string | null;
   task: Task | null;
@@ -398,16 +395,11 @@ export function useTaskModalController({
   const [draftPrompt, setDraftPrompt] = useState("");
   const [draftError, setDraftError] = useState<string | null>(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-  const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const [isAssigningAssignee, setIsAssigningAssignee] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [assigneeState, setAssigneeState] = useState<Task["assignee"] | null>(null);
 
   const { data, loading, refetch } = useQuery(GET_COMMENTS, {
-    variables: { task_id: task?.id },
-    skip: !task,
-  });
-
-  const { data: tagsData } = useQuery(GET_TASK_TAGS, {
     variables: { task_id: task?.id },
     skip: !task,
   });
@@ -423,6 +415,12 @@ export function useTaskModalController({
     () => (projectMembersData?.projectMembers ?? []) as ProjectMember[],
     [projectMembersData]
   );
+
+  const {
+    tags: projectTags,
+    loading: loadingProjectTags,
+    refetch: refetchProjectTags,
+  } = useProjectTags(projectId);
 
   const {
     data: historyData,
@@ -496,8 +494,9 @@ export function useTaskModalController({
 
   const [updateTask] = useMutation(UPDATE_TASK);
   const [removeTagFromTask] = useMutation(REMOVE_TAG_FROM_TASK);
+  const [assignTagToTaskMutation] = useMutation(ASSIGN_TAG_TO_TASK);
   const [setTaskAssigneeMutation] = useMutation(SET_TASK_ASSIGNEE);
-  const [addTagToTaskMutation] = useMutation(ADD_TAG_TO_TASK);
+  const [createTagMutation] = useMutation(ADD_TAG);
   const [generateTaskDraftMutation, { loading: isGeneratingDraft }] =
     useMutation(GENERATE_TASK_DRAFT);
 
@@ -559,131 +558,63 @@ export function useTaskModalController({
     [client, onTaskUpdate]
   );
 
-  const mutateTask = useCallback(
-    async (
-      variables: Partial<
-        Pick<
-          Task,
-          "title" | "description" | "due_date" | "priority" | "estimate" | "stage_id" | "backlog_id" | "sprint_id" | "status"
-        >
-      >
-    ) => {
-      if (!task) return null;
+  const applyTaskSnapshot = useCallback((snapshot: Task) => {
+    const titleValue = snapshot.title || "";
+    const normalizedTitle = titleValue.slice(0, TASK_TITLE_MAX_LENGTH);
+    setTitle(normalizedTitle);
+    setInitialTitle(normalizedTitle);
 
-      const context = {
-        stage_id: task.stage_id ?? null,
-        backlog_id: task.backlog_id ?? null,
-        sprint_id: task.sprint_id ?? null,
-        estimate: task.estimate ?? null,
-      } as Partial<Task>;
+    const descriptionValue = snapshot.description ?? "";
+    setDescription(descriptionValue);
+    setInitialDescription(descriptionValue);
 
-      const { data: mutationData } = await updateTask({
-        variables: {
-          id: task.id,
-          ...context,
-          ...variables,
-        },
-      });
-      const updated = mutationData?.updateTask as Task | undefined;
-      if (updated) {
-        writeTaskToCache(updated);
-      }
-      return updated ?? null;
-    },
-    [task, updateTask, writeTaskToCache]
-  );
+    const normalizedDueDate = snapshot.due_date ? snapshot.due_date.slice(0, 10) : "";
+    setDueDate(normalizedDueDate);
+    setPriority(snapshot.priority ?? null);
+    setStatus(snapshot.status ?? "new");
+    setAssigneeState(snapshot.assignee ?? null);
+
+    const nextTags = Array.isArray(snapshot.tags)
+      ? snapshot.tags.map((tag) => ({
+          id: tag.id,
+          name: tag.name,
+          color: tag.color ?? null,
+        }))
+      : [];
+    setTags(nextTags);
+  }, []);
 
   const applySuggestedTags = useCallback(
-    async (candidates: string[], baseTask?: Task) => {
-      if ((!task && !baseTask) || candidates.length === 0) {
+    (candidates: string[]) => {
+      if (candidates.length === 0) {
         return;
       }
 
-      const targetTaskId = task?.id ?? baseTask?.id ?? null;
-      if (!targetTaskId) {
-        return;
-      }
-
-      let nextTags = tags;
-
-      const colorAssignments = new Map<string, string>();
-
-      candidates.forEach((candidate, index) => {
-        const normalized = candidate.trim().toLowerCase();
-        if (!normalized || colorAssignments.has(normalized)) {
-          return;
-        }
-        colorAssignments.set(normalized, getColorForTagByIndex(index));
-      });
+      const additions: { id: string; name: string; color: string | null }[] = [];
 
       for (const candidate of candidates) {
-        const trimmed = candidate.trim();
-        if (!trimmed) {
-          continue;
-        }
+        const normalized = candidate.trim().toLowerCase();
+        if (!normalized) continue;
+        if (tags.some((tag) => tag.name.toLowerCase() === normalized)) continue;
 
-        if (nextTags.some((tag) => tag.name.toLowerCase() === trimmed.toLowerCase())) {
-          continue;
-        }
+        const matchingTag = projectTags.find(
+          (tag) => tag.name.trim().toLowerCase() === normalized
+        );
 
-        const color = colorAssignments.get(trimmed.toLowerCase()) ?? getColorForTagByIndex(0);
-
-        const { data } = await addTagToTaskMutation({
-          variables: {
-            task_id: targetTaskId,
-            name: trimmed,
-            color,
-          },
-        });
-
-        const updatedTask = data?.addTagToTask as Task | undefined;
-        if (updatedTask?.tags) {
-          nextTags = (updatedTask.tags ?? []).map((tag) => ({
-            ...tag,
-            color: tag.color ?? null,
-          })) as {
-            id: string;
-            name: string;
-            color: string | null;
-          }[];
+        if (matchingTag) {
+          additions.push({
+            id: matchingTag.id,
+            name: matchingTag.name,
+            color: matchingTag.color ?? null,
+          });
         }
       }
 
-      if (nextTags !== tags) {
-        setTags(nextTags);
-        const sourceTask = baseTask
-          ? baseTask
-          : (task
-              ? {
-                  ...task,
-                  title,
-                  description,
-                  due_date: dueDate ? dueDate : null,
-                  priority,
-                  status,
-                }
-              : null);
-        if (sourceTask) {
-          const nextTask = {
-            ...sourceTask,
-            tags: nextTags,
-            stage: (sourceTask as unknown as { stage?: Task["stage"] | null }).stage ?? null,
-          } as Task;
-          writeTaskToCache(nextTask);
-        }
+      if (additions.length > 0) {
+        setTags((previous) => [...previous, ...additions]);
       }
     },
-    [
-      task,
-      tags,
-      addTagToTaskMutation,
-      writeTaskToCache,
-      title,
-      description,
-      dueDate,
-      priority,
-      status,
-    ]
+    [projectTags, tags]
   );
 
   const toggleDraftPrompt = useCallback(() => {
@@ -743,26 +674,8 @@ export function useTaskModalController({
         normalizedDueDate = trimmedDue ? trimmedDue : null;
       }
 
-      const updatePayload: Partial<Pick<Task, "title" | "description" | "due_date" | "priority">> = {};
-      if (nextTitle) {
-        updatePayload.title = nextTitle;
-      }
-      if (descriptionCandidate !== undefined) {
-        updatePayload.description = descriptionCandidate ? descriptionCandidate : null;
-      }
-      if (normalizedDueDate !== undefined) {
-        updatePayload.due_date = normalizedDueDate;
-      }
-      if (suggestion.priority !== undefined && normalizedPriority) {
-        updatePayload.priority = normalizedPriority;
-      }
-
-      const updatedTask =
-        Object.keys(updatePayload).length > 0 ? await mutateTask(updatePayload) : null;
-
-      const baseTask = task as Task;
-      const finalTask = (updatedTask ?? {
-        ...baseTask,
+      const composedTask = {
+        ...(task as Task),
         ...(nextTitle ? { title: nextTitle } : {}),
         ...(descriptionCandidate !== undefined
           ? { description: descriptionCandidate ? descriptionCandidate : null }
@@ -771,57 +684,29 @@ export function useTaskModalController({
         ...(suggestion.priority !== undefined && normalizedPriority
           ? { priority: normalizedPriority }
           : {}),
-      }) as Task;
+      } as Task;
 
-      const finalTitle = finalTask.title ?? "";
+      const finalTitle = composedTask.title ?? "";
       setTitle(finalTitle.slice(0, TASK_TITLE_MAX_LENGTH));
-      setInitialTitle(finalTitle.slice(0, TASK_TITLE_MAX_LENGTH));
 
-      const finalDescription = finalTask.description ?? "";
+      const finalDescription = composedTask.description ?? "";
       setDescription(finalDescription);
-      setInitialDescription(finalDescription);
       setIsEditingDescription(false);
 
-      const finalDueDate = finalTask.due_date ? finalTask.due_date.slice(0, 10) : "";
+      const finalDueDate = composedTask.due_date ? composedTask.due_date.slice(0, 10) : "";
       setDueDate(finalDueDate);
-      setPriority(finalTask.priority ?? null);
-      setStatus(finalTask.status ?? "new");
-
-      const nextTagState = Array.isArray(finalTask.tags)
-        ? finalTask.tags.map((tag) => ({
-            ...tag,
-            color: tag.color ?? null,
-          }))
-        : tags;
-
-      if (Array.isArray(finalTask.tags)) {
-        setTags(nextTagState);
-      }
-
-      const normalizedTaskForCache = {
-        ...finalTask,
-        project_id: finalTask.project_id ?? task?.project_id ?? null,
-        team_id: finalTask.team_id ?? task?.team_id ?? null,
-        stage_id: finalTask.stage_id ?? task?.stage_id ?? null,
-        sprint_id: finalTask.sprint_id ?? task?.sprint_id ?? null,
-        stage: (finalTask as { stage?: Task["stage"] | null }).stage ?? (task as unknown as { stage?: Task["stage"] | null })?.stage ?? null,
-        sprint: (finalTask as { sprint?: Task["sprint"] | null }).sprint ?? (task as unknown as { sprint?: Task["sprint"] | null })?.sprint ?? null,
-        created_at: finalTask.created_at ?? task?.created_at ?? null,
-        updated_at: finalTask.updated_at ?? task?.updated_at ?? null,
-        position: finalTask.position ?? task?.position ?? 0,
-        tags: nextTagState,
-      } as Task;
-      writeTaskToCache(normalizedTaskForCache);
+      setPriority(composedTask.priority ?? null);
+      setStatus(composedTask.status ?? "new");
 
       const tagCandidates = Array.isArray(suggestion.tags)
         ? suggestion.tags.map((tag) => tag.trim()).filter(Boolean)
         : [];
-      const existingTagNames = new Set(nextTagState.map((tag) => tag.name.toLowerCase()));
+      const existingTagNames = new Set(tags.map((tag) => tag.name.toLowerCase()));
       const uniqueCandidates = Array.from(new Set(tagCandidates.map((tag) => tag)))
         .map((candidate) => candidate.trim())
         .filter((candidate) => candidate && !existingTagNames.has(candidate.toLowerCase()));
 
-      await applySuggestedTags(uniqueCandidates, normalizedTaskForCache);
+      applySuggestedTags(uniqueCandidates);
       const subtaskCandidates = Array.isArray(suggestion.subtasks)
         ? suggestion.subtasks.map((taskTitle) => taskTitle.trim()).filter(Boolean)
         : [];
@@ -838,22 +723,12 @@ export function useTaskModalController({
     generateTaskDraftMutation,
     tags,
     applySuggestedTags,
-    mutateTask,
-    writeTaskToCache,
   ]);
 
   useEffect(() => {
     if (task) {
-      const titleValue = task.title || "";
-      setTitle(titleValue.slice(0, TASK_TITLE_MAX_LENGTH));
-      setInitialTitle(titleValue.slice(0, TASK_TITLE_MAX_LENGTH));
-      setDescription(task.description ?? "");
-      setInitialDescription(task.description ?? "");
+      applyTaskSnapshot(task);
       setIsDescriptionExpanded(false);
-      const normalizedDueDate = task.due_date ? task.due_date.slice(0, 10) : "";
-      setDueDate(normalizedDueDate);
-      setPriority(task.priority ?? null);
-      setStatus(task.status ?? "new");
       setEditingCommentId(null);
       setEditingCommentText("");
       setCommentText("");
@@ -863,83 +738,236 @@ export function useTaskModalController({
       setDraftError(null);
       setIsDraftPromptVisible(false);
       setStatusError(null);
-      setStatusUpdating(false);
+      setIsSaving(false);
     }
-  }, [task]);
+  }, [task, applyTaskSnapshot]);
 
-  useEffect(() => {
-    if (tagsData?.task?.tags) {
-      setTags(tagsData.task.tags);
+  const originalDueDate = task?.due_date ? task.due_date.slice(0, 10) : "";
+  const originalPriority = task?.priority ?? null;
+  const originalStatus = task?.status ?? "new";
+  const originalAssigneeId = task?.assignee?.id ?? null;
+
+  const originalTagIdsSorted = useMemo(
+    () => (task?.tags ?? []).map((tag) => tag.id).sort(),
+    [task?.tags]
+  );
+  const stagedTagIdsSorted = useMemo(
+    () => tags.map((tag) => tag.id).sort(),
+    [tags]
+  );
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!task) return false;
+    const trimmedTitle = title.trim();
+    const trimmedInitialTitle = initialTitle.trim();
+    if (trimmedTitle !== trimmedInitialTitle) return true;
+    if (description.trim() !== initialDescription.trim()) return true;
+    if ((dueDate || "") !== originalDueDate) return true;
+    if ((priority ?? null) !== originalPriority) return true;
+    if (status !== originalStatus) return true;
+    if ((assigneeState?.id ?? null) !== originalAssigneeId) return true;
+    if (stagedTagIdsSorted.length !== originalTagIdsSorted.length) return true;
+    for (let index = 0; index < stagedTagIdsSorted.length; index += 1) {
+      if (stagedTagIdsSorted[index] !== originalTagIdsSorted[index]) {
+        return true;
+      }
     }
-  }, [tagsData]);
+    return false;
+  }, [
+    task,
+    title,
+    initialTitle,
+    description,
+    initialDescription,
+    dueDate,
+    originalDueDate,
+    priority,
+    originalPriority,
+    status,
+    originalStatus,
+    assigneeState,
+    originalAssigneeId,
+    stagedTagIdsSorted,
+    originalTagIdsSorted,
+  ]);
 
-  const saveAllChanges = useCallback(async () => {
+  const discardChanges = useCallback(() => {
+    if (!task) return;
+    applyTaskSnapshot(task);
+    setIsDescriptionExpanded(false);
+    setStatusError(null);
+    setSubtaskSuggestions([]);
+    setDraftPrompt("");
+    setDraftError(null);
+    setIsDraftPromptVisible(false);
+  }, [task, applyTaskSnapshot]);
+
+  const saveTaskChanges = useCallback(async () => {
     if (!task) return;
     const trimmedTitle = title.trim();
-    const normalizedDescription = description.trim();
-    const currentDescription = (task.description ?? "").trim();
-    const currentDue = task.due_date ? task.due_date.slice(0, 10) : "";
-
-    const payload: Partial<Pick<Task, "title" | "description" | "due_date" | "priority" | "status">> = {};
-    let shouldMutate = false;
-
     if (!trimmedTitle) {
-      setTitle(initialTitle);
-    } else if (trimmedTitle !== initialTitle) {
+      setStatusError("Title is required.");
+      return;
+    }
+
+    const normalizedDescription = description.trim();
+    const payload: Partial<
+      Pick<Task, "title" | "description" | "due_date" | "priority" | "status">
+    > = {};
+
+    if (trimmedTitle !== initialTitle.trim()) {
       payload.title = trimmedTitle;
-      shouldMutate = true;
     }
-
-    if (normalizedDescription !== currentDescription) {
+    if (normalizedDescription !== initialDescription.trim()) {
       payload.description = normalizedDescription;
-      shouldMutate = true;
     }
-
-    if (dueDate !== currentDue) {
+    if ((dueDate || "") !== originalDueDate) {
       payload.due_date = dueDate || null;
-      shouldMutate = true;
     }
-
-    if (priority !== (task.priority ?? null)) {
+    if ((priority ?? null) !== originalPriority) {
       payload.priority = priority ?? null;
-      shouldMutate = true;
     }
-
-    if (status !== (task.status ?? "new")) {
+    if (status !== originalStatus) {
       payload.status = status ?? "new";
-      shouldMutate = true;
     }
 
-    if (shouldMutate) {
-      const updated = await mutateTask(payload);
-      if (updated) {
-        const nextTitle = updated.title ?? "";
-        setInitialTitle(nextTitle.slice(0, TASK_TITLE_MAX_LENGTH));
-        setTitle(nextTitle.slice(0, TASK_TITLE_MAX_LENGTH));
-        const nextDescription = updated.description ?? "";
-        setInitialDescription(nextDescription);
-        setDescription(nextDescription);
-        const nextDue = updated.due_date ? updated.due_date.slice(0, 10) : "";
-        setDueDate(nextDue);
-        setPriority(updated.priority ?? null);
-        setStatus(updated.status ?? "new");
+    const originalTags = task.tags ?? [];
+    const originalTagIdSet = new Set(originalTags.map((tag) => tag.id));
+    const stagedTagIdSet = new Set(tags.map((tag) => tag.id));
+    const tagsToAdd = tags
+      .map((tag) => tag.id)
+      .filter((id) => !originalTagIdSet.has(id));
+    const tagsToRemove = originalTags
+      .map((tag) => tag.id)
+      .filter((id) => !stagedTagIdSet.has(id));
+
+    const nextAssigneeId = assigneeState?.id ?? null;
+
+    if (
+      Object.keys(payload).length === 0 &&
+      tagsToAdd.length === 0 &&
+      tagsToRemove.length === 0 &&
+      nextAssigneeId === originalAssigneeId
+    ) {
+      setStatusError(null);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      let updatedTask: Task | null = task;
+      let didMutate = false;
+
+      if (Object.keys(payload).length > 0) {
+        const { data } = await updateTask({
+          variables: {
+            id: task.id,
+            ...payload,
+          },
+        });
+        if (data?.updateTask) {
+          updatedTask = data.updateTask as Task;
+          writeTaskToCache(updatedTask);
+          didMutate = true;
+        }
       }
+
+      if (nextAssigneeId !== originalAssigneeId) {
+        const { data } = await setTaskAssigneeMutation({
+          variables: { task_id: task.id, member_id: nextAssigneeId },
+          refetchQueries:
+            task.project_id != null
+              ? [
+                  { query: GET_WORKFLOWS, variables: { project_id: task.project_id } },
+                  { query: GET_TASKS, variables: {} },
+                  { query: GET_TASKS, variables: { project_id: task.project_id } },
+                ]
+              : undefined,
+        });
+        if (data?.setTaskAssignee) {
+          updatedTask = data.setTaskAssignee as Task;
+          writeTaskToCache(updatedTask);
+        } else if (updatedTask) {
+          updatedTask = {
+            ...updatedTask,
+            assignee_id: nextAssigneeId,
+            assignee: assigneeState ?? null,
+          } as Task;
+          writeTaskToCache(updatedTask);
+        }
+        didMutate = true;
+      }
+
+      for (const tagId of tagsToAdd) {
+        const { data } = await assignTagToTaskMutation({
+          variables: { task_id: task.id, tag_id: tagId },
+        });
+        if (data?.assignTagToTask) {
+          updatedTask = data.assignTagToTask as Task;
+          writeTaskToCache(updatedTask);
+        }
+        didMutate = true;
+      }
+
+      for (const tagId of tagsToRemove) {
+        const { data } = await removeTagFromTask({
+          variables: { task_id: task.id, tag_id: tagId },
+        });
+        if (data?.removeTagFromTask) {
+          updatedTask = data.removeTagFromTask as Task;
+          writeTaskToCache(updatedTask);
+        }
+        didMutate = true;
+      }
+
+      if (updatedTask) {
+        applyTaskSnapshot(updatedTask);
+        setIsDescriptionExpanded(false);
+        setStatusError(null);
+      }
+
+      if (didMutate) {
+        await refreshHistory();
+      }
+    } catch (error) {
+      setStatusError(error instanceof Error ? error.message : "Unable to save task changes.");
+    } finally {
+      setIsSaving(false);
     }
   }, [
     task,
     title,
     initialTitle,
     description,
+    initialDescription,
     dueDate,
+    originalDueDate,
     priority,
+    originalPriority,
     status,
-    mutateTask,
+    originalStatus,
+    assigneeState,
+    originalAssigneeId,
+    tags,
+    updateTask,
+    setTaskAssigneeMutation,
+    assignTagToTaskMutation,
+    removeTagFromTask,
+    writeTaskToCache,
+    applyTaskSnapshot,
+    refreshHistory,
   ]);
 
   const handleClose = useCallback(async () => {
-    await saveAllChanges();
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm("Discard unsaved changes?");
+      if (!confirmed) {
+        return;
+      }
+      discardChanges();
+    }
     closeModal("task");
-  }, [closeModal, saveAllChanges]);
+  }, [hasUnsavedChanges, discardChanges, closeModal]);
 
   const handleDialogOpenChange = useCallback(
     (open: boolean) => {
@@ -956,131 +984,38 @@ export function useTaskModalController({
   };
 
   const commitTitle = useCallback(async () => {
-    if (!task) return;
     const trimmed = title.trim();
     if (!trimmed) {
       setTitle(initialTitle);
-      setIsEditingTitle(false);
-      return;
-    }
-    if (trimmed.length > TASK_TITLE_MAX_LENGTH) {
-      setTitle(initialTitle);
-      setIsEditingTitle(false);
-      return;
-    }
-    if (trimmed !== initialTitle) {
-      const updated = await mutateTask({ title: trimmed });
-      if (updated) {
-        const nextTitle = updated.title ?? "";
-        setInitialTitle(nextTitle.slice(0, TASK_TITLE_MAX_LENGTH));
-        setTitle(nextTitle.slice(0, TASK_TITLE_MAX_LENGTH));
-        setStatus(updated.status ?? status);
-      }
+    } else {
+      setTitle(trimmed.slice(0, TASK_TITLE_MAX_LENGTH));
     }
     setIsEditingTitle(false);
-  }, [task, title, initialTitle, status, mutateTask]);
+  }, [title, initialTitle]);
 
   const commitDescription = useCallback(async () => {
-    if (!task) return;
-    const trimmed = description.trim();
-    if (trimmed === initialDescription.trim()) {
-      setIsEditingDescription(false);
-      setDescription(trimmed);
-      return;
-    }
-
-    const updated = await mutateTask({ description: trimmed });
-    if (updated) {
-      const nextDescription = updated.description ?? "";
-      setInitialDescription(nextDescription);
-      setDescription(nextDescription);
-      setStatus(updated.status ?? status);
-    }
+    setDescription(description.trim());
     setIsEditingDescription(false);
-  }, [task, description, initialDescription, status, mutateTask]);
+  }, [description]);
 
   const handleDueDateSave = useCallback(
     async (nextDate: string | null) => {
-      if (!task) return;
-      const normalized = nextDate?.trim() ? nextDate.trim() : null;
-      const current = dueDate.trim() ? dueDate.trim() : null;
-
-      if (normalized === current) return;
-
-      const fallbackDue = normalized ? normalized.slice(0, 10) : "";
-      setDueDate(fallbackDue);
-      const optimisticTask = {
-        ...(task as Task),
-        due_date: normalized,
-      } as Task;
-      writeTaskToCache(optimisticTask);
-
-      const updated = await mutateTask({ due_date: normalized });
-
-      if (updated) {
-        setStatus(updated.status ?? status);
-        const nextDue = updated.due_date ? updated.due_date.slice(0, 10) : "";
-        const previousDue = current ?? "";
-
-        if (nextDue === fallbackDue) {
-          writeTaskToCache(updated as Task);
-          return;
-        }
-
-        if (nextDue === previousDue) {
-          const nextTask = {
-            ...(updated as Task),
-            due_date: normalized,
-          } as Task;
-          writeTaskToCache(nextTask);
-          return;
-        }
-
-        setDueDate(nextDue);
-        writeTaskToCache(updated as Task);
+      const normalized = nextDate?.trim() ? nextDate.trim().slice(0, 10) : "";
+      if (normalized === dueDate) {
         return;
       }
-
-      // retain optimistic state if mutation returned no data
+      setDueDate(normalized);
     },
-    [task, dueDate, status, mutateTask, writeTaskToCache]
+    [dueDate]
   );
 
   const handleStatusChange = useCallback(
     async (nextStatus: Task["status"]) => {
-      if (!task) return;
-      const previousStatus = status;
-      if (nextStatus === previousStatus) return;
-
+      if (nextStatus === status) return;
       setStatusError(null);
       setStatus(nextStatus);
-      setStatusUpdating(true);
-
-      const optimisticTask = {
-        ...(task as Task),
-        status: nextStatus,
-      } as Task;
-      writeTaskToCache(optimisticTask);
-
-      try {
-        const updated = await mutateTask({ status: nextStatus });
-        if (updated) {
-          setStatus(updated.status ?? nextStatus);
-          void refreshHistory();
-        }
-      } catch (error) {
-        const fallbackTask = {
-          ...(task as Task),
-          status: previousStatus,
-        } as Task;
-        writeTaskToCache(fallbackTask);
-        setStatus(previousStatus);
-        setStatusError(error instanceof Error ? error.message : "Unable to update status.");
-      } finally {
-        setStatusUpdating(false);
-      }
     },
-    [task, status, mutateTask, writeTaskToCache, refreshHistory]
+    [status]
   );
 
   const submitComment = useCallback(async () => {
@@ -1092,81 +1027,100 @@ export function useTaskModalController({
     setCommentText("");
   }, [task, commentText, addComment, refetch]);
 
-  const assignee = task?.assignee ?? null;
-  const hasTags = tags.length > 0;
+  const assignee = assigneeState;
   const comments = (data?.task?.comments ?? []) as CommentWithUser[];
 
-  const handleRemoveTag = useCallback(
-    async (tagId: string) => {
-      if (!task) return;
+  const handleRemoveTag = useCallback((tagId: string) => {
+    setTags((previous) => previous.filter((tag) => tag.id !== tagId));
+  }, []);
 
-      const { data: removeData } = await removeTagFromTask({
-        variables: { task_id: task.id, tag_id: tagId },
-      });
-
-      const updatedTags = removeData?.removeTagFromTask?.tags ?? tags.filter((tag) => tag.id !== tagId);
-      setTags(updatedTags);
-      const nextTask = {
-        ...task,
-        tags: updatedTags,
-        stage: (task as unknown as { stage?: Task["stage"] | null }).stage ?? null,
-      } as Task;
-      writeTaskToCache(nextTask);
+  const handleAddExistingTag = useCallback(
+    (tagId: string) => {
+      if (tags.some((tag) => tag.id === tagId)) {
+        return;
+      }
+      const matchingTag = projectTags.find((tag) => tag.id === tagId);
+      if (!matchingTag) {
+        return;
+      }
+      setTags((previous) => [
+        ...previous,
+        {
+          id: matchingTag.id,
+          name: matchingTag.name,
+          color: matchingTag.color ?? null,
+        },
+      ]);
     },
-    [task, removeTagFromTask, tags, writeTaskToCache]
+    [projectTags, tags]
+  );
+
+  const handleCreateTag = useCallback(
+    async (name: string) => {
+      if (!projectId) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+
+      try {
+        const { data } = await createTagMutation({
+          variables: { project_id: projectId, name: trimmed },
+        });
+
+        await refetchProjectTags().catch(() => undefined);
+
+        const createdTag = data?.addTag;
+        if (createdTag) {
+          setTags((previous) => {
+            if (previous.some((tag) => tag.id === createdTag.id)) {
+              return previous;
+            }
+            return [
+              ...previous,
+              {
+                id: createdTag.id,
+                name: createdTag.name,
+                color: createdTag.color ?? null,
+              },
+            ];
+          });
+        }
+      } catch (error) {
+        console.error("Failed to create tag", error);
+      }
+    },
+    [createTagMutation, projectId, refetchProjectTags]
   );
 
   const handleAssignMember = useCallback(
     async (memberId: string | null) => {
-      if (!task) return;
-
-      const currentAssigneeId = task.assignee?.id ?? null;
-      if (currentAssigneeId === memberId) {
+      if (memberId === assigneeState?.id) {
         return;
       }
 
-      try {
-        setIsAssigningAssignee(true);
-        const { data: assignData } = await setTaskAssigneeMutation({
-          variables: { task_id: task.id, member_id: memberId },
-          refetchQueries:
-            task.project_id != null
-              ? [
-                  { query: GET_WORKFLOWS, variables: { project_id: task.project_id } },
-                  { query: GET_TASKS, variables: {} },
-                  { query: GET_TASKS, variables: { project_id: task.project_id } },
-                ]
-              : undefined,
-        });
+      if (!memberId) {
+        setAssigneeState(null);
+        return;
+      }
 
-        const updatedTask = assignData?.setTaskAssignee as Task | undefined;
-        if (updatedTask) {
-          writeTaskToCache(updatedTask);
-        } else {
-          const fallbackTask = {
-            ...task,
-            assignee_id: memberId,
-            assignee:
-              memberId === null
-                ? null
-                : projectMembers.find((member) => member.id === memberId) ?? task.assignee ?? null,
-            stage: (task as unknown as { stage?: Task["stage"] | null }).stage ?? null,
-          } as Task;
-          writeTaskToCache(fallbackTask);
-        }
-        void refreshHistory();
-      } catch (error) {
-        console.error("Failed to assign member", error);
-      } finally {
-        setIsAssigningAssignee(false);
+      const member = projectMembers.find((candidate) => candidate.id === memberId);
+      if (member) {
+        setAssigneeState({
+          id: member.id,
+          first_name: member.first_name,
+          last_name: member.last_name,
+          username: member.username,
+          avatar_color: member.avatar_color,
+        });
+      } else {
+        setAssigneeState(null);
       }
     },
-    [projectMembers, refreshHistory, setTaskAssigneeMutation, task, writeTaskToCache]
+    [assigneeState?.id, projectMembers]
   );
 
   const handleClearAssignee = useCallback(() => {
-    void handleAssignMember(null);
-  }, [handleAssignMember]);
+    setAssigneeState(null);
+  }, []);
 
   const cancelDescriptionEdit = () => {
     setDescription(initialDescription);
@@ -1255,7 +1209,7 @@ export function useTaskModalController({
     priority,
     status,
     statusError,
-    isStatusUpdating: statusUpdating,
+    isStatusUpdating: isSaving,
     handleStatusChange,
     clearDueDate,
     handleDueDateSave,
@@ -1265,7 +1219,7 @@ export function useTaskModalController({
     assignee,
     projectMembers,
     isMembersLoading,
-    isAssigning: isAssigningAssignee,
+    isAssigning: isSaving,
     isSearchingMembers,
     handleSearchMembers,
     handleAssignMember,
@@ -1274,9 +1228,15 @@ export function useTaskModalController({
 
   const tagControls: TagControls = {
     tags,
-    hasTags,
     removeTag: handleRemoveTag,
-    openTagModal: () => openModal("tag"),
+    addExistingTag: handleAddExistingTag,
+    createTag: handleCreateTag,
+    availableTags: projectTags.map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      color: tag.color ?? null,
+    })),
+    loadingAvailableTags: loadingProjectTags,
   };
 
   const commentControls: CommentControls = {
@@ -1301,6 +1261,13 @@ export function useTaskModalController({
     refetch: refreshHistory,
   };
 
+  const saveControls = {
+    hasUnsavedChanges,
+    isSaving,
+    save: saveTaskChanges,
+    discard: discardChanges,
+  };
+
   const dueDateShortcuts: ModalShortcuts = {
     openDueDateModal: () => openModal("due-date"),
   };
@@ -1315,6 +1282,7 @@ export function useTaskModalController({
     tags: tagControls,
     comments: commentControls,
     history: historyControls,
+    save: saveControls,
     dueDateModal: dueDateShortcuts,
     currentUserId,
     task,

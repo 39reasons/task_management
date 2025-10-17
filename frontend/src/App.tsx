@@ -8,7 +8,6 @@ import type { AuthUser, Task, DecodedToken } from "@shared/types";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { ModalProvider, useModal } from "./components/ModalStack";
 import { TaskModal } from "./components/TaskModal/TaskModal";
-import { TagModal } from "./components/tags/TagModal";
 import { NotificationInbox } from "./components/notifications/NotificationInbox";
 import { ProjectInviteModal } from "./components/notifications/ProjectInviteModal";
 import { HomePage } from "./pages/HomePage";
@@ -209,7 +208,6 @@ function AppContent() {
             onTaskUpdate={(updated) => setSelectedTask(updated)}
           />
         )}
-        {modals.includes("tag") && <TagModal task={selectedTask} />}
         {modals.includes("notifications") && <NotificationInbox currentUser={user} />}
         {modals.includes("invite") && (
           <ProjectInviteModal

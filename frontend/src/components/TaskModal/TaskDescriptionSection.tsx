@@ -44,10 +44,11 @@ export function TaskDescriptionSection({
 }: TaskDescriptionSectionProps) {
   const trimmedCurrent = description.trim();
   const trimmedInitial = initialDescription.trim();
-  const hasContent = Boolean(trimmedInitial);
-  const shouldShowToggle = trimmedInitial.length > 200 || trimmedInitial.split(/\n/).length > 4;
+  const hasContent = Boolean(trimmedCurrent);
+  const shouldShowToggle = trimmedCurrent.length > 200 || trimmedCurrent.split(/\n/).length > 4;
 
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (isDraftPromptVisible) {
@@ -58,6 +59,17 @@ export function TaskDescriptionSection({
     }
     return undefined;
   }, [isDraftPromptVisible]);
+
+  useEffect(() => {
+    if (isEditing && editorRef.current) {
+      const textarea = editorRef.current;
+      const maxHeight = Math.min(window.innerHeight * 0.5, 440);
+      textarea.style.height = "auto";
+      const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+    }
+  }, [description, isEditing]);
 
   return (
     <div className="space-y-3">
@@ -132,9 +144,10 @@ export function TaskDescriptionSection({
           <Textarea
             value={description}
             autoFocus
+            ref={editorRef}
             onChange={(event) => onChange(event.target.value)}
             placeholder="Add a more detailed description..."
-            className="min-h-[140px] resize-vertical border-border bg-[hsl(var(--card))] text-foreground focus-visible:border-primary focus-visible:ring-primary/30"
+            className="min-h-[140px] resize-y overflow-auto border-border bg-[hsl(var(--card))] text-foreground focus-visible:border-primary focus-visible:ring-primary/30"
           />
           <div className="flex gap-2">
             <Button type="button" onClick={onSave} disabled={trimmedCurrent === trimmedInitial}>
@@ -170,7 +183,7 @@ export function TaskDescriptionSection({
                 !isExpanded && "line-clamp-5"
               )}
             >
-              {initialDescription}
+              {description}
             </div>
             {shouldShowToggle ? (
               <Button

@@ -1,4 +1,4 @@
-import { Calendar, Check, ChevronDown, Clock, Loader2, Plus, X } from "lucide-react";
+import { Calendar, Check, ChevronDown, Clock, Loader2, X } from "lucide-react";
 import type { Task, User } from "@shared/types";
 
 import { TASK_STATUS_OPTIONS, DEFAULT_TASK_STATUS } from "../../constants/taskStatus";
@@ -13,13 +13,15 @@ interface TaskMetaSectionProps {
   onStatusChange: (status: Task["status"]) => void;
   isStatusUpdating: boolean;
   statusError?: string | null;
-  hasTags: boolean;
   tags: { id: string; name: string; color: string | null }[];
+  availableTags: { id: string; name: string; color: string | null }[];
+  loadingTags: boolean;
   assignee: User | null;
   dueDate: string;
-  onAddTag: () => void;
   onAddDueDate: () => void;
   onRemoveTag: (id: string) => void;
+  onAddExistingTag: (id: string) => void;
+  onCreateTag: (name: string) => Promise<void>;
   onAssignMember: (memberId: string) => Promise<void> | void;
   onClearAssignee: () => void;
   onClearDueDate: () => void;
@@ -35,13 +37,15 @@ export function TaskMetaSection({
   onStatusChange,
   isStatusUpdating,
   statusError,
-  hasTags,
   tags,
   assignee,
   dueDate,
-  onAddTag,
+  availableTags,
+  loadingTags,
   onAddDueDate,
   onRemoveTag,
+  onAddExistingTag,
+  onCreateTag,
   onAssignMember,
   onClearAssignee,
   onClearDueDate,
@@ -106,7 +110,6 @@ export function TaskMetaSection({
               <DropdownMenuItem
                 key={option.value}
                 onSelect={(event) => {
-                  event.preventDefault();
                   if (isStatusUpdating || option.value === status) return;
                   onStatusChange(option.value);
                 }}
@@ -125,18 +128,6 @@ export function TaskMetaSection({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {!hasTags && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={onAddTag}
-            className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Tags
-          </Button>
-        )}
         {!dueDate && (
           <Button
             type="button"
@@ -151,7 +142,14 @@ export function TaskMetaSection({
         )}
       </div>
 
-      {hasTags ? <TaskTagsList tags={tags} onRemoveTag={onRemoveTag} onAddTag={onAddTag} /> : null}
+      <TaskTagsList
+        tags={tags}
+        availableTags={availableTags}
+        loadingAvailableTags={loadingTags}
+        onRemoveTag={onRemoveTag}
+        onAddTag={onAddExistingTag}
+        onCreateTag={onCreateTag}
+      />
 
       <div className="space-y-1">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Assignee</p>
