@@ -109,7 +109,7 @@ export function TaskMetaSection({
             {TASK_STATUS_OPTIONS.map((option) => (
               <DropdownMenuItem
                 key={option.value}
-                onSelect={(event) => {
+                onSelect={() => {
                   if (isStatusUpdating || option.value === status) return;
                   onStatusChange(option.value);
                 }}
