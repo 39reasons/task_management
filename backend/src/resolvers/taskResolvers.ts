@@ -76,6 +76,7 @@ export const taskResolvers = {
         },
         {
           origin: ctx.clientId ?? null,
+          actorId: ctx.user.id,
         }
       );
     },
@@ -123,6 +124,7 @@ export const taskResolvers = {
         },
         {
           origin: ctx.clientId ?? null,
+          actorId: ctx.user.id,
         }
       );
     },
@@ -135,6 +137,7 @@ export const taskResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.deleteTask(id, {
         origin: ctx.clientId ?? null,
+        actorId: ctx.user.id,
       });
     },
 
@@ -146,6 +149,7 @@ export const taskResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.moveTask(task_id, to_stage_id, {
         origin: ctx.clientId ?? null,
+        actorId: ctx.user.id,
       });
     },
 
@@ -157,6 +161,7 @@ export const taskResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       return await TaskService.updateTaskPriority(id, priority, {
         origin: ctx.clientId ?? null,
+        actorId: ctx.user.id,
       });
     },
 
@@ -168,6 +173,7 @@ export const taskResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       await TaskService.reorderTasks(stage_id, task_ids, {
         origin: ctx.clientId ?? null,
+        actorId: ctx.user.id,
       });
       return true;
     },
@@ -188,6 +194,7 @@ export const taskResolvers = {
         task_ids,
         {
           origin: ctx.clientId ?? null,
+          actorId: ctx.user.id,
         }
       );
       return true;
@@ -201,6 +208,7 @@ export const taskResolvers = {
       if (!ctx.user) throw new Error("Not authenticated");
       await TaskService.setTaskAssignee(task_id, member_id ?? null, {
         origin: ctx.clientId ?? null,
+        actorId: ctx.user.id,
       });
       const task = await TaskService.getTaskById(task_id);
       if (!task) throw new Error("Task not found");
@@ -235,5 +243,7 @@ export const taskResolvers = {
     stage: (parent: Task) => (parent.stage_id ? StageService.getStageById(parent.stage_id) : null),
     sprint: (parent: Task) => (parent.sprint_id ? SprintService.getSprintById(parent.sprint_id) : null),
     assignee: (parent: Task) => TaskService.getTaskAssignee(parent),
+    history: (parent: Task, args: { limit?: number }) =>
+      TaskService.getTaskHistory(parent.id, args?.limit ?? 50),
   },
 };

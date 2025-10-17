@@ -1,3 +1,4 @@
+import { scalarResolvers } from "./scalarResolvers.js";
 import { commentResolvers } from "./commentResolvers.js";
 import { projectResolvers } from "./projectResolvers.js";
 import { taskResolvers } from "./taskResolvers.js";
@@ -10,6 +11,7 @@ import { backlogResolvers } from "./backlogResolvers.js";
 import { sprintResolvers } from "./sprintResolvers.js";
 
 export const resolvers = [
+  scalarResolvers,
   taskResolvers,
   projectResolvers,
   userResolvers,

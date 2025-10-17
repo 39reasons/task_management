@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useApolloClient, useLazyQuery } from "@apollo/client";
-import type { Task, AuthUser, User } from "@shared/types";
+import type { Task, AuthUser, TaskHistoryEvent } from "@shared/types";
 
 import {
   GET_COMMENTS,
@@ -17,10 +17,11 @@ import {
   SEARCH_USERS,
   GET_WORKFLOWS,
   GET_TASKS,
+  GET_TASK_HISTORY,
 } from "../../graphql";
 import { useModal } from "../ModalStack";
 import { TASK_FRAGMENT } from "../../graphql/tasks";
-import type { CommentWithUser, TaskDraftResponse } from "./types";
+import type { CommentWithUser, TaskDraftResponse, ProjectMember, TaskHistoryEntry } from "./types";
 
 const TAG_COLOR_PALETTE = [
   "#38BDF8",
@@ -37,8 +38,221 @@ const getColorForTagByIndex = (index: number): string => {
 };
 
 export const TASK_TITLE_MAX_LENGTH = 512;
+const HISTORY_FETCH_LIMIT = 50;
 
-type ProjectMember = Pick<User, "id" | "first_name" | "last_name" | "username" | "avatar_color">;
+const STATUS_LABELS: Record<string, string> = {
+  new: "New",
+  active: "Active",
+  closed: "Closed",
+};
+
+const BACKLOG_LABEL = "Backlog";
+
+function capitalize(word: string | null | undefined): string | null {
+  if (!word) return null;
+  const trimmed = word.trim();
+  if (!trimmed) return null;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function hasKey<RecordType extends Record<string, unknown>>(
+  value: RecordType,
+  key: string
+): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function formatStatusLabel(input: unknown): string | null {
+  if (typeof input !== "string") {
+    return null;
+  }
+  const normalized = input.trim().toLowerCase();
+  if (!normalized) return null;
+  return STATUS_LABELS[normalized] ?? capitalize(normalized);
+}
+
+function findProjectMemberById(members: ProjectMember[], id: string | null | undefined): ProjectMember | null {
+  if (!id) return null;
+  return members.find((member) => member.id === id) ?? null;
+}
+
+function formatStageLabel(snapshot: unknown, labelWhenNull: string): string | null {
+  if (snapshot === null) {
+    return labelWhenNull;
+  }
+  if (typeof snapshot === "string") {
+    const trimmed = snapshot.trim();
+    return trimmed || null;
+  }
+  if (snapshot && typeof snapshot === "object") {
+    const record = snapshot as Record<string, unknown>;
+    if (typeof record.name === "string" && record.name.trim()) {
+      return record.name;
+    }
+    if (typeof record.title === "string" && record.title.trim()) {
+      return record.title;
+    }
+    if (typeof record.id === "string" && record.id.trim()) {
+      return record.id;
+    }
+  }
+  return null;
+}
+
+function formatAssigneeLabel(snapshot: unknown, members: ProjectMember[]): string | null {
+  if (snapshot === null) {
+    return null;
+  }
+
+  let candidateId: string | null = null;
+
+  if (typeof snapshot === "string") {
+    candidateId = snapshot;
+  } else if (snapshot && typeof snapshot === "object") {
+    const record = snapshot as Record<string, unknown>;
+    const first = typeof record.first_name === "string" ? record.first_name : "";
+    const last = typeof record.last_name === "string" ? record.last_name : "";
+    const username = typeof record.username === "string" ? record.username : "";
+    if (first || last) {
+      return `${first} ${last}`.trim();
+    }
+    if (username) {
+      return `@${username}`;
+    }
+    if (typeof record.id === "string") {
+      candidateId = record.id;
+    }
+  }
+
+  if (candidateId) {
+    const member = findProjectMemberById(members, candidateId);
+    if (member) {
+      const fullName = `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim();
+      return fullName || `@${member.username}`;
+    }
+    return candidateId;
+  }
+
+  return null;
+}
+
+function buildHistoryEntry(event: TaskHistoryEvent, members: ProjectMember[]): TaskHistoryEntry {
+  const payloadRecord = asRecord(event.payload);
+
+  const actor =
+    event.actor ??
+    (() => {
+      const member = findProjectMemberById(members, event.actor_id ?? null);
+      return member
+        ? {
+            id: member.id,
+            first_name: member.first_name,
+            last_name: member.last_name,
+            username: member.username,
+            avatar_color: member.avatar_color ?? null,
+          }
+        : null;
+    })();
+
+  let message = "";
+  let details: string | null = null;
+
+  switch (event.event_type) {
+    case "STATUS_CHANGED": {
+      const fromLabel = formatStatusLabel(payloadRecord["from"]);
+      const toLabel = formatStatusLabel(payloadRecord["to"]);
+      if (fromLabel && toLabel && fromLabel !== toLabel) {
+        message = `Status changed from ${fromLabel} to ${toLabel}`;
+      } else if (toLabel) {
+        message = `Status set to ${toLabel}`;
+      } else if (fromLabel) {
+        message = "Status cleared";
+        details = `Previously ${fromLabel}`;
+      } else {
+        message = "Status updated";
+      }
+      break;
+    }
+    case "STAGE_CHANGED": {
+      const fromProvided = hasKey(payloadRecord, "from");
+      const toProvided = hasKey(payloadRecord, "to");
+      const rawFrom = fromProvided ? payloadRecord["from"] : undefined;
+      const rawTo = toProvided ? payloadRecord["to"] : undefined;
+
+      const fromLabel = fromProvided ? formatStageLabel(rawFrom, BACKLOG_LABEL) : null;
+      const toLabel = toProvided ? formatStageLabel(rawTo, BACKLOG_LABEL) : null;
+
+      if (fromLabel && toLabel && fromLabel !== toLabel) {
+        message = `Moved from ${fromLabel} to ${toLabel}`;
+      } else if (toLabel) {
+        message = `Moved to ${toLabel}`;
+      } else if (fromLabel) {
+        message = `Removed from ${fromLabel}`;
+      } else {
+        message = "Stage updated";
+      }
+      break;
+    }
+    case "ASSIGNEE_CHANGED": {
+      const fromProvided = hasKey(payloadRecord, "from");
+      const toProvided = hasKey(payloadRecord, "to");
+      const fromLabel = fromProvided ? formatAssigneeLabel(payloadRecord["from"], members) : null;
+      const toLabel = toProvided ? formatAssigneeLabel(payloadRecord["to"], members) : null;
+
+      if (toProvided && payloadRecord["to"] === null) {
+        message = "Unassigned";
+        details = fromLabel ? `Previously ${fromLabel}` : null;
+      } else if (toLabel && fromLabel && toLabel !== fromLabel) {
+        message = `Assigned to ${toLabel}`;
+        details = `Previously ${fromLabel}`;
+      } else if (toLabel) {
+        message = `Assigned to ${toLabel}`;
+      } else if (fromLabel) {
+        message = `Assignment updated`;
+        details = `Previously ${fromLabel}`;
+      } else {
+        message = "Assignment updated";
+      }
+      break;
+    }
+    case "TASK_IMPORTED": {
+      message = "Task history imported";
+      const summary: string[] = [];
+      const statusLabel = formatStatusLabel(payloadRecord["status"]);
+      if (statusLabel) {
+        summary.push(`Status ${statusLabel}`);
+      }
+      const stageLabel = formatStageLabel(payloadRecord["stage"], BACKLOG_LABEL);
+      if (stageLabel) {
+        summary.push(`Stage ${stageLabel}`);
+      }
+      const assigneeLabel = formatAssigneeLabel(payloadRecord["assignee"], members);
+      if (assigneeLabel) {
+        summary.push(`Assignee ${assigneeLabel}`);
+      }
+      details = summary.length > 0 ? summary.join(" · ") : null;
+      break;
+    }
+    default: {
+      message = "Task updated";
+    }
+  }
+
+  return {
+    id: event.id,
+    eventType: event.event_type,
+    createdAt: event.created_at,
+    actor,
+    actorId: event.actor_id ?? null,
+    message: message || "Task updated",
+    details,
+    payload: event.payload ?? null,
+  };
+}
 
 interface UseTaskModalControllerParams {
   task: Task | null;
@@ -130,6 +344,13 @@ interface CommentControls {
   deleteComment: (commentId: string) => Promise<void>;
 }
 
+interface HistoryControls {
+  events: TaskHistoryEntry[];
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+}
+
 interface ModalShortcuts {
   openDueDateModal: () => void;
 }
@@ -143,6 +364,7 @@ export interface TaskModalController {
   assignee: AssigneeControls;
   tags: TagControls;
   comments: CommentControls;
+  history: HistoryControls;
   dueDateModal: ModalShortcuts;
   currentUserId: string | null;
   task: Task | null;
@@ -201,6 +423,39 @@ export function useTaskModalController({
     () => (projectMembersData?.projectMembers ?? []) as ProjectMember[],
     [projectMembersData]
   );
+
+  const {
+    data: historyData,
+    loading: historyLoading,
+    error: historyError,
+    refetch: refetchHistory,
+  } = useQuery(GET_TASK_HISTORY, {
+    variables: { task_id: task?.id, limit: HISTORY_FETCH_LIMIT },
+    skip: !task?.id,
+    fetchPolicy: "network-only",
+  });
+
+  const historyEvents = useMemo(() => {
+    if (!task?.id) {
+      return [];
+    }
+    const events = ((historyData?.task?.history ?? []) as TaskHistoryEvent[]) ?? [];
+    return events.map((event) => buildHistoryEntry(event, projectMembers));
+  }, [historyData, projectMembers, task?.id]);
+
+  const refreshHistory = useCallback(async () => {
+    if (!task?.id) {
+      return;
+    }
+    try {
+      await refetchHistory({
+        task_id: task.id,
+        limit: HISTORY_FETCH_LIMIT,
+      });
+    } catch (error) {
+      console.error("Failed to refresh task history", error);
+    }
+  }, [refetchHistory, task?.id]);
 
   const [searchUsersLazy, { loading: isSearchingMembers }] = useLazyQuery(SEARCH_USERS, {
     fetchPolicy: "no-cache",
@@ -811,6 +1066,7 @@ export function useTaskModalController({
         const updated = await mutateTask({ status: nextStatus });
         if (updated) {
           setStatus(updated.status ?? nextStatus);
+          void refreshHistory();
         }
       } catch (error) {
         const fallbackTask = {
@@ -824,7 +1080,7 @@ export function useTaskModalController({
         setStatusUpdating(false);
       }
     },
-    [task, status, mutateTask, writeTaskToCache]
+    [task, status, mutateTask, writeTaskToCache, refreshHistory]
   );
 
   const submitComment = useCallback(async () => {
@@ -898,13 +1154,14 @@ export function useTaskModalController({
           } as Task;
           writeTaskToCache(fallbackTask);
         }
+        void refreshHistory();
       } catch (error) {
         console.error("Failed to assign member", error);
       } finally {
         setIsAssigningAssignee(false);
       }
     },
-    [projectMembers, setTaskAssigneeMutation, task, writeTaskToCache]
+    [projectMembers, refreshHistory, setTaskAssigneeMutation, task, writeTaskToCache]
   );
 
   const handleClearAssignee = useCallback(() => {
@@ -1037,6 +1294,13 @@ export function useTaskModalController({
     deleteComment: handleDeleteComment,
   };
 
+  const historyControls: HistoryControls = {
+    events: historyEvents,
+    loading: historyLoading,
+    error: historyError?.message ?? null,
+    refetch: refreshHistory,
+  };
+
   const dueDateShortcuts: ModalShortcuts = {
     openDueDateModal: () => openModal("due-date"),
   };
@@ -1050,6 +1314,7 @@ export function useTaskModalController({
     assignee: assigneeControls,
     tags: tagControls,
     comments: commentControls,
+    history: historyControls,
     dueDateModal: dueDateShortcuts,
     currentUserId,
     task,

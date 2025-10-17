@@ -21,6 +21,7 @@ export interface Task {
   assignee?: User | null;
   created_at?: string;
   updated_at?: string;
+  history?: TaskHistoryEvent[];
 }
 
 export interface TaskDraftSuggestion {
@@ -30,6 +31,23 @@ export interface TaskDraftSuggestion {
   due_date?: string | null;
   tags?: string[];
   subtasks?: string[];
+}
+
+export type TaskHistoryEventType = "STATUS_CHANGED" | "ASSIGNEE_CHANGED" | "STAGE_CHANGED" | "TASK_IMPORTED";
+
+export interface TaskHistoryEventPayload {
+  [key: string]: unknown;
+}
+
+export interface TaskHistoryEvent {
+  id: string;
+  event_type: TaskHistoryEventType;
+  payload: TaskHistoryEventPayload | null;
+  created_at: string;
+  task_id?: string;
+  project_id?: string;
+  actor_id?: string | null;
+  actor?: User | null;
 }
 
 export interface WorkflowStageSuggestion {

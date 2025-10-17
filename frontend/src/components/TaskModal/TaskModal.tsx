@@ -3,7 +3,18 @@ import type { Task, AuthUser } from "@shared/types";
 import { Sparkles, X } from "lucide-react";
 
 import { DueDateModal } from "./DueDateModal";
-import { Button, Dialog, DialogContent, DialogTitle, ScrollArea, Separator } from "../ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  ScrollArea,
+  Separator,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../ui";
 import { TaskCommentsPanel } from "./TaskCommentsPanel";
 import { TaskDescriptionSection } from "./TaskDescriptionSection";
 import { TaskMetaSection } from "./TaskMetaSection";
@@ -12,6 +23,7 @@ import {
   TASK_TITLE_MAX_LENGTH,
   useTaskModalController,
 } from "./useTaskModalController";
+import { TaskHistoryPanel } from "./TaskHistoryPanel";
 
 interface TaskModalProps {
   task: Task | null;
@@ -35,6 +47,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
     tags,
     assignee,
     comments,
+    history,
     dueDateModal,
     currentUserId,
   } = controller;
@@ -147,25 +160,46 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                 </div>
               </ScrollArea>
 
-              <ScrollArea className="h-full min-h-0 bg-[hsl(var(--background))]">
-                <div className="flex h-full flex-col px-6 py-5">
-                  <TaskCommentsPanel
-                    comments={comments.comments}
-                    loading={comments.loading}
-                    commentText={comments.commentText}
-                    onCommentTextChange={comments.changeCommentText}
-                    onSubmitComment={() => comments.submitComment()}
-                    editingCommentId={comments.editingCommentId}
-                    editingCommentText={comments.editingCommentText}
-                    onEditCommentTextChange={comments.changeEditingCommentText}
-                    onStartEditComment={comments.startEditComment}
-                    onCancelEditComment={comments.cancelEditComment}
-                    onSubmitEditComment={() => comments.submitCommentEdit()}
-                    onDeleteComment={comments.deleteComment}
-                    currentUserId={currentUserId}
-                  />
-                </div>
-              </ScrollArea>
+              <div className="flex h-full flex-col bg-[hsl(var(--background))]">
+                <Tabs defaultValue="comments" className="flex h-full flex-col">
+                  <div className="px-6 pt-5">
+                    <TabsList className="grid h-10 w-full grid-cols-2 bg-muted/70">
+                      <TabsTrigger value="comments">Comments</TabsTrigger>
+                      <TabsTrigger value="history">History</TabsTrigger>
+                    </TabsList>
+                  </div>
+                  <div className="flex-1">
+                    <TabsContent value="comments" className="mt-0 h-full">
+                      <ScrollArea className="h-full px-6 py-5">
+                        <TaskCommentsPanel
+                          comments={comments.comments}
+                          loading={comments.loading}
+                          commentText={comments.commentText}
+                          onCommentTextChange={comments.changeCommentText}
+                          onSubmitComment={() => comments.submitComment()}
+                          editingCommentId={comments.editingCommentId}
+                          editingCommentText={comments.editingCommentText}
+                          onEditCommentTextChange={comments.changeEditingCommentText}
+                          onStartEditComment={comments.startEditComment}
+                          onCancelEditComment={comments.cancelEditComment}
+                          onSubmitEditComment={() => comments.submitCommentEdit()}
+                          onDeleteComment={comments.deleteComment}
+                          currentUserId={currentUserId}
+                        />
+                      </ScrollArea>
+                    </TabsContent>
+                    <TabsContent value="history" className="mt-0 h-full">
+                      <ScrollArea className="h-full px-6 py-5">
+                        <TaskHistoryPanel
+                          events={history.events}
+                          loading={history.loading}
+                          error={history.error}
+                        />
+                      </ScrollArea>
+                    </TabsContent>
+                  </div>
+                </Tabs>
+              </div>
             </div>
           </div>
         </DialogContent>

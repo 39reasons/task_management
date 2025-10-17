@@ -54,6 +54,20 @@ export async function getUserById(id: string): Promise<User | null> {
   return result.rows[0] ?? null;
 }
 
+export async function getUsersByIds(ids: readonly string[]): Promise<User[]> {
+  const unique = Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
+  if (unique.length === 0) {
+    return [];
+  }
+
+  const result = await query<User>(
+    `SELECT ${USER_FIELDS} FROM users WHERE id = ANY($1::uuid[])`,
+    [unique]
+  );
+
+  return result.rows;
+}
+
 export async function getUserByUsername(username: string): Promise<User | null> {
   const result = await query<User>(
     `SELECT ${USER_FIELDS}, password_hash FROM users WHERE username = $1`,

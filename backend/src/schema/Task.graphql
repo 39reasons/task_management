@@ -1,3 +1,14 @@
+scalar JSON
+
+type TaskHistoryEvent {
+  id: ID!
+  event_type: String!
+  payload: JSON
+  created_at: String!
+  actor_id: ID
+  actor: User
+}
+
 type Task {
   id: ID!
   title: String!
@@ -19,6 +30,7 @@ type Task {
   position: Int
   created_at: String
   updated_at: String
+  history(limit: Int = 50): [TaskHistoryEvent!]!
 }
 
 type TaskDraftSuggestion {

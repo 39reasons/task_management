@@ -1,9 +1,14 @@
 import { query } from "../db/index.js";
-import type { Task, User } from "../../../shared/types.js";
+import type { Task, User, TaskHistoryEvent } from "../../../shared/types.js";
 import * as TagService from "./TagService.js";
 import * as StageService from "./StageService.js";
 import * as UserService from "./UserService.js";
 import { publishTaskBoardEvent, type TaskBoardEvent, type TaskBoardEventAction } from "../events/taskBoardPubSub.js";
+
+type TaskMutationOptions = {
+  origin?: string | null;
+  actorId?: string | null;
+};
 
 type TaskRow = {
   id: string;
@@ -73,6 +78,158 @@ function sanitizeTaskStatus(input?: string | null): Task["status"] {
     return candidate as Task["status"];
   }
   throw new Error("Invalid task status.");
+}
+
+type StageHistorySnapshot = { id: string; name?: string | null } | null;
+type UserHistorySnapshot = {
+  id: string;
+  username?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+} | null;
+
+function serializeHistoryPayload(payload: Record<string, unknown>): string {
+  return JSON.stringify(payload, (_key, value) => (value === undefined ? null : value));
+}
+
+async function getStageHistorySnapshot(stageId: string | null | undefined): Promise<StageHistorySnapshot> {
+  if (!stageId) {
+    return null;
+  }
+  const stage = await StageService.getStageById(stageId);
+  if (!stage) {
+    return { id: stageId };
+  }
+  return { id: stage.id, name: stage.name };
+}
+
+async function getUserHistorySnapshot(userId: string | null | undefined): Promise<UserHistorySnapshot> {
+  if (!userId) {
+    return null;
+  }
+  const user = await UserService.getUserById(userId);
+  if (!user) {
+    return { id: userId };
+  }
+  return {
+    id: user.id,
+    username: user.username,
+    first_name: user.first_name,
+    last_name: user.last_name,
+  };
+}
+
+async function insertTaskHistoryEvent(params: {
+  task_id: string;
+  project_id: string;
+  actor_id?: string | null;
+  event_type: string;
+  payload: Record<string, unknown>;
+}): Promise<void> {
+  const { task_id, project_id, actor_id, event_type, payload } = params;
+  await query(
+    `
+      INSERT INTO task_history_events (task_id, project_id, actor_id, event_type, payload)
+      VALUES ($1, $2, $3, $4, $5::jsonb)
+    `,
+    [task_id, project_id, actor_id ?? null, event_type, serializeHistoryPayload(payload)]
+  );
+}
+
+async function recordTaskStatusChange(existing: Task, updated: Task, actorId?: string | null): Promise<void> {
+  if (existing.status === updated.status) {
+    return;
+  }
+
+  await insertTaskHistoryEvent({
+    task_id: updated.id,
+    project_id: updated.project_id,
+    actor_id: actorId ?? null,
+    event_type: "STATUS_CHANGED",
+    payload: {
+      from: existing.status,
+      to: updated.status,
+    },
+  });
+}
+
+async function recordTaskStageChange(previous: Task, next: Task, actorId?: string | null): Promise<void> {
+  const previousStageId = previous.stage_id ?? null;
+  const nextStageId = next.stage_id ?? null;
+
+  if (previousStageId === nextStageId) {
+    return;
+  }
+
+  const [fromStage, toStage] = await Promise.all([
+    getStageHistorySnapshot(previousStageId),
+    getStageHistorySnapshot(nextStageId),
+  ]);
+
+  await insertTaskHistoryEvent({
+    task_id: next.id,
+    project_id: next.project_id,
+    actor_id: actorId ?? null,
+    event_type: "STAGE_CHANGED",
+    payload: {
+      from: fromStage,
+      to: toStage,
+    },
+  });
+}
+
+async function recordTaskAssigneeChange(previous: Task, next: Task, actorId?: string | null): Promise<void> {
+  const previousAssigneeId = previous.assignee_id ?? null;
+  const nextAssigneeId = next.assignee_id ?? null;
+
+  if (previousAssigneeId === nextAssigneeId) {
+    return;
+  }
+
+  const [fromAssignee, toAssignee] = await Promise.all([
+    getUserHistorySnapshot(previousAssigneeId),
+    getUserHistorySnapshot(nextAssigneeId),
+  ]);
+
+  await insertTaskHistoryEvent({
+    task_id: next.id,
+    project_id: next.project_id,
+    actor_id: actorId ?? null,
+    event_type: "ASSIGNEE_CHANGED",
+    payload: {
+      from: fromAssignee,
+      to: toAssignee,
+    },
+  });
+}
+
+type TaskHistoryEventRow = {
+  id: string;
+  task_id: string;
+  project_id: string;
+  actor_id: string | null;
+  event_type: string;
+  payload: Record<string, unknown> | null;
+  created_at: Date | string | null;
+};
+
+function mapTaskHistoryEventRow(row: TaskHistoryEventRow): TaskHistoryEvent {
+  const payloadValue = row.payload;
+  const normalizedPayload =
+    payloadValue && typeof payloadValue === "object" && !Array.isArray(payloadValue)
+      ? payloadValue
+      : payloadValue ?? null;
+
+  return {
+    id: row.id,
+    event_type: row.event_type as TaskHistoryEvent["event_type"],
+    payload: normalizedPayload,
+    created_at: normalizeTimestamp(row.created_at) ?? new Date().toISOString(),
+    task_id: row.task_id,
+    project_id: row.project_id,
+    actor_id: row.actor_id ?? null,
+    actor: null,
+  };
 }
 
 function mapTaskRow(row: TaskRow): Task {
@@ -335,7 +492,7 @@ export async function createTask(
     estimate?: number | null;
     status?: string | null;
   },
-  options?: { origin?: string | null }
+  options?: TaskMutationOptions
 ): Promise<Task> {
   if (!project_id) {
     throw new Error("Project is required to create a task");
@@ -442,7 +599,7 @@ export async function updateTask(
     sprint_id?: string | null;
     position?: number;
   },
-  options?: { origin?: string | null }
+  options?: TaskMutationOptions
 ): Promise<Task> {
   const existing = await getTaskById(id);
   if (!existing) {
@@ -513,6 +670,7 @@ export async function updateTask(
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after update");
   const hydrated = await ensureTaskHydrated(task);
+  await recordTaskStatusChange(existing, hydrated, options?.actorId ?? null);
   await emitTaskUpdateEvent(hydrated, "TASK_UPDATED", options?.origin ?? null, {
     previous_stage_id:
       existing.stage_id && existing.stage_id !== hydrated.stage_id ? existing.stage_id : null,
@@ -523,7 +681,7 @@ export async function updateTask(
 export async function moveTask(
   task_id: string,
   to_stage_id: string,
-  options?: { origin?: string | null }
+  options?: TaskMutationOptions
 ): Promise<Task> {
   const beforeMove = await getTaskById(task_id);
 
@@ -555,13 +713,14 @@ export async function moveTask(
   const task = await getTaskById(result.rows[0].id);
   if (!task) throw new Error("Task not found after move");
   const hydrated = await ensureTaskHydrated(task);
+  await recordTaskStageChange(beforeMove, hydrated, options?.actorId ?? null);
   await emitTaskUpdateEvent(hydrated, "TASK_MOVED", options?.origin ?? null, {
     previous_stage_id: beforeMove.stage_id ?? null,
   });
   return hydrated;
 }
 
-export async function deleteTask(id: string, options?: { origin?: string | null }): Promise<boolean> {
+export async function deleteTask(id: string, options?: TaskMutationOptions): Promise<boolean> {
   const task = await getTaskById(id);
   const result = await query(`DELETE FROM tasks WHERE id = $1`, [id]);
   const deleted = (result.rowCount ?? 0) > 0;
@@ -583,7 +742,7 @@ export async function deleteTask(id: string, options?: { origin?: string | null 
 export async function updateTaskPriority(
   id: string,
   priority: string,
-  options?: { origin?: string | null }
+  options?: TaskMutationOptions
 ): Promise<Task> {
   const result = await query<{ id: string }>(
     `
@@ -607,7 +766,7 @@ export async function updateTaskPriority(
 export async function reorderTasks(
   stage_id: string,
   task_ids: string[],
-  options?: { origin?: string | null }
+  options?: TaskMutationOptions
 ): Promise<void> {
   if (task_ids.length === 0) {
     return;
@@ -649,7 +808,7 @@ export async function reorderBacklogTasks(
   project_id: string,
   backlog_id: string | null,
   task_ids: string[],
-  options?: { origin?: string | null }
+  options?: TaskMutationOptions
 ): Promise<void> {
   if (task_ids.length === 0) {
     return;
@@ -723,6 +882,39 @@ export async function getProjectIdForStage(stage_id: string): Promise<{ project_
   return row ? { project_id: row.project_id, team_id: row.team_id } : null;
 }
 
+export async function getTaskHistory(task_id: string, limit: number = 50): Promise<TaskHistoryEvent[]> {
+  const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 50;
+  const result = await query<TaskHistoryEventRow>(
+    `
+      SELECT id, task_id, project_id, actor_id, event_type, payload, created_at
+      FROM task_history_events
+      WHERE task_id = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT $2
+    `,
+    [task_id, normalizedLimit]
+  );
+
+  const events = result.rows.map(mapTaskHistoryEventRow);
+  const actorIds = Array.from(
+    new Set(events.map((event) => event.actor_id).filter((value): value is string => Boolean(value)))
+  );
+
+  if (actorIds.length > 0) {
+    const actors = await UserService.getUsersByIds(actorIds);
+    const actorMap = new Map(actors.map((actor) => [actor.id, actor]));
+    for (const event of events) {
+      event.actor = event.actor_id ? actorMap.get(event.actor_id) ?? null : null;
+    }
+  } else {
+    for (const event of events) {
+      event.actor = null;
+    }
+  }
+
+  return events;
+}
+
 export async function getTaskAssignee(taskOrId: Task | string): Promise<User | null> {
   const task = typeof taskOrId === "string" ? await getTaskById(taskOrId) : taskOrId;
   if (!task || !task.assignee_id) {
@@ -737,8 +929,10 @@ export async function getTaskAssignee(taskOrId: Task | string): Promise<User | n
 export async function setTaskAssignee(
   task_id: string,
   member_id: string | null,
-  options?: { origin?: string | null }
+  options?: TaskMutationOptions
 ): Promise<void> {
+  const existing = await getTaskById(task_id);
+
   await query(
     `
     UPDATE tasks
@@ -751,6 +945,9 @@ export async function setTaskAssignee(
 
   const task = await getTaskById(task_id);
   if (task) {
+    if (existing) {
+      await recordTaskAssigneeChange(existing, task, options?.actorId ?? null);
+    }
     await notifyTaskUpdated(task, options?.origin ?? null);
   }
 }

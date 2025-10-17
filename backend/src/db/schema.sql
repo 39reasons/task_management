@@ -1,4 +1,5 @@
 -- Wipe old structures
+DROP TABLE IF EXISTS task_history_events CASCADE;
 DROP TABLE IF EXISTS task_tags CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
@@ -169,6 +170,17 @@ CREATE TABLE task_tags (
   PRIMARY KEY (task_id, tag_id)
 );
 
+-- Task history events
+CREATE TABLE task_history_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_tasks_stage_position ON tasks (stage_id, position);
 CREATE INDEX IF NOT EXISTS idx_tasks_stage_id ON tasks (stage_id);
@@ -182,3 +194,5 @@ CREATE INDEX IF NOT EXISTS idx_user_projects_project_user ON user_projects (proj
 CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags (task_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members (team_id);
+CREATE INDEX IF NOT EXISTS idx_task_history_events_task_created_at ON task_history_events (task_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_task_history_events_project ON task_history_events (project_id);

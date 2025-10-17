@@ -207,6 +207,28 @@ export const UPDATE_TASK_PRIORITY = gql`
   }
 `;
 
+export const GET_TASK_HISTORY = gql`
+  query GetTaskHistory($task_id: ID!, $limit: Int) {
+    task(id: $task_id) {
+      id
+      history(limit: $limit) {
+        id
+        event_type
+        created_at
+        actor_id
+        payload
+        actor {
+          id
+          first_name
+          last_name
+          username
+          avatar_color
+        }
+      }
+    }
+  }
+`;
+
 export const UPDATE_TASK = gql`
   mutation UpdateTask(
     $id: ID!
