@@ -1,13 +1,24 @@
-import { Plus, X } from "lucide-react";
+import { type FormEvent, useState } from "react";
+import { Loader2, Plus, X } from "lucide-react";
 
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Input,
+  Label,
 } from "../ui";
+import { COLOR_WHEEL } from "../../constants/colors";
+import { cn } from "../../lib/utils";
 
 interface TaskTagsListProps {
   tags: { id: string; name: string; color: string | null }[];
@@ -15,7 +26,7 @@ interface TaskTagsListProps {
   loadingAvailableTags: boolean;
   onRemoveTag: (id: string) => void;
   onAddTag: (id: string) => void;
-  onCreateTag: (name: string) => Promise<void>;
+  onCreateTag: (input: { name: string; color: string }) => Promise<void>;
 }
 
 export function TaskTagsList({
@@ -29,6 +40,61 @@ export function TaskTagsList({
   const remainingOptions = availableTags.filter(
     (tag) => !tags.some((assigned) => assigned.id === tag.id)
   );
+  const defaultTagColor = COLOR_WHEEL[8] ?? COLOR_WHEEL[0] ?? "#2563eb";
+
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState<string>(defaultTagColor);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+
+  const resetCreateDialogForm = () => {
+    setNewTagName("");
+    setNewTagColor(defaultTagColor);
+    setCreateError(null);
+  };
+
+  const openCreateDialog = () => {
+    resetCreateDialogForm();
+    setIsCreateDialogOpen(true);
+  };
+
+  const closeCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+    resetCreateDialogForm();
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      if (isCreatingTag) return;
+      closeCreateDialog();
+    } else {
+      setIsCreateDialogOpen(true);
+    }
+  };
+
+  const handleCreateTagSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedName = newTagName.trim();
+    const selectedColor = newTagColor?.trim() || defaultTagColor;
+
+    if (!trimmedName) {
+      setCreateError("Tag name is required");
+      return;
+    }
+
+    setCreateError(null);
+    setIsCreatingTag(true);
+
+    try {
+      await onCreateTag({ name: trimmedName, color: selectedColor });
+      closeCreateDialog();
+    } catch (error) {
+      setCreateError((error as Error).message ?? "Unable to create tag");
+    } finally {
+      setIsCreatingTag(false);
+    }
+  };
 
   return (
     <div className="space-y-1">
@@ -87,12 +153,10 @@ export function TaskTagsList({
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    const name = window.prompt("Create new tag", "");
-                    if (name) {
-                      void onCreateTag(name);
-                    }
+                  onSelect={() => {
+                    setTimeout(() => {
+                      openCreateDialog();
+                    }, 0);
                   }}
                 >
                   Create new tag…
@@ -102,6 +166,72 @@ export function TaskTagsList({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
+        <DialogContent className="max-w-sm space-y-4">
+          <DialogHeader>
+            <DialogTitle>Create tag</DialogTitle>
+            <DialogDescription>
+              Pick a name and a color so teammates can quickly recognize this tag.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateTagSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="task-modal-new-tag-name">Name</Label>
+              <Input
+                id="task-modal-new-tag-name"
+                autoFocus
+                value={newTagName}
+                onChange={(event) => setNewTagName(event.target.value)}
+                placeholder="Marketing"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-sm font-medium text-foreground">Color</span>
+              <div className="grid grid-cols-6 gap-2">
+                {COLOR_WHEEL.map((option) => {
+                  const isSelected = option === newTagColor;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setNewTagColor(option)}
+                      className={cn(
+                        "h-9 w-9 rounded-md border border-border/40 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        isSelected
+                          ? "border-primary ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
+                          : "hover:border-border"
+                      )}
+                      style={{ backgroundColor: option }}
+                      aria-pressed={isSelected}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="ghost" onClick={closeCreateDialog} disabled={isCreatingTag}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isCreatingTag} className="gap-2">
+                {isCreatingTag ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating…
+                  </>
+                ) : (
+                  "Create tag"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

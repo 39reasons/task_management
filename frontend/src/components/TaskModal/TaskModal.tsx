@@ -194,13 +194,13 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     <TabsList className="grid h-10 w-full grid-cols-2 rounded-full bg-muted/60 p-1">
                       <TabsTrigger
                         value="comments"
-                        className="group/trigger rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-[hsl(var(--modal-foreground-bright))] data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow"
+                        className="group/trigger rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-[hsl(var(--modal-foreground-bright))] data-[state=active]:bg-background data-[state=active]:shadow"
                       >
                         Comments
                       </TabsTrigger>
                       <TabsTrigger
                         value="history"
-                        className="group/trigger rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-[hsl(var(--modal-foreground-bright))] data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow"
+                        className="group/trigger rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-[hsl(var(--modal-foreground-bright))] data-[state=active]:bg-background data-[state=active]:shadow"
                       >
                         History
                       </TabsTrigger>
