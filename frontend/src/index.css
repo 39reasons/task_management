@@ -11,6 +11,7 @@
   --foreground: 222.2 47.4% 11.2%;
   --modal-background: 0 0% 100%;
   --modal-foreground: 222.2 47.4% 11.2%;
+  --modal-foreground-bright: 222.2 70% 28%;
   --sidebar-background: 0 0% 100%;
   --muted: 210 40% 96.1%;
   --muted-foreground: 215.4 16.3% 46.9%;
@@ -56,6 +57,7 @@
   --radius: 0.75rem;
   --modal-background: 0 0% 9%;
   --modal-foreground: 0 0% 98%;
+  --modal-foreground-bright: 0 0% 100%;
 }
 
 .task-modal-theme {
@@ -69,6 +71,7 @@
   --input: 214 25% 85%;
   --modal-background: 0 0% 100%;
   --modal-foreground: 222.2 47.4% 11.2%;
+  --modal-foreground-bright: 222.2 70% 28%;
 }
 
 .dark .task-modal-theme {
@@ -82,6 +85,7 @@
   --input: 0 0% 20%;
   --modal-background: 0 0% 11%;
   --modal-foreground: 0 0% 100%;
+  --modal-foreground-bright: 0 0% 100%;
 }
 
 .task-modal-theme {
@@ -95,6 +99,7 @@
   --input: 214 25% 85%;
   --modal-background: 0 0% 100%;
   --modal-foreground: 224 47% 16%;
+  --modal-foreground-bright: 224 70% 30%;
 }
 
 .dark .task-modal-theme {
@@ -108,6 +113,7 @@
   --input: 0 0% 20%;
   --modal-background: 0 0% 11%;
   --modal-foreground: 0 0% 100%;
+  --modal-foreground-bright: 0 0% 100%;
 }
 
 @layer base {
