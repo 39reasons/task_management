@@ -15,6 +15,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "../ui";
+import { cn } from "../../lib/utils";
 import { TaskCommentsPanel } from "./TaskCommentsPanel";
 import { TaskDescriptionSection } from "./TaskDescriptionSection";
 import { TaskMetaSection } from "./TaskMetaSection";
@@ -80,7 +81,14 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     variant="ghost"
                     onClick={save.discard}
                     disabled={!save.hasUnsavedChanges || save.isSaving}
-                    className="text-muted-foreground hover:text-foreground"
+                    className={cn(
+                      "border border-transparent text-muted-foreground transition-colors",
+                      save.hasUnsavedChanges && !save.isSaving
+                        ? "hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                        : null,
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--card))]",
+                      "disabled:hover:border-transparent disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                    )}
                   >
                     Discard
                   </Button>
@@ -194,13 +202,13 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     <TabsList className="grid h-10 w-full grid-cols-2 rounded-full bg-muted/60 p-1">
                       <TabsTrigger
                         value="comments"
-                        className="group/trigger rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-[hsl(var(--modal-foreground-bright))] data-[state=active]:bg-background data-[state=active]:shadow"
+                        className="rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-muted/60 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow"
                       >
                         Comments
                       </TabsTrigger>
                       <TabsTrigger
                         value="history"
-                        className="group/trigger rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-[hsl(var(--modal-foreground-bright))] data-[state=active]:bg-background data-[state=active]:shadow"
+                        className="rounded-full text-sm font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-muted/60 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow"
                       >
                         History
                       </TabsTrigger>

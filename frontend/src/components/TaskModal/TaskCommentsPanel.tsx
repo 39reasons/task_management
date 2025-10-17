@@ -185,7 +185,7 @@ function CommentItem({
               size="icon"
               variant="ghost"
               onClick={onDelete}
-              className="h-7 w-7 rounded-full border border-border/60 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+              className="h-7 w-7 rounded-full border border-border/60 text-muted-foreground hover:border-primary/40 hover:text-primary"
               aria-label="Delete comment"
             >
               <Trash2 size={14} />

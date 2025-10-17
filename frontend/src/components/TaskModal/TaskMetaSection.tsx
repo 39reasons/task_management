@@ -113,7 +113,7 @@ export function TaskMetaSection({
                   if (isStatusUpdating || option.value === status) return;
                   onStatusChange(option.value);
                 }}
-                className="flex items-center justify-between gap-2"
+                className="flex items-center justify-between gap-2 hover:bg-accent hover:text-accent-foreground/90 focus:bg-accent focus:text-accent-foreground"
               >
                 <span className="flex items-center gap-2 text-sm">
                   <span className={`h-2 w-2 rounded-full ${option.dotClass}`} />
