@@ -143,6 +143,7 @@ export function TaskModal({ task, currentUser, onTaskUpdate }: TaskModalProps) {
                     onRemoveTag={tags.removeTag}
                     onAddExistingTag={tags.addExistingTag}
                     onCreateTag={tags.createTag}
+                    onUpdateTag={tags.updateTag}
                     onAssignMember={assignee.handleAssignMember}
                     onClearAssignee={assignee.clearAssignee}
                     onClearDueDate={meta.clearDueDate}

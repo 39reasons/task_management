@@ -1,11 +1,11 @@
-import { Calendar, Check, ChevronDown, Clock, Loader2, X } from "lucide-react";
+import { Calendar, Check, ChevronDown, Clock, Loader2, Plus, X } from "lucide-react";
 import type { Task, User } from "@shared/types";
 
 import { TASK_STATUS_OPTIONS, DEFAULT_TASK_STATUS } from "../../constants/taskStatus";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui";
 import type { ProjectMember } from "./types";
 import { AssigneeDropdown } from "./AssigneeDropdown";
-import { TaskTagsList } from "./TaskTagsList";
+import { TaskTagsAddButton, TaskTagsList } from "./TaskTagsList";
 import { useAssigneePicker } from "./useAssigneePicker";
 
 interface TaskMetaSectionProps {
@@ -22,6 +22,7 @@ interface TaskMetaSectionProps {
   onRemoveTag: (id: string) => void;
   onAddExistingTag: (id: string) => void;
   onCreateTag: (input: { name: string; color: string }) => Promise<void>;
+  onUpdateTag: (input: { id: string; name: string; color: string | null }) => Promise<void>;
   onAssignMember: (memberId: string) => Promise<void> | void;
   onClearAssignee: () => void;
   onClearDueDate: () => void;
@@ -46,6 +47,7 @@ export function TaskMetaSection({
   onRemoveTag,
   onAddExistingTag,
   onCreateTag,
+  onUpdateTag,
   onAssignMember,
   onClearAssignee,
   onClearDueDate,
@@ -57,6 +59,8 @@ export function TaskMetaSection({
 }: TaskMetaSectionProps) {
   const currentStatus =
     TASK_STATUS_OPTIONS.find((option) => option.value === status) ?? DEFAULT_TASK_STATUS;
+
+  const hasTags = tags.length > 0;
 
   const {
     isOpen: isAssigneeMenuOpen,
@@ -79,6 +83,28 @@ export function TaskMetaSection({
     onAssignMember,
     isAssigningAssignee,
   });
+
+  const renderInlineAddTagButton = () => (
+    <TaskTagsAddButton
+      tags={tags}
+      availableTags={availableTags}
+      loadingAvailableTags={loadingTags}
+      onAddTag={onAddExistingTag}
+      onCreateTag={onCreateTag}
+      trigger={
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
+          aria-label="Add tag"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add tag
+        </Button>
+      }
+    />
+  );
 
   return (
     <div className="space-y-3">
@@ -128,28 +154,34 @@ export function TaskMetaSection({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {!dueDate && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={onAddDueDate}
-            className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            Due date
-          </Button>
-        )}
+        {!dueDate ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onAddDueDate}
+              className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Due date
+            </Button>
+            {!hasTags ? renderInlineAddTagButton() : null}
+          </>
+        ) : null}
       </div>
 
-      <TaskTagsList
-        tags={tags}
-        availableTags={availableTags}
-        loadingAvailableTags={loadingTags}
-        onRemoveTag={onRemoveTag}
-        onAddTag={onAddExistingTag}
-        onCreateTag={onCreateTag}
-      />
+      {hasTags ? (
+        <TaskTagsList
+          tags={tags}
+          availableTags={availableTags}
+          loadingAvailableTags={loadingTags}
+          onRemoveTag={onRemoveTag}
+          onAddTag={onAddExistingTag}
+          onCreateTag={onCreateTag}
+          onUpdateTag={onUpdateTag}
+        />
+      ) : null}
 
       <div className="space-y-1">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Assignee</p>
@@ -174,7 +206,7 @@ export function TaskMetaSection({
       {dueDate ? (
         <div className="space-y-1">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Due Date</p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               size="sm"
@@ -195,6 +227,7 @@ export function TaskMetaSection({
             >
               <X size={14} />
             </Button>
+            {!hasTags ? renderInlineAddTagButton() : null}
           </div>
         </div>
       ) : null}

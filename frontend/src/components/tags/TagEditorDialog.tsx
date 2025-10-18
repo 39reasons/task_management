@@ -110,7 +110,7 @@ export function TagEditorDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoFocus
-              placeholder="Marketing"
+              placeholder="Enter tag name"
             />
           </div>
 

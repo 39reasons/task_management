@@ -13,6 +13,7 @@ import {
   GENERATE_TASK_DRAFT,
   ASSIGN_TAG_TO_TASK,
   ADD_TAG,
+  UPDATE_TAG,
   GET_PROJECT_MEMBERS,
   SEARCH_USERS,
   GET_WORKFLOWS,
@@ -314,6 +315,7 @@ interface TagControls {
   removeTag: (tagId: string) => void;
   addExistingTag: (tagId: string) => void;
   createTag: (input: { name: string; color: string }) => Promise<void>;
+  updateTag: (input: { id: string; name: string; color: string | null }) => Promise<void>;
   availableTags: { id: string; name: string; color: string | null }[];
   loadingAvailableTags: boolean;
 }
@@ -497,6 +499,7 @@ export function useTaskModalController({
   const [assignTagToTaskMutation] = useMutation(ASSIGN_TAG_TO_TASK);
   const [setTaskAssigneeMutation] = useMutation(SET_TASK_ASSIGNEE);
   const [createTagMutation] = useMutation(ADD_TAG);
+  const [updateTagMutation] = useMutation(UPDATE_TAG);
   const [generateTaskDraftMutation, { loading: isGeneratingDraft }] =
     useMutation(GENERATE_TASK_DRAFT);
 
@@ -1093,6 +1096,52 @@ export function useTaskModalController({
     [createTagMutation, projectId, refetchProjectTags]
   );
 
+  const handleUpdateTag = useCallback(
+    async ({ id, name, color }: { id: string; name: string; color: string | null }) => {
+      if (!projectId) return;
+      const targetTag = projectTags.find((candidate) => candidate.id === id);
+
+      const providedName = name.trim();
+      const resolvedName = providedName || targetTag?.name?.trim();
+      if (!resolvedName) {
+        return;
+      }
+
+      const sanitizedColor = color?.trim() ?? "";
+
+      try {
+        const { data } = await updateTagMutation({
+          variables: {
+            id,
+            name: resolvedName,
+            color: sanitizedColor || null,
+          },
+        });
+
+        await refetchProjectTags().catch(() => undefined);
+
+        const updatedTag = data?.updateTag;
+        const nextName = updatedTag?.name?.trim() || resolvedName;
+        const nextColor = updatedTag?.color ?? (sanitizedColor || null);
+
+        setTags((previous) =>
+          previous.map((existing) =>
+            existing.id === id
+              ? {
+                  id,
+                  name: nextName,
+                  color: nextColor,
+                }
+              : existing
+          )
+        );
+      } catch (error) {
+        console.error("Failed to update tag", error);
+      }
+    },
+    [projectId, projectTags, updateTagMutation, refetchProjectTags]
+  );
+
   const handleAssignMember = useCallback(
     async (memberId: string | null) => {
       if (memberId === assigneeState?.id) {
@@ -1233,6 +1282,7 @@ export function useTaskModalController({
     removeTag: handleRemoveTag,
     addExistingTag: handleAddExistingTag,
     createTag: handleCreateTag,
+    updateTag: handleUpdateTag,
     availableTags: projectTags.map((tag) => ({
       id: tag.id,
       name: tag.name,
