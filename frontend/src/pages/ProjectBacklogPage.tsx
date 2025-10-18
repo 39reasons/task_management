@@ -534,7 +534,7 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
           <DialogHeader>
             <DialogTitle>Add backlog task</DialogTitle>
             <DialogDescription>
-              Capture work items here before promoting them into a workflow.
+              Capture work items here before promoting them onto a board.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleCreateTask}>

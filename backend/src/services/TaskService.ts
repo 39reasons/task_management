@@ -25,7 +25,7 @@ type TaskRow = {
   status: string;
   position: number;
   team_id: string;
-  workflow_id: string | null;
+  board_id: string | null;
   created_at: Date | string | null;
   updated_at: Date | string | null;
 };
@@ -46,7 +46,7 @@ const TASK_BASE_SELECT = `
     t.status,
     t.position,
     p.team_id,
-    s.workflow_id,
+    s.workflow_id AS board_id,
     t.created_at,
     t.updated_at
   FROM tasks t
@@ -236,20 +236,24 @@ function mapTaskRow(row: TaskRow): Task {
   return {
     id: row.id,
     title: row.title,
-    description: row.description ?? undefined,
+    description: row.description ?? null,
     due_date: row.due_date,
     priority: (row.priority as Task["priority"]) ?? null,
     estimate: row.estimate ?? null,
     status: sanitizeTaskStatus(row.status),
     stage_id: row.stage_id ?? null,
-  backlog_id: row.backlog_id ?? null,
-  sprint_id: row.sprint_id ?? null,
-  assignee_id: row.assignee_id ?? null,
-  project_id: row.project_id,
-  team_id: row.team_id,
-  position: row.position,
-  created_at: normalizeTimestamp(row.created_at),
-  updated_at: normalizeTimestamp(row.updated_at),
+    backlog_id: row.backlog_id ?? null,
+    sprint_id: row.sprint_id ?? null,
+    project_id: row.project_id,
+    team_id: row.team_id ?? null,
+    position: row.position,
+    assignee_id: row.assignee_id ?? null,
+    assignee: null,
+    sprint: null,
+    stage: null,
+    tags: [],
+    created_at: normalizeTimestamp(row.created_at),
+    updated_at: normalizeTimestamp(row.updated_at),
   };
 }
 
@@ -299,7 +303,7 @@ async function emitTaskUpdateEvent(
     action,
     project_id: task.project_id,
     team_id: task.team_id ?? null,
-    workflow_id: stage?.workflow_id ?? null,
+    board_id: stage?.board_id ?? null,
     stage_id: task.stage_id ?? null,
     task_id: task.id,
     origin: origin ?? null,
@@ -312,7 +316,7 @@ type TaskFilter = {
   project_id?: string;
   stage_id?: string;
   backlog_id?: string | null;
-  workflow_id?: string;
+  board_id?: string;
   sprint_id?: string;
 };
 
@@ -348,8 +352,8 @@ export async function getTasks(filter: TaskFilter, user_id: string | null): Prom
     }
   }
 
-  if (filter.workflow_id) {
-    params.push(filter.workflow_id);
+  if (filter.board_id) {
+    params.push(filter.board_id);
     conditions.push(`s.workflow_id = $${params.length}`);
   }
 
@@ -730,7 +734,7 @@ export async function deleteTask(id: string, options?: TaskMutationOptions): Pro
       action: "TASK_DELETED",
       project_id: task.project_id,
       team_id: task.team_id ?? null,
-      workflow_id: stage?.workflow_id ?? null,
+      board_id: stage?.board_id ?? null,
       stage_id: task.stage_id ?? null,
       task_id: task.id,
       origin: options?.origin ?? null,
@@ -796,7 +800,7 @@ export async function reorderTasks(
       action: "TASKS_REORDERED",
       project_id: projectId.project_id,
       team_id: projectId.team_id,
-      workflow_id: stage?.workflow_id ?? null,
+      board_id: stage?.board_id ?? null,
       stage_id,
       task_ids,
       origin: options?.origin ?? null,
@@ -859,7 +863,7 @@ export async function reorderBacklogTasks(
     action: "TASKS_REORDERED",
     project_id,
     team_id: teamId,
-    workflow_id: null,
+    board_id: null,
     stage_id: null,
     task_ids,
     origin: options?.origin ?? null,

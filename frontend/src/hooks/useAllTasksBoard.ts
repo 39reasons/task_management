@@ -60,13 +60,13 @@ export function useAllTasksBoard(teamId: string | null): UseAllTasksBoardResult 
             id: task.stage.id,
             name: task.stage.name,
             position: task.stage.position,
-            workflow_id: task.stage.workflow_id,
+            board_id: task.stage.board_id,
           }
         : {
             id: "unassigned",
             name: "Unassigned",
             position: Number.MAX_SAFE_INTEGER,
-            workflow_id: "unknown",
+            board_id: "unknown",
           };
 
       if (!map.has(stageInfo.id)) {

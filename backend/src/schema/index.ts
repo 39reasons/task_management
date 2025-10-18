@@ -26,8 +26,8 @@ const tagSchema = readFileSync(
   "utf8"
 );
 
-const workflowSchema = readFileSync(
-  path.join(process.cwd(), "src/schema/Workflow.graphql"),
+const boardSchema = readFileSync(
+  path.join(process.cwd(), "src/schema/Board.graphql"),
   "utf8"
 );
 
@@ -60,7 +60,7 @@ export const typeDefs = `
   ${userSchema}
   ${commentsSchema}
   ${tagSchema}
-  ${workflowSchema}
+  ${boardSchema}
   ${notificationSchema}
   ${teamSchema}
   ${backlogSchema}

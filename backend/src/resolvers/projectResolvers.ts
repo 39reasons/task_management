@@ -1,9 +1,9 @@
 import * as ProjectService from "../services/ProjectService.js";
-import * as WorkflowService from "../services/WorkflowService.js";
+import * as BoardService from "../services/BoardService.js";
 import * as TeamService from "../services/TeamService.js";
 import * as BacklogService from "../services/BacklogService.js";
 import * as SprintService from "../services/SprintService.js";
-import type { Project, Workflow, User, Team, Backlog, Sprint } from "../../../shared/types.js";
+import type { Project, Board, User, Team, Backlog, Sprint } from "../../../shared/types.js";
 import { GraphQLContext } from "src/types/context";
 
 export const projectResolvers = {
@@ -95,8 +95,8 @@ export const projectResolvers = {
   },
 
   Project: {
-    workflows: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<Workflow[]> => {
-      return await WorkflowService.getWorkflowsByProject(parent.id, ctx.user?.id ?? null);
+    boards: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<Board[]> => {
+      return await BoardService.getBoardsByProject(parent.id, ctx.user?.id ?? null);
     },
     members: async (parent: Project, _: unknown, ctx: GraphQLContext): Promise<User[]> => {
       if (!ctx.user) return [];

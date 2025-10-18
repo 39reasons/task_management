@@ -30,7 +30,7 @@ export function WorkflowGenerator({ canUseAI, onGenerate, children }: WorkflowGe
   const handleGenerate = useCallback(async () => {
     const trimmed = prompt.trim();
     if (!trimmed) {
-      setError("Describe the workflow you'd like to generate.");
+      setError("Describe the board experience you'd like to generate.");
       return;
     }
 
@@ -45,8 +45,8 @@ export function WorkflowGenerator({ canUseAI, onGenerate, children }: WorkflowGe
       const message =
         err instanceof Error
           ? err.message.replace(/^GraphQL error:\s*/i, "")
-          : "Failed to generate workflow.";
-      setError(message || "Failed to generate workflow.");
+          : "Failed to generate board stages.";
+      setError(message || "Failed to generate board stages.");
     } finally {
       setIsGenerating(false);
     }
@@ -64,7 +64,7 @@ export function WorkflowGenerator({ canUseAI, onGenerate, children }: WorkflowGe
     return (
       <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4 text-primary shadow-sm">
         <div className="space-y-1">
-          <p className="text-sm font-semibold">Describe the workflow you need</p>
+          <p className="text-sm font-semibold">Describe the board you need</p>
           <p className="text-xs text-primary/80">
             Mention goals, hand-offs, or constraints. We'll suggest stage names in order and add them to your board.
           </p>
@@ -92,7 +92,7 @@ export function WorkflowGenerator({ canUseAI, onGenerate, children }: WorkflowGe
             ) : (
               <>
                 <Sparkles className="h-4 w-4" />
-                Generate workflow
+                Generate stages
               </>
             )}
           </Button>

@@ -15,15 +15,20 @@ function sanitizeStageName(name: string): string {
   return trimmed;
 }
 
-export async function getStagesByWorkflow(workflow_id: string): Promise<Stage[]> {
-  const result = await query<Stage>(
+export async function getStagesByBoard(board_id: string): Promise<Stage[]> {
+  const result = await query<{
+    id: string;
+    name: string;
+    position: number;
+    board_id: string;
+  }>(
     `
-    SELECT id, name, position, workflow_id
+    SELECT id, name, position, workflow_id AS board_id
     FROM stages
     WHERE workflow_id = $1
     ORDER BY position ASC
     `,
-    [workflow_id]
+    [board_id]
   );
 
   return result.rows.map((row) => ({ ...row, tasks: [] }));
@@ -36,7 +41,7 @@ async function broadcastStageEvent(event: Omit<TaskBoardEvent, "timestamp">): Pr
   });
 }
 
-async function getProjectIdForWorkflow(workflow_id: string): Promise<{ project_id: string; team_id: string } | null> {
+async function getProjectContextForBoard(board_id: string): Promise<{ project_id: string; team_id: string } | null> {
   const result = await query<{ project_id: string; team_id: string }>(
     `
     SELECT w.project_id, p.team_id
@@ -44,21 +49,26 @@ async function getProjectIdForWorkflow(workflow_id: string): Promise<{ project_i
     JOIN projects p ON p.id = w.project_id
     WHERE w.id = $1
     `,
-    [workflow_id]
+    [board_id]
   );
   const row = result.rows[0];
   return row ? { project_id: row.project_id, team_id: row.team_id } : null;
 }
 
 export async function addStage(
-  workflow_id: string,
+  board_id: string,
   name: string,
   position?: number | null,
   options?: { origin?: string | null }
 ): Promise<Stage> {
   const sanitizedName = sanitizeStageName(name);
 
-  const result = await query<Stage>(
+  const result = await query<{
+    id: string;
+    name: string;
+    position: number;
+    board_id: string;
+  }>(
     `
     INSERT INTO stages (workflow_id, name, position)
     VALUES (
@@ -73,20 +83,20 @@ export async function addStage(
         )
       )
     )
-    RETURNING id, name, position, workflow_id
+    RETURNING id, name, position, workflow_id AS board_id
     `,
-    [workflow_id, sanitizedName, position ?? null]
+    [board_id, sanitizedName, position ?? null]
   );
 
   const stage = { ...result.rows[0], tasks: [] };
 
-  const projectContext = await getProjectIdForWorkflow(workflow_id);
+  const projectContext = await getProjectContextForBoard(board_id);
   if (projectContext) {
     await broadcastStageEvent({
       action: "STAGE_CREATED",
       project_id: projectContext.project_id,
       team_id: projectContext.team_id,
-      workflow_id,
+      board_id,
       stage_id: stage.id,
       origin: options?.origin ?? null,
     });
@@ -103,14 +113,19 @@ export async function updateStage(
 ): Promise<Stage> {
   const sanitizedName = name === undefined ? null : sanitizeStageName(name);
 
-  const result = await query<Stage>(
+  const result = await query<{
+    id: string;
+    name: string;
+    position: number;
+    board_id: string;
+  }>(
     `
     UPDATE stages
     SET name = COALESCE($2, name),
         position = COALESCE($3, position),
         updated_at = now()
     WHERE id = $1
-    RETURNING id, name, position, workflow_id
+    RETURNING id, name, position, workflow_id AS board_id
     `,
     [id, sanitizedName, position ?? null]
   );
@@ -120,13 +135,13 @@ export async function updateStage(
   }
 
   const stage = { ...result.rows[0], tasks: [] };
-  const projectContext = await getProjectIdForWorkflow(stage.workflow_id);
+  const projectContext = await getProjectContextForBoard(stage.board_id);
   if (projectContext) {
     await broadcastStageEvent({
       action: "STAGE_UPDATED",
       project_id: projectContext.project_id,
       team_id: projectContext.team_id,
-      workflow_id: stage.workflow_id,
+      board_id: stage.board_id,
       stage_id: stage.id,
       origin: options?.origin ?? null,
     });
@@ -136,24 +151,24 @@ export async function updateStage(
 }
 
 export async function deleteStage(id: string, options?: { origin?: string | null }): Promise<boolean> {
-  const existing = await query<{ workflow_id: string }>(
-    `SELECT workflow_id FROM stages WHERE id = $1`,
+  const existing = await query<{ board_id: string }>(
+    `SELECT workflow_id AS board_id FROM stages WHERE id = $1`,
     [id]
   );
-  const workflowId = existing.rows[0]?.workflow_id ?? null;
+  const boardId = existing.rows[0]?.board_id ?? null;
 
   const result = await query(`DELETE FROM stages WHERE id = $1`, [id]);
 
   const deleted = (result.rowCount ?? 0) > 0;
 
-  if (deleted && workflowId) {
-    const projectContext = await getProjectIdForWorkflow(workflowId);
+  if (deleted && boardId) {
+    const projectContext = await getProjectContextForBoard(boardId);
     if (projectContext) {
       await broadcastStageEvent({
         action: "STAGE_DELETED",
         project_id: projectContext.project_id,
         team_id: projectContext.team_id,
-        workflow_id: workflowId,
+        board_id: boardId,
         stage_id: id,
         origin: options?.origin ?? null,
       });
@@ -164,7 +179,7 @@ export async function deleteStage(id: string, options?: { origin?: string | null
 }
 
 export async function reorderStages(
-  workflow_id: string,
+  board_id: string,
   stage_ids: string[],
   options?: { origin?: string | null }
 ): Promise<void> {
@@ -184,16 +199,16 @@ export async function reorderStages(
     FROM ordered
     WHERE s.id = ordered.id AND s.workflow_id = $1
     `,
-    [workflow_id, stage_ids]
+    [board_id, stage_ids]
   );
 
-  const projectContext = await getProjectIdForWorkflow(workflow_id);
+  const projectContext = await getProjectContextForBoard(board_id);
   if (projectContext) {
     await broadcastStageEvent({
       action: "STAGES_REORDERED",
       project_id: projectContext.project_id,
       team_id: projectContext.team_id,
-      workflow_id,
+      board_id,
       stage_ids,
       origin: options?.origin ?? null,
     });
@@ -201,9 +216,14 @@ export async function reorderStages(
 }
 
 export async function getStageById(id: string): Promise<Stage | null> {
-  const result = await query<Stage>(
+  const result = await query<{
+    id: string;
+    name: string;
+    position: number;
+    board_id: string;
+  }>(
     `
-    SELECT id, name, position, workflow_id
+    SELECT id, name, position, workflow_id AS board_id
     FROM stages
     WHERE id = $1
     `,

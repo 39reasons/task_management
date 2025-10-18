@@ -1,8 +1,9 @@
-type Workflow {
+type Board {
   id: ID!
   name: String!
   project_id: ID!
   team_id: ID!
+  workflow_type: BoardWorkflowType!
   stages: [Stage!]!
 }
 
@@ -10,26 +11,36 @@ type Stage {
   id: ID!
   name: String!
   position: Int!
-  workflow_id: ID!
+  board_id: ID!
   tasks: [Task!]!
 }
 
+enum BoardWorkflowType {
+  KANBAN
+  SCRUM
+  BUG_TRACKING
+  CONTENT_PIPELINE
+  CUSTOM
+}
+
 extend type Query {
-  workflows(project_id: ID!): [Workflow!]!
-  workflow(id: ID!): Workflow
-  stages(workflow_id: ID!): [Stage!]!
+  boards(project_id: ID!): [Board!]!
+  board(id: ID!): Board
+  boardWorkflowTypes: [BoardWorkflowType!]!
+  stages(board_id: ID!): [Stage!]!
 }
 
 extend type Mutation {
-  addStage(workflow_id: ID!, name: String!, position: Int): Stage!
+  addStage(board_id: ID!, name: String!, position: Int): Stage!
   updateStage(id: ID!, name: String, position: Int): Stage!
   deleteStage(id: ID!): Boolean!
-  reorderStages(workflow_id: ID!, stage_ids: [ID!]!): Boolean!
-  generateWorkflowStages(input: GenerateWorkflowStagesInput!): [Stage!]!
+  reorderStages(board_id: ID!, stage_ids: [ID!]!): Boolean!
+  generateBoardStages(input: GenerateBoardStagesInput!): [Stage!]!
+  updateBoard(id: ID!, name: String, workflow_type: BoardWorkflowType): Board!
 }
 
-input GenerateWorkflowStagesInput {
-  workflow_id: ID!
+input GenerateBoardStagesInput {
+  board_id: ID!
   prompt: String!
 }
 
@@ -49,7 +60,7 @@ type TaskBoardEvent {
   action: TaskBoardEventAction!
   project_id: ID!
   team_id: ID
-  workflow_id: ID
+  board_id: ID
   stage_id: ID
   previous_stage_id: ID
   task_id: ID

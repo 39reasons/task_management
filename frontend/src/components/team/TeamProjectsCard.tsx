@@ -83,7 +83,7 @@ export function TeamProjectsCard({
           ))
         ) : (
           <div className="space-y-3 rounded-xl border border-dashed border-border bg-muted/70 px-4 py-6 text-sm text-muted-foreground">
-            <p className="text-muted-foreground">No projects yet. Create one to kick off your first workflow.</p>
+            <p className="text-muted-foreground">No projects yet. Create one to kick off your first board.</p>
             {canCreateProject ? (
               <Button
                 type="button"

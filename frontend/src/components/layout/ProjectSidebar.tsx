@@ -47,8 +47,8 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
           exact: true,
         },
         {
-          to: `/projects/${projectId}/workflow`,
-          label: "Workflow",
+          to: `/projects/${projectId}/board`,
+          label: "Board",
           icon: KanbanSquare,
         },
         {

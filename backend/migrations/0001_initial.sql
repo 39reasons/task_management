@@ -73,16 +73,17 @@ CREATE TABLE backlogs (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Workflows (each project can have multiple boards)
+-- Boards (each project can have multiple views of work)
 CREATE TABLE workflows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  workflow_type TEXT NOT NULL DEFAULT 'KANBAN',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Stages (columns in a workflow)
+-- Stages (columns in a board)
 CREATE TABLE stages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workflow_id UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,

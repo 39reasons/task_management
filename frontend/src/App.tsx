@@ -129,7 +129,7 @@ function AppContent() {
                     }
                   />
                   <Route
-                    path="/projects/:id/workflow"
+                    path="/projects/:id/board"
                     element={
                       <ProjectBoardPage
                         user={user}
@@ -143,6 +143,10 @@ function AppContent() {
                         }}
                       />
                     }
+                  />
+                  <Route
+                    path="/projects/:id/workflow"
+                    element={<Navigate to="../board" replace />}
                   />
                   <Route
                     path="/projects/:id/work-items"

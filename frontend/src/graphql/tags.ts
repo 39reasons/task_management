@@ -88,7 +88,7 @@ export const REMOVE_TAG_FROM_TASK = gql`
         id
         name
         position
-        workflow_id
+        board_id
       }
       tags {
         id

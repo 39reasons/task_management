@@ -1,4 +1,5 @@
 import type { Project, Task, TeamRole, User } from "../../../shared/types.js";
+import { DEFAULT_BOARD_WORKFLOW_TYPE } from "../../../shared/types.js";
 import { query } from "../db/index.js";
 
 const PROJECT_FIELDS_SELECT = `
@@ -291,10 +292,10 @@ export async function addProject(
 
   await query(
     `
-    INSERT INTO workflows (project_id, name)
-    VALUES ($1, $2)
+    INSERT INTO workflows (project_id, name, workflow_type)
+    VALUES ($1, $2, $3)
     `,
-    [project.id, `${project.name} Board`]
+    [project.id, `${project.name} Board`, DEFAULT_BOARD_WORKFLOW_TYPE]
   );
 
   return project;

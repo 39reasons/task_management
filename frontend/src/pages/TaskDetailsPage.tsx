@@ -108,7 +108,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
   const task = data?.task ?? null;
 
   const stageLabel = useMemo(() => {
-    if (!task) return "Not assigned to a workflow stage";
+    if (!task) return "Not assigned to a board stage";
     return task.stage?.name ?? "Backlog or unassigned";
   }, [task]);
 

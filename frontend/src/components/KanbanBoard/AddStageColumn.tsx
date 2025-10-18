@@ -79,7 +79,7 @@ export function AddStageColumn({ onAddStage, scrollContainerRef }: AddStageColum
           </span>
           <span className="flex flex-col text-left">
             <span className="text-sm font-semibold text-foreground">Add stage</span>
-            <span className="text-xs text-muted-foreground">Create a new column for this workflow</span>
+            <span className="text-xs text-muted-foreground">Create a new column for this board</span>
           </span>
         </Button>
       </div>

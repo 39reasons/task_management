@@ -1,8 +1,8 @@
 import type { ApolloCache } from "@apollo/client";
 
-import { GET_WORKFLOWS } from "../graphql";
+import { GET_BOARDS } from "../graphql";
 
-import type { Stage, Task, Workflow } from "@shared/types";
+import type { Stage, Task, Board } from "@shared/types";
 
 interface WriteTaskToCacheOptions {
   cache: ApolloCache<unknown>;
@@ -51,10 +51,10 @@ export function normalizeStageForCache(stage: Stage): Stage {
   };
 }
 
-export function normalizeWorkflow(workflow: Workflow): Workflow {
+export function normalizeBoard(board: Board): Board {
   return {
-    ...workflow,
-    stages: workflow.stages
+    ...board,
+    stages: board.stages
       .map((stage) => normalizeStageForCache(stage))
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
   };
@@ -109,19 +109,19 @@ export function writeTaskToCache({
   task,
   optimisticId,
 }: WriteTaskToCacheOptions) {
-  cache.updateQuery<{ workflows: Workflow[] }>(
-    { query: GET_WORKFLOWS, variables: { project_id: projectId } },
+  cache.updateQuery<{ boards: Board[] }>(
+    { query: GET_BOARDS, variables: { project_id: projectId } },
     (existing) => {
       if (!existing) {
         return existing;
       }
 
-      const workflows = existing.workflows.map((workflow) => {
-        if (workflow.project_id !== projectId) {
-          return workflow;
+      const boards = existing.boards.map((board) => {
+        if (board.project_id !== projectId) {
+          return board;
         }
 
-        const nextStages = workflow.stages.map((stage) => {
+        const nextStages = board.stages.map((stage) => {
           if (stage.id !== task.stage_id) {
             return stage;
           }
@@ -145,19 +145,19 @@ export function writeTaskToCache({
         });
 
         return {
-          ...workflow,
+          ...board,
           stages: nextStages,
         };
       });
 
       return {
         ...existing,
-        workflows,
+        boards,
       };
     }
   );
 }
 
-export function selectStages(workflow: Workflow | null): Stage[] {
-  return workflow?.stages ?? [];
+export function selectStages(board: Board | null): Stage[] {
+  return board?.stages ?? [];
 }

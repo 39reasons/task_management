@@ -14,7 +14,7 @@ export function ProjectSprintsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Sprints</h1>
         <p className="text-sm text-muted-foreground">
-          Plan iterations, review active sprints, and monitor progress as work moves through your workflow.
+          Plan iterations, review active sprints, and monitor progress as work moves through your board.
         </p>
       </div>
       <Alert>

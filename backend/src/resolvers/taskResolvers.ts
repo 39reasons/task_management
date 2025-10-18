@@ -15,7 +15,7 @@ export const taskResolvers = {
         project_id?: string;
         stage_id?: string;
         backlog_id?: string;
-        workflow_id?: string;
+        board_id?: string;
         sprint_id?: string;
       },
       ctx: GraphQLContext

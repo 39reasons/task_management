@@ -50,10 +50,10 @@ export function HomePage({ user }: HomePageProps) {
               {user ? `Welcome back, ${user.first_name ?? user.username}!` : "Welcome to JellyFlow"}
             </p>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              {user ? "Choose a team to get started" : "Organize teams, projects, and workflows"}
+              {user ? "Choose a team to get started" : "Organize teams, projects, and boards"}
             </h1>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Teams bring your projects, workflows, and teammates together. Keep track of ownership, membership, and visibility
+              Teams bring your projects, boards, and teammates together. Keep track of ownership, membership, and visibility
               before diving into the work itself.
             </p>
           </div>

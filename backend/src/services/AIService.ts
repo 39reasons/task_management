@@ -1,15 +1,15 @@
 import type {
   TaskDraftSuggestion,
   Task,
-  WorkflowDraftSuggestion,
-  WorkflowStageSuggestion,
+  BoardDraftSuggestion,
+  BoardStageSuggestion,
 } from "../../../shared/types.js";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1/chat/completions";
 const TASK_DRAFT_MODEL =
   process.env.OPENAI_TASK_DRAFT_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-const WORKFLOW_STAGE_MODEL =
+const BOARD_STAGE_MODEL =
   process.env.OPENAI_WORKFLOW_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
 interface TaskDraftInput {
@@ -34,7 +34,7 @@ Respond only with minified JSON that matches this TypeScript type exactly:
 }
 Prefer concise titles, a markdown-friendly description, and at most five tags. If you are unsure of a field, return null or an empty array.`;
 
-const WORKFLOW_STAGE_SYSTEM_PROMPT = `You are an expert workflow architect. Convert short project descriptions into an ordered set of kanban-style workflow stages.
+const BOARD_STAGE_SYSTEM_PROMPT = `You are an expert workflow architect. Convert short project descriptions into an ordered set of kanban-style workflow stages.
 Respond only with minified JSON that matches this TypeScript type exactly:
 {
   "stages": Array<{
@@ -44,7 +44,7 @@ Respond only with minified JSON that matches this TypeScript type exactly:
 }
 Provide between 3 and 7 clear, distinct stage names that follow a logical progression. Use concise Title Case names (e.g. "Backlog", "In Progress", "Review", "Done"). Avoid numbering unless explicitly requested.`;
 
-interface WorkflowStageDraftInput {
+interface BoardStageDraftInput {
   prompt: string;
   existing_stage_names?: string[];
 }
@@ -102,10 +102,10 @@ export async function generateTaskDraft(
   }
 }
 
-export async function generateWorkflowStages(
-  input: WorkflowStageDraftInput,
+export async function generateBoardStages(
+  input: BoardStageDraftInput,
   _options?: DraftOptions
-): Promise<WorkflowStageSuggestion[]> {
+): Promise<BoardStageSuggestion[]> {
   const prompt = input.prompt?.trim();
   if (!prompt) {
     throw new Error("Prompt is required");
@@ -116,7 +116,7 @@ export async function generateWorkflowStages(
     .filter(Boolean);
 
   if (!OPENAI_API_KEY) {
-    return heuristicWorkflowStages(prompt, existing);
+    return heuristicBoardStages(prompt, existing);
   }
 
   try {
@@ -127,15 +127,15 @@ export async function generateWorkflowStages(
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: WORKFLOW_STAGE_MODEL,
+        model: BOARD_STAGE_MODEL,
         temperature: 0.6,
-        messages: buildWorkflowMessages(prompt, existing),
+        messages: buildBoardMessages(prompt, existing),
       }),
     });
 
     if (!response.ok) {
       throw new Error(
-        `Failed to generate workflow (status ${response.status} ${response.statusText})`
+        `Failed to generate board stages (status ${response.status} ${response.statusText})`
       );
     }
 
@@ -151,20 +151,20 @@ export async function generateWorkflowStages(
       throw new Error("Model response did not include content");
     }
 
-    const suggestion = parseWorkflowSuggestion(jsonText);
-    const normalized = normalizeWorkflowSuggestion(suggestion, {
+    const suggestion = parseBoardSuggestion(jsonText);
+    const normalized = normalizeBoardSuggestion(suggestion, {
       prompt,
       existingStageNames: existing,
     });
 
     if (normalized.length === 0) {
-      return heuristicWorkflowStages(prompt, existing);
+      return heuristicBoardStages(prompt, existing);
     }
 
     return normalized;
   } catch (error) {
-    console.warn("AI workflow generation failed, falling back to heuristic workflow", error);
-    return heuristicWorkflowStages(prompt, existing);
+    console.warn("AI board stage generation failed, falling back to heuristic stages", error);
+    return heuristicBoardStages(prompt, existing);
   }
 }
 
@@ -184,16 +184,16 @@ function buildMessages(prompt: string, input: TaskDraftInput) {
   ];
 }
 
-function buildWorkflowMessages(prompt: string, existingStageNames: string[]) {
+function buildBoardMessages(prompt: string, existingStageNames: string[]) {
   const contextChunks = [
-    `Workflow prompt: ${prompt}`,
+    `Board prompt: ${prompt}`,
     existingStageNames.length > 0
       ? `Existing stages (avoid duplicates): ${existingStageNames.join(", ")}`
       : null,
   ].filter(Boolean);
 
   return [
-    { role: "system" as const, content: WORKFLOW_STAGE_SYSTEM_PROMPT },
+    { role: "system" as const, content: BOARD_STAGE_SYSTEM_PROMPT },
     {
       role: "user" as const,
       content: contextChunks.join("\n"),
@@ -229,7 +229,7 @@ function parseSuggestion(input: string): TaskDraftSuggestion {
   return parsed;
 }
 
-function parseWorkflowSuggestion(input: string): WorkflowDraftSuggestion {
+function parseBoardSuggestion(input: string): BoardDraftSuggestion {
   const jsonCandidate = extractJsonBlock(input);
   if (!jsonCandidate) {
     throw new Error("Unable to find JSON block in model response");
@@ -304,11 +304,11 @@ function normalizeSuggestion(
   };
 }
 
-function normalizeWorkflowSuggestion(
-  suggestion: WorkflowDraftSuggestion,
+function normalizeBoardSuggestion(
+  suggestion: BoardDraftSuggestion,
   context: { prompt: string; existingStageNames: string[] }
-): WorkflowStageSuggestion[] {
-  const result: WorkflowStageSuggestion[] = [];
+): BoardStageSuggestion[] {
+  const result: BoardStageSuggestion[] = [];
   const seen = new Set<string>();
   const existing = new Set(context.existingStageNames.map((name) => name.toLowerCase()));
 
@@ -340,7 +340,7 @@ function normalizeWorkflowSuggestion(
     return result;
   }
 
-  const supplemental = heuristicWorkflowStages(
+  const supplemental = heuristicBoardStages(
     context.prompt,
     [...context.existingStageNames, ...result.map((stage) => stage.name)]
   );
@@ -374,10 +374,10 @@ function heuristicDraft(prompt: string): TaskDraftSuggestion {
   };
 }
 
-function heuristicWorkflowStages(
+function heuristicBoardStages(
   prompt: string,
   existingStageNames: string[]
-): WorkflowStageSuggestion[] {
+): BoardStageSuggestion[] {
   const lowerPrompt = prompt.toLowerCase();
 
   const defaultFlow = ["Backlog", "Ready", "In Progress", "Review", "Done"];
@@ -401,7 +401,7 @@ function heuristicWorkflowStages(
   }
 
   const existing = new Set(existingStageNames.map((name) => name.toLowerCase()));
-  const result: WorkflowStageSuggestion[] = [];
+  const result: BoardStageSuggestion[] = [];
 
   for (const candidate of template) {
     let finalName = candidate;

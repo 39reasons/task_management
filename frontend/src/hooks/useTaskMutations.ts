@@ -8,10 +8,10 @@ import {
   REORDER_TASKS,
   UPDATE_TASK,
   UPDATE_TASK_PRIORITY,
-  GET_WORKFLOWS,
+  GET_BOARDS,
 } from "../graphql";
 
-import type { Stage, Task, Workflow } from "@shared/types";
+import type { Stage, Task, Board } from "@shared/types";
 
 import {
   createOptimisticTask,
@@ -22,7 +22,7 @@ import {
 interface UseTaskMutationsOptions {
   projectId: string | null;
   stages: Stage[];
-  workflow: Workflow | null;
+  board: Board | null;
 }
 
 interface UseTaskMutationsResult {
@@ -34,15 +34,15 @@ interface UseTaskMutationsResult {
   updatePriority: (id: string, priority: Task["priority"]) => Promise<void>;
 }
 
-const workflowRefetchQuery = (projectId: string | null) =>
+const boardRefetchQuery = (projectId: string | null) =>
   projectId
-    ? [{ query: GET_WORKFLOWS, variables: { project_id: projectId } }]
+    ? [{ query: GET_BOARDS, variables: { project_id: projectId } }]
     : [];
 
 export function useTaskMutations({
   projectId,
   stages,
-  workflow,
+  board,
 }: UseTaskMutationsOptions): UseTaskMutationsResult {
   const [createTaskMutation] = useMutation(CREATE_TASK);
   const [deleteTaskMutation] = useMutation(DELETE_TASK);
@@ -60,7 +60,7 @@ export function useTaskMutations({
         stage: stageMeta,
         stageId: stage_id,
         projectId,
-        teamId: workflow?.team_id ?? null,
+        teamId: board?.team_id ?? null,
         title,
       });
 
@@ -75,7 +75,7 @@ export function useTaskMutations({
                   id: stageMeta.id,
                   name: stageMeta.name,
                   position: stageMeta.position,
-                  workflow_id: stageMeta.workflow_id,
+                  board_id: stageMeta.board_id,
                 }
               : null,
           },
@@ -101,7 +101,7 @@ export function useTaskMutations({
     async (task_id: string) => {
       await deleteTaskMutation({
         variables: { id: task_id },
-        refetchQueries: workflowRefetchQuery(projectId),
+        refetchQueries: boardRefetchQuery(projectId),
       });
     },
     [deleteTaskMutation, projectId]
@@ -111,7 +111,7 @@ export function useTaskMutations({
     async (task_id: string, to_stage_id: string) => {
       await moveTaskMutation({
         variables: { task_id, to_stage_id },
-        refetchQueries: workflowRefetchQuery(projectId),
+        refetchQueries: boardRefetchQuery(projectId),
       });
     },
     [moveTaskMutation, projectId]
@@ -121,7 +121,7 @@ export function useTaskMutations({
     async (input: Partial<Task> & { id: string }) => {
       await updateTaskMutation({
         variables: { ...input },
-        refetchQueries: workflowRefetchQuery(projectId),
+        refetchQueries: boardRefetchQuery(projectId),
       });
     },
     [projectId, updateTaskMutation]
@@ -132,7 +132,7 @@ export function useTaskMutations({
       if (!priority) return;
       await updatePriorityMutation({
         variables: { id, priority },
-        refetchQueries: workflowRefetchQuery(projectId),
+        refetchQueries: boardRefetchQuery(projectId),
       });
     },
     [projectId, updatePriorityMutation]
@@ -142,7 +142,7 @@ export function useTaskMutations({
     async (stage_id: string, task_ids: string[]) => {
       await reorderTasksMutation({
         variables: { stage_id, task_ids },
-        refetchQueries: workflowRefetchQuery(projectId),
+        refetchQueries: boardRefetchQuery(projectId),
       });
     },
     [projectId, reorderTasksMutation]

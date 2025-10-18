@@ -1,17 +1,18 @@
 import { gql } from "@apollo/client";
 
-export const GET_WORKFLOWS = gql`
-  query GetWorkflows($project_id: ID!) {
-    workflows(project_id: $project_id) {
+export const GET_BOARDS = gql`
+  query GetBoards($project_id: ID!) {
+    boards(project_id: $project_id) {
       id
       name
       project_id
       team_id
+      workflow_type
       stages {
         id
         name
         position
-        workflow_id
+        board_id
         tasks {
           id
           title
@@ -42,18 +43,19 @@ export const GET_WORKFLOWS = gql`
   }
 `;
 
-export const GET_WORKFLOW = gql`
-  query GetWorkflow($id: ID!) {
-    workflow(id: $id) {
+export const GET_BOARD = gql`
+  query GetBoard($id: ID!) {
+    board(id: $id) {
       id
       name
       project_id
       team_id
+      workflow_type
       stages {
         id
         name
         position
-        workflow_id
+        board_id
         tasks {
           id
           title
@@ -80,17 +82,33 @@ export const GET_WORKFLOW = gql`
           }
         }
       }
+    }
+  }
+`;
+
+export const GET_BOARD_WORKFLOW_TYPES = gql`
+  query GetBoardWorkflowTypes {
+    boardWorkflowTypes
+  }
+`;
+
+export const UPDATE_BOARD = gql`
+  mutation UpdateBoard($id: ID!, $name: String, $workflow_type: BoardWorkflowType) {
+    updateBoard(id: $id, name: $name, workflow_type: $workflow_type) {
+      id
+      name
+      workflow_type
     }
   }
 `;
 
 export const ADD_STAGE = gql`
-  mutation AddStage($workflow_id: ID!, $name: String!, $position: Int) {
-    addStage(workflow_id: $workflow_id, name: $name, position: $position) {
+  mutation AddStage($board_id: ID!, $name: String!, $position: Int) {
+    addStage(board_id: $board_id, name: $name, position: $position) {
       id
       name
       position
-      workflow_id
+      board_id
     }
   }
 `;
@@ -101,7 +119,7 @@ export const UPDATE_STAGE = gql`
       id
       name
       position
-      workflow_id
+      board_id
     }
   }
 `;
@@ -113,18 +131,18 @@ export const DELETE_STAGE = gql`
 `;
 
 export const REORDER_STAGES = gql`
-  mutation ReorderStages($workflow_id: ID!, $stage_ids: [ID!]!) {
-    reorderStages(workflow_id: $workflow_id, stage_ids: $stage_ids)
+  mutation ReorderStages($board_id: ID!, $stage_ids: [ID!]!) {
+    reorderStages(board_id: $board_id, stage_ids: $stage_ids)
   }
 `;
 
-export const GENERATE_WORKFLOW_STAGES = gql`
-  mutation GenerateWorkflowStages($input: GenerateWorkflowStagesInput!) {
-    generateWorkflowStages(input: $input) {
+export const GENERATE_BOARD_STAGES = gql`
+  mutation GenerateBoardStages($input: GenerateBoardStagesInput!) {
+    generateBoardStages(input: $input) {
       id
       name
       position
-      workflow_id
+      board_id
     }
   }
 `;
@@ -135,7 +153,7 @@ export const TASK_BOARD_EVENTS = gql`
       action
       project_id
       team_id
-      workflow_id
+      board_id
       stage_id
       previous_stage_id
       task_id

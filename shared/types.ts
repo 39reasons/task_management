@@ -50,28 +50,46 @@ export interface TaskHistoryEvent {
   actor?: User | null;
 }
 
-export interface WorkflowStageSuggestion {
+export type BoardWorkflowType =
+  | "KANBAN"
+  | "SCRUM"
+  | "BUG_TRACKING"
+  | "CONTENT_PIPELINE"
+  | "CUSTOM";
+
+export const BOARD_WORKFLOW_TYPES: readonly BoardWorkflowType[] = [
+  "KANBAN",
+  "SCRUM",
+  "BUG_TRACKING",
+  "CONTENT_PIPELINE",
+  "CUSTOM",
+] as const;
+
+export const DEFAULT_BOARD_WORKFLOW_TYPE: BoardWorkflowType = "KANBAN";
+
+export interface BoardStageSuggestion {
   name: string;
   description?: string | null;
 }
 
-export interface WorkflowDraftSuggestion {
-  stages: WorkflowStageSuggestion[];
+export interface BoardDraftSuggestion {
+  stages: BoardStageSuggestion[];
 }
 
 export interface Stage {
   id: string;
   name: string;
   position: number;
-  workflow_id: string;
+  board_id: string;
   tasks: Task[];
 }
 
-export interface Workflow {
+export interface Board {
   id: string;
   name: string;
   project_id: string;
   team_id?: string;
+  workflow_type: BoardWorkflowType;
   stages: Stage[];
 }
 
@@ -86,7 +104,7 @@ export interface Backlog {
   tasks?: Task[];
 }
 
-export interface ProjectWorkflowSummary {
+export interface ProjectBoardSummary {
   id: string;
   name: string;
   stages?: Array<Pick<Stage, "id">>;
@@ -116,7 +134,7 @@ export interface Project {
   members?: User[];
   position?: number | null;
   team?: Team | null;
-  workflows?: ProjectWorkflowSummary[];
+  boards?: ProjectBoardSummary[];
   backlogs?: Backlog[];
   sprints?: Sprint[];
 }
@@ -218,7 +236,7 @@ export interface TaskBoardEvent {
   action: TaskBoardEventAction;
   project_id: string;
   team_id?: string | null;
-  workflow_id?: string | null;
+  board_id?: string | null;
   stage_id?: string | null;
   previous_stage_id?: string | null;
   task_id?: string | null;

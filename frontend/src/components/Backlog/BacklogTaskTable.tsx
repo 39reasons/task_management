@@ -47,7 +47,7 @@ export function BacklogTaskTable({
   if (orderedRows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-muted/60 px-4 py-6 text-sm text-muted-foreground">
-        No tasks captured in this backlog yet. Add items here to triage before moving them into a workflow.
+        No tasks captured in this backlog yet. Add items here to triage before moving them onto a board.
       </div>
     );
   }

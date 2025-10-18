@@ -28,7 +28,7 @@ export const TASK_FRAGMENT = gql`
       id
       name
       position
-      workflow_id
+      board_id
       __typename
     }
     sprint {
@@ -54,7 +54,7 @@ export const GET_TASKS = gql`
   query GetTasks(
     $team_id: ID
     $project_id: ID
-    $workflow_id: ID
+    $board_id: ID
     $stage_id: ID
     $backlog_id: ID
     $sprint_id: ID
@@ -62,7 +62,7 @@ export const GET_TASKS = gql`
     tasks(
       team_id: $team_id
       project_id: $project_id
-      workflow_id: $workflow_id
+      board_id: $board_id
       stage_id: $stage_id
       backlog_id: $backlog_id
       sprint_id: $sprint_id
@@ -92,7 +92,7 @@ export const GET_TASKS = gql`
         id
         name
         position
-        workflow_id
+        board_id
       }
       sprint {
         id
@@ -170,7 +170,7 @@ export const CREATE_TASK = gql`
         id
         name
         position
-        workflow_id
+        board_id
       }
       sprint {
         id
@@ -279,7 +279,7 @@ export const UPDATE_TASK = gql`
         id
         name
         position
-        workflow_id
+        board_id
       }
       sprint {
         id
@@ -321,7 +321,7 @@ export const MOVE_TASK = gql`
         id
         name
         position
-        workflow_id
+        board_id
       }
     }
   }

@@ -153,7 +153,7 @@ export function ProjectWorkItemsPage({ user }: { user: AuthUser | null }) {
         <Alert>
           <AlertTitle>No work items yet</AlertTitle>
           <AlertDescription>
-            Tasks assigned to you across this project will appear here. Pick up a task from the workflow or backlog to
+            Tasks assigned to you across this project will appear here. Pick up a task from the board or backlog to
             get started.
           </AlertDescription>
         </Alert>

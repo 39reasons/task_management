@@ -25,13 +25,15 @@ export const GET_PROJECTS = gql`
         username
         avatar_color
       }
-      workflows {
+      boards {
         id
         name
+        workflow_type
         stages {
           id
           name
           position
+          board_id
           tasks {
             id
             title
@@ -95,12 +97,15 @@ export const GET_PROJECT = gql`
         username
         avatar_color
       }
-      workflows {
+      boards {
         id
         name
+        workflow_type
         stages {
           id
           name
+          position
+          board_id
           tasks {
             id
             title
@@ -185,13 +190,15 @@ export const ADD_PROJECT = gql`
         username
         avatar_color
       }
-      workflows {
+      boards {
         id
         name
+        workflow_type
         stages {
           id
           name
           position
+          board_id
           tasks {
             id
             title
@@ -254,13 +261,15 @@ export const UPDATE_PROJECT = gql`
         username
         avatar_color
       }
-      workflows {
+      boards {
         id
         name
+        workflow_type
         stages {
           id
           name
           position
+          board_id
           tasks {
             id
             title
@@ -339,13 +348,15 @@ export const GET_PROJECTS_OVERVIEW = gql`
         username
         avatar_color
       }
-      workflows {
+      boards {
         id
         name
+        workflow_type
         stages {
           id
           name
           position
+          board_id
           tasks {
             id
             title

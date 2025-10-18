@@ -54,7 +54,7 @@ extend type Query {
     project_id: ID
     stage_id: ID
     backlog_id: ID
-    workflow_id: ID
+    board_id: ID
     sprint_id: ID
   ): [Task!]!
   task(id: ID!): Task

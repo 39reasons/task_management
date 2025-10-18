@@ -8,7 +8,7 @@ type Project {
   is_public: Boolean!
   position: Int
   tasks: [Task!]
-  workflows: [Workflow!]
+  boards: [Board!]
   backlogs: [Backlog!]
   sprints: [Sprint!]
   members: [User!]

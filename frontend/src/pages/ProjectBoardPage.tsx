@@ -56,19 +56,19 @@ export function ProjectBoardPage({
 }) {
   const {
     projectId,
-    workflow,
+    board,
     stages,
     createTask,
     deleteTask,
     moveTask,
     addStage,
-    generateWorkflowStages: generateWorkflowStagesFromAI,
+    generateBoardStages: generateBoardStagesFromAI,
     reorderStage,
     deleteStage,
     reorderStagesOrder,
     loading,
   } = useProjectBoard();
-  const workflowTeamId = workflow?.team_id ?? null;
+  const boardTeamId = board?.team_id ?? null;
   const navigate = useNavigate();
 
   const {
@@ -87,8 +87,8 @@ export function ProjectBoardPage({
   const project = projectData?.project ?? null;
 
   const projectTeamId = useMemo(
-    () => project?.team_id ?? workflowTeamId ?? null,
-    [project?.team_id, workflowTeamId]
+    () => project?.team_id ?? boardTeamId ?? null,
+    [project?.team_id, boardTeamId]
   );
 
   const backDestination = useMemo(() => (projectId ? `/projects/${projectId}` : "/"), [projectId]);
@@ -96,7 +96,7 @@ export function ProjectBoardPage({
     navigate(backDestination);
   }, [navigate, backDestination]);
 
-  const projectName = project?.name ?? workflow?.name ?? "Project";
+  const projectName = project?.name ?? board?.name ?? "Project";
 
   const [updateProject] = useMutation(UPDATE_PROJECT);
   const [removeProject] = useMutation(DELETE_PROJECT);
@@ -207,8 +207,8 @@ export function ProjectBoardPage({
   }
 
   return (
-    <WorkflowGenerator canUseAI={Boolean(user)} onGenerate={generateWorkflowStagesFromAI}>
-      {({ isOpen: isWorkflowOpen, isGenerating: isGeneratingWorkflow, toggle: toggleWorkflowPrompt, panel: workflowPanel }) => (
+    <WorkflowGenerator canUseAI={Boolean(user)} onGenerate={generateBoardStagesFromAI}>
+      {({ isOpen: isGeneratorOpen, isGenerating: isGeneratingWorkflow, toggle: toggleGeneratorPrompt, panel: generatorPanel }) => (
         <div className="flex min-h-full flex-col">
           <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
             <div className="flex h-16 w-full items-center justify-between px-4 sm:px-6">
@@ -230,18 +230,18 @@ export function ProjectBoardPage({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={toggleWorkflowPrompt}
+                    onClick={toggleGeneratorPrompt}
                     disabled={isGeneratingWorkflow}
                     className={getNavItemHighlightClasses({
-                      isActive: isWorkflowOpen,
+                      isActive: isGeneratorOpen,
                       className: "hidden min-w-[12rem] justify-center gap-2 sm:inline-flex",
                       inactiveClassName:
                         "border-border hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-border dark:hover:border-white/15 dark:hover:bg-white/10 dark:hover:text-primary",
                     })}
-                    aria-pressed={isWorkflowOpen}
+                    aria-pressed={isGeneratorOpen}
                   >
                     <Sparkles className="h-4 w-4" />
-                    {isWorkflowOpen ? "Close AI Workflow" : "Generate AI Workflow"}
+                    {isGeneratorOpen ? "Close AI Stage Helper" : "Generate AI Stages"}
                   </Button>
                 ) : null}
                 {canManageProject ? (
@@ -312,13 +312,13 @@ export function ProjectBoardPage({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={toggleWorkflowPrompt}
+                  onClick={toggleGeneratorPrompt}
                   disabled={isGeneratingWorkflow}
                   className="justify-center gap-2"
-                  aria-pressed={isWorkflowOpen}
+                  aria-pressed={isGeneratorOpen}
                 >
                   <Sparkles className="h-4 w-4" />
-                  {isWorkflowOpen ? "Close AI Workflow" : "Generate AI Workflow"}
+                  {isGeneratorOpen ? "Close AI Stage Helper" : "Generate AI Stages"}
                 </Button>
                 {canManageProject ? (
                   <Button
@@ -340,7 +340,7 @@ export function ProjectBoardPage({
               </div>
             ) : null}
 
-            {workflowPanel}
+            {generatorPanel}
 
             <div className="min-w-0 pb-4">
               <KanbanBoard

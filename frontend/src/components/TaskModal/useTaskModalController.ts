@@ -16,7 +16,7 @@ import {
   UPDATE_TAG,
   GET_PROJECT_MEMBERS,
   SEARCH_USERS,
-  GET_WORKFLOWS,
+  GET_BOARDS,
   GET_TASKS,
   GET_TASK_HISTORY,
 } from "../../graphql";
@@ -881,7 +881,7 @@ export function useTaskModalController({
           refetchQueries:
             task.project_id != null
               ? [
-                  { query: GET_WORKFLOWS, variables: { project_id: task.project_id } },
+                  { query: GET_BOARDS, variables: { project_id: task.project_id } },
                   { query: GET_TASKS, variables: {} },
                   { query: GET_TASKS, variables: { project_id: task.project_id } },
                 ]

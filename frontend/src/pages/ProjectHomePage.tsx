@@ -131,8 +131,8 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
     return <div className="p-6 text-destructive">We couldn&apos;t find that project.</div>;
   }
 
-  const workflows = project.workflows ?? [];
-  const stagesCount = workflows.reduce((acc, workflow) => acc + (workflow?.stages?.length ?? 0), 0);
+  const boards = project.boards ?? [];
+  const stagesCount = boards.reduce((acc, board) => acc + (board?.stages?.length ?? 0), 0);
   const members = project.members ?? [];
   const canManageProject = Boolean(
     user && project.viewer_role && (project.viewer_role === "owner" || project.viewer_role === "admin")
@@ -197,11 +197,11 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
               <Layers className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-3xl font-semibold text-foreground">{workflows.length}</p>
-              <p className="text-sm text-muted-foreground">Workflows</p>
+              <p className="text-3xl font-semibold text-foreground">{boards.length}</p>
+              <p className="text-sm text-muted-foreground">Boards</p>
             </div>
             <p className="text-xs text-muted-foreground">
-              {stagesCount} total stages configured across all workflows.
+              {stagesCount} total stages configured across all boards.
             </p>
           </CardContent>
         </Card>
@@ -216,7 +216,7 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
             </div>
             <p className="text-xs text-muted-foreground">
               {canManageProject
-                ? "Invite teammates to collaborate on tasks and workflows."
+                ? "Invite teammates to collaborate on tasks and boards."
                 : "Reach out to project owners for access changes."}
             </p>
           </CardContent>
@@ -231,7 +231,7 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
               <p className="text-sm text-muted-foreground">Last updated</p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Track workflow changes and new activity from the workflow board.
+              Track board changes and new activity from the board view.
             </p>
       </CardContent>
     </Card>
