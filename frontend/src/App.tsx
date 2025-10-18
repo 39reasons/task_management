@@ -36,10 +36,11 @@ function AppContent() {
   const { modals, openModal } = useModal();
   const location = useLocation();
   const isAuthRoute = location.pathname === "/signin" || location.pathname === "/signup";
+  const isHomeRoute = location.pathname === "/";
   const projectMatch = location.pathname.match(/^\/projects\/([^/]+)/);
   const activeProjectId = projectMatch ? projectMatch[1] : null;
   const showProjectSidebar = !isAuthRoute && Boolean(activeProjectId);
-  const showTeamSidebar = !isAuthRoute && !showProjectSidebar;
+  const showTeamSidebar = !isAuthRoute && !showProjectSidebar && !isHomeRoute;
 
   const handleLogout = async () => {
     localStorage.removeItem("token");
@@ -91,7 +92,11 @@ function AppContent() {
           <div className="flex min-w-0 flex-1 flex-col">
             <main
               className={
-                isAuthRoute ? "flex-1 min-w-0" : "flex-1 min-w-0 px-4 py-6 sm:px-6"
+                isAuthRoute
+                  ? "flex-1 min-w-0"
+                  : isHomeRoute
+                  ? "flex-1 min-w-0 px-4 py-6 sm:px-8"
+                  : "flex-1 min-w-0 px-4 py-6 sm:px-6"
               }
             >
               <div className={isAuthRoute ? "min-w-0" : "mx-auto w-full min-w-0"}>
@@ -107,41 +112,53 @@ function AppContent() {
                   <Route
                     path="/"
                     element={
-                      <HomePage
-                        user={user}
-                        setSelectedTask={(task) => {
-                          setSelectedTask(task);
-                          openModal("task");
-                        }}
-                      />
+                      user ? (
+                        <HomePage
+                          user={user}
+                          setSelectedTask={(task) => {
+                            setSelectedTask(task);
+                            openModal("task");
+                          }}
+                        />
+                      ) : (
+                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
+                      )
                     }
                   />
                   <Route
                     path="/projects/:id"
                     element={
-                      <ProjectHomePage
-                        user={user}
-                        onInvite={(projectId) => {
-                          setInviteProjectId(projectId);
-                          openModal("invite");
-                        }}
-                      />
+                      user ? (
+                        <ProjectHomePage
+                          user={user}
+                          onInvite={(projectId) => {
+                            setInviteProjectId(projectId);
+                            openModal("invite");
+                          }}
+                        />
+                      ) : (
+                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
+                      )
                     }
                   />
                   <Route
                     path="/projects/:id/board"
                     element={
-                      <ProjectBoardPage
-                        user={user}
-                        setSelectedTask={(task) => {
-                          setSelectedTask(task);
-                          openModal("task");
-                        }}
-                        onInvite={(projectId) => {
-                          setInviteProjectId(projectId);
-                          openModal("invite");
-                        }}
-                      />
+                      user ? (
+                        <ProjectBoardPage
+                          user={user}
+                          setSelectedTask={(task) => {
+                            setSelectedTask(task);
+                            openModal("task");
+                          }}
+                          onInvite={(projectId) => {
+                            setInviteProjectId(projectId);
+                            openModal("invite");
+                          }}
+                        />
+                      ) : (
+                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
+                      )
                     }
                   />
                   <Route
@@ -173,11 +190,23 @@ function AppContent() {
                   />
                   <Route
                     path="/teams/:teamId"
-                    element={<TeamPage user={user} />}
+                    element={
+                      user ? (
+                        <TeamPage user={user} />
+                      ) : (
+                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
+                      )
+                    }
                   />
                   <Route
                     path="/teams/:teamId/settings"
-                    element={<TeamSettingsPage user={user} />}
+                    element={
+                      user ? (
+                        <TeamSettingsPage user={user} />
+                      ) : (
+                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
+                      )
+                    }
                   />
                   <Route
                     path="/settings"

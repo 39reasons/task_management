@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Plus, Home, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useMutation } from "@apollo/client";
-import type { AuthUser } from "@shared/types";
+import { useMutation, useQuery } from "@apollo/client";
+import type { AuthUser, Project } from "@shared/types";
 import {
   Button,
   Dialog,
@@ -17,7 +17,7 @@ import {
   Separator,
   Textarea,
 } from "../ui";
-import { CREATE_TEAM } from "../../graphql";
+import { CREATE_TEAM, GET_PROJECTS } from "../../graphql";
 import { useTeamContext } from "../../providers/TeamProvider";
 import { getNavItemHighlightClasses } from "../../lib/navigation";
 
@@ -56,14 +56,30 @@ export default function Sidebar({ user }: SidebarProps) {
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [teamDescription, setTeamDescription] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [teamSubmitting, setTeamSubmitting] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
   const navigate = useNavigate();
   const [createTeamMutation] = useMutation(CREATE_TEAM);
+  const { data: projectsData, loading: loadingProjects } = useQuery<{ projects: Project[] }>(GET_PROJECTS, {
+    skip: !user,
+    fetchPolicy: "cache-first",
+  });
+
+  const projects = useMemo<Project[]>(() => projectsData?.projects ?? [], [projectsData?.projects]);
 
   const sortedTeams = useMemo(() => {
     return teams.slice().sort((a, b) => a.name.localeCompare(b.name));
   }, [teams]);
+
+  useEffect(() => {
+    if (!showCreateTeam) {
+      return;
+    }
+    if (!selectedProjectId && projects.length > 0) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId, showCreateTeam]);
 
   const handleCreateTeam = async () => {
     const trimmed = teamName.trim();
@@ -71,18 +87,27 @@ export default function Sidebar({ user }: SidebarProps) {
       setTeamError("Team name is required.");
       return;
     }
+    if (!selectedProjectId) {
+      setTeamError("Select a project for this team.");
+      return;
+    }
 
     setTeamSubmitting(true);
     setTeamError(null);
     try {
       const response = await createTeamMutation({
-        variables: { name: trimmed, description: teamDescription.trim() || null },
+        variables: {
+          project_id: selectedProjectId,
+          name: trimmed,
+          description: teamDescription.trim() || null,
+        },
       });
       await refetchTeams();
       const createdId = response.data?.createTeam?.id ?? null;
       setShowCreateTeam(false);
       setTeamName("");
       setTeamDescription("");
+      setSelectedProjectId(null);
       if (createdId) {
         navigate(`/teams/${createdId}`);
       }
@@ -172,6 +197,7 @@ export default function Sidebar({ user }: SidebarProps) {
             setShowCreateTeam(false);
             setTeamName("");
             setTeamDescription("");
+            setSelectedProjectId(null);
             setTeamError(null);
           }
         }}
@@ -191,6 +217,33 @@ export default function Sidebar({ user }: SidebarProps) {
                 disabled={teamSubmitting}
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sidebar-team-project">Project</Label>
+              <select
+                id="sidebar-team-project"
+                className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                value={selectedProjectId ?? ""}
+                onChange={(event) => setSelectedProjectId(event.target.value || null)}
+                disabled={teamSubmitting || loadingProjects || projects.length === 0}
+                required
+              >
+                {projects.length === 0 ? (
+                  <option value="" disabled>
+                    {loadingProjects ? "Loading projects…" : "No projects available"}
+                  </option>
+                ) : null}
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              {projects.length === 0 && !loadingProjects ? (
+                <p className="text-xs text-muted-foreground">
+                  Create a project first to add teams.
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="sidebar-team-description">Description</Label>
@@ -219,7 +272,7 @@ export default function Sidebar({ user }: SidebarProps) {
             <Button
               type="button"
               onClick={() => void handleCreateTeam()}
-              disabled={teamSubmitting}
+              disabled={teamSubmitting || projects.length === 0}
             >
               Create team
             </Button>

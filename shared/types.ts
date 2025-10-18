@@ -11,7 +11,7 @@ export interface Task {
   project_id: string;
   backlog_id?: string | null;
   sprint_id?: string | null;
-  team_id?: string | null;
+  team_id: string;
   tags?: Tag[];
   stage?: Stage | null;
   estimate?: number | null;
@@ -46,6 +46,7 @@ export interface TaskHistoryEvent {
   created_at: string;
   task_id?: string;
   project_id?: string;
+  team_id?: string;
   actor_id?: string | null;
   actor?: User | null;
 }
@@ -88,7 +89,7 @@ export interface Board {
   id: string;
   name: string;
   project_id: string;
-  team_id?: string;
+  team_id: string;
   workflow_type: BoardWorkflowType;
   stages: Stage[];
 }
@@ -118,25 +119,6 @@ export interface TaskReorderInput {
 
 export interface TasksData {
   tasks: Task[];
-}
-
-export interface Project {
-  id: string;
-  team_id: string;
-  name: string;
-  description?: string | null;
-  created_at?: string;
-  updated_at?: string;
-  tasks?: Task[];
-  is_public?: boolean;
-  viewer_is_owner?: boolean;
-  viewer_role?: TeamRole | null;
-  members?: User[];
-  position?: number | null;
-  team?: Team | null;
-  boards?: ProjectBoardSummary[];
-  backlogs?: Backlog[];
-  sprints?: Sprint[];
 }
 
 export interface AuthUser {
@@ -189,6 +171,7 @@ export interface Comment {
 export interface Sprint {
   id: string;
   project_id: string;
+  team_id: string;
   name: string;
   goal?: string | null;
   start_date?: string | null;
@@ -203,6 +186,7 @@ export interface Notification {
   type: string;
   status: "pending" | "accepted" | "declined";
   is_read: boolean;
+  project_id?: string | null;
   team_id?: string | null;
   project?: Project | null;
   sender?: User | null;
@@ -259,6 +243,7 @@ export interface TeamMember {
 
 export interface Team {
   id: string;
+  project_id: string;
   name: string;
   description?: string | null;
   slug: string;
@@ -266,5 +251,26 @@ export interface Team {
   updated_at?: string;
   role?: TeamRole | null;
   members?: TeamMember[];
-  projects?: Project[];
+  project?: Project | null;
+  boards?: Board[];
+  backlogs?: Backlog[];
+  sprints?: Sprint[];
+  tasks?: Task[];
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  tasks?: Task[];
+  is_public?: boolean;
+  viewer_is_owner?: boolean;
+  viewer_role?: TeamRole | null;
+  members?: User[];
+  position?: number | null;
+  created_by?: string | null;
+  teams?: Team[];
+  boards?: ProjectBoardSummary[];
 }

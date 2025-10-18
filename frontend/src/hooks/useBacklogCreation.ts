@@ -147,6 +147,11 @@ export function useBacklogCreation({
         return;
       }
 
+      if (!teamId) {
+        setTaskError("Team context is missing.");
+        return;
+      }
+
       const trimmedTitle = taskTitle.trim();
       if (!trimmedTitle) {
         setTaskError("Task title is required.");
@@ -159,6 +164,7 @@ export function useBacklogCreation({
         await createTaskMutation({
           variables: {
             project_id: projectId,
+            team_id: teamId,
             stage_id: null,
             backlog_id: isUnassignedView ? null : selectedBacklogId,
             sprint_id: taskSprintId || null,
@@ -180,6 +186,7 @@ export function useBacklogCreation({
       createTaskMutation,
       isUnassignedView,
       projectId,
+      teamId,
       refetchProject,
       refetchTasks,
       resetTaskForm,

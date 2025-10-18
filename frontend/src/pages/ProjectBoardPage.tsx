@@ -68,7 +68,6 @@ export function ProjectBoardPage({
     reorderStagesOrder,
     loading,
   } = useProjectBoard();
-  const boardTeamId = board?.team_id ?? null;
   const navigate = useNavigate();
 
   const {
@@ -85,11 +84,6 @@ export function ProjectBoardPage({
   });
 
   const project = projectData?.project ?? null;
-
-  const projectTeamId = useMemo(
-    () => project?.team_id ?? boardTeamId ?? null,
-    [project?.team_id, boardTeamId]
-  );
 
   const backDestination = useMemo(() => (projectId ? `/projects/${projectId}` : "/"), [projectId]);
   const handleBackNavigation = useCallback(() => {
@@ -122,7 +116,6 @@ export function ProjectBoardPage({
     membershipState,
   } = useProjectSettingsDialog({
     project,
-    projectTeamId,
     overviewRefetchDocument: GET_PROJECTS_OVERVIEW,
     updateProject,
     removeProject,
@@ -160,9 +153,7 @@ export function ProjectBoardPage({
     try {
       await leaveProjectMutation({
         variables: { project_id: projectId },
-        refetchQueries: projectTeamId
-          ? [{ query: GET_PROJECTS_OVERVIEW, variables: { team_id: projectTeamId } }]
-          : [],
+        refetchQueries: [{ query: GET_PROJECTS_OVERVIEW }],
       });
       await refetchProject();
       if (projectId === project?.id) {
@@ -181,7 +172,6 @@ export function ProjectBoardPage({
     project?.id,
     project?.name,
     projectId,
-    projectTeamId,
     refetchProject,
   ]);
 

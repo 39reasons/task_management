@@ -49,8 +49,8 @@ export async function getBacklogsForProject(project_id: string): Promise<Backlog
     `
       SELECT b.id, b.team_id, b.name, b.description, b.position, b.created_at, b.updated_at
       FROM backlogs b
-      JOIN projects p ON p.team_id = b.team_id
-      WHERE p.id = $1
+      JOIN teams t ON t.id = b.team_id
+      WHERE t.project_id = $1
       ORDER BY b.position NULLS LAST, b.created_at ASC
     `,
     [project_id]

@@ -41,12 +41,13 @@ async function broadcastStageEvent(event: Omit<TaskBoardEvent, "timestamp">): Pr
   });
 }
 
-async function getProjectContextForBoard(board_id: string): Promise<{ project_id: string; team_id: string } | null> {
+async function getProjectContextForBoard(
+  board_id: string
+): Promise<{ project_id: string; team_id: string } | null> {
   const result = await query<{ project_id: string; team_id: string }>(
     `
-    SELECT w.project_id, p.team_id
+    SELECT w.project_id, w.team_id
     FROM workflows w
-    JOIN projects p ON p.id = w.project_id
     WHERE w.id = $1
     `,
     [board_id]

@@ -123,6 +123,7 @@ export const GET_TASK = gql`
 export const CREATE_TASK = gql`
   mutation CreateTask(
     $project_id: ID!
+    $team_id: ID!
     $stage_id: ID
     $backlog_id: ID
     $sprint_id: ID
@@ -135,6 +136,7 @@ export const CREATE_TASK = gql`
   ) {
     createTask(
       project_id: $project_id
+      team_id: $team_id
       stage_id: $stage_id
       backlog_id: $backlog_id
       sprint_id: $sprint_id
@@ -334,8 +336,13 @@ export const REORDER_TASKS = gql`
 `;
 
 export const REORDER_BACKLOG_TASKS = gql`
-  mutation ReorderBacklogTasks($project_id: ID!, $backlog_id: ID, $task_ids: [ID!]!) {
-    reorderBacklogTasks(project_id: $project_id, backlog_id: $backlog_id, task_ids: $task_ids)
+  mutation ReorderBacklogTasks($project_id: ID!, $team_id: ID!, $backlog_id: ID, $task_ids: [ID!]!) {
+    reorderBacklogTasks(
+      project_id: $project_id
+      team_id: $team_id
+      backlog_id: $backlog_id
+      task_ids: $task_ids
+    )
   }
 `;
 

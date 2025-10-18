@@ -2,38 +2,44 @@ import type { Project, Task, TeamRole, User } from "../../../shared/types.js";
 import { DEFAULT_BOARD_WORKFLOW_TYPE } from "../../../shared/types.js";
 import { query } from "../db/index.js";
 
-const PROJECT_FIELDS_SELECT = `
+const PROJECT_FIELDS = `
   p.id,
-  p.team_id,
   p.name,
   p.description,
   p.created_at,
   p.updated_at,
   p.is_public,
-  p.position
+  p.position,
+  p.created_by
 `;
 
-const PROJECT_FIELDS_RETURNING = `
+const PROJECT_RETURNING_FIELDS = `
   id,
-  team_id,
   name,
   description,
   created_at,
   updated_at,
   is_public,
-  position
+  position,
+  created_by
 `;
 
 type ProjectRow = {
   id: string;
-  team_id: string;
   name: string;
   description: string | null;
   created_at: Date | string | null;
   updated_at: Date | string | null;
   is_public: boolean;
   position: number | null;
-  viewer_role?: TeamRole | null;
+  created_by: string | null;
+};
+
+const ROLE_PRIORITY: Record<TeamRole, number> = {
+  owner: 4,
+  admin: 3,
+  member: 2,
+  viewer: 1,
 };
 
 function normalizeTimestamp(value: unknown): string | undefined {
@@ -43,162 +49,236 @@ function normalizeTimestamp(value: unknown): string | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
-function mapProjectRow(row: ProjectRow): Project {
-  const viewerRole = row.viewer_role ?? null;
+function mapProjectRow(row: ProjectRow, viewerRole: TeamRole | null): Project {
   return {
     id: row.id,
-    team_id: row.team_id,
     name: row.name,
     description: row.description,
     created_at: normalizeTimestamp(row.created_at),
     updated_at: normalizeTimestamp(row.updated_at),
     is_public: row.is_public,
     position: row.position,
+    created_by: row.created_by ?? null,
     viewer_role: viewerRole,
     viewer_is_owner: viewerRole === "owner",
   };
 }
 
-async function getProjectTeamId(project_id: string): Promise<string | null> {
-  const result = await query<{ team_id: string }>(
-    `SELECT team_id FROM projects WHERE id = $1`,
-    [project_id]
-  );
-  return result.rows[0]?.team_id ?? null;
+function pickHigherRole(current: TeamRole | null, candidate: TeamRole | null): TeamRole | null {
+  if (!candidate) return current;
+  if (!current) return candidate;
+  return ROLE_PRIORITY[candidate] > ROLE_PRIORITY[current] ? candidate : current;
 }
 
-interface ProjectMembership {
-  team_id: string;
-  team_role: TeamRole;
-  project_role: string | null;
-  is_public: boolean;
-}
-
-async function getProjectMembership(
-  project_id: string,
-  user_id: string
-): Promise<ProjectMembership | null> {
-  const result = await query<ProjectMembership>(
+async function getProjectRowById(id: string): Promise<ProjectRow | null> {
+  const result = await query<ProjectRow>(
     `
-    SELECT
-      p.team_id,
-      tm.role AS team_role,
-      p.is_public,
-      up.role AS project_role
+    SELECT ${PROJECT_FIELDS}
     FROM projects p
-    JOIN team_members tm
-      ON tm.team_id = p.team_id
-     AND tm.user_id = $2
-     AND tm.status = 'active'
-    LEFT JOIN user_projects up
-      ON up.project_id = p.id
-     AND up.user_id = $2
     WHERE p.id = $1
+    `,
+    [id]
+  );
+  return result.rows[0] ?? null;
+}
+
+async function getProjectRole(project_id: string, user_id: string): Promise<TeamRole | null> {
+  const result = await query<{ role: TeamRole }>(
+    `
+    SELECT role
+    FROM user_projects
+    WHERE project_id = $1
+      AND user_id = $2
     LIMIT 1
     `,
     [project_id, user_id]
   );
+  return result.rows[0]?.role ?? null;
+}
 
-  if (result.rowCount === 0) {
-    return null;
+async function getHighestTeamRole(project_id: string, user_id: string): Promise<TeamRole | null> {
+  const result = await query<{ role: TeamRole }>(
+    `
+    SELECT tm.role
+    FROM teams t
+    JOIN team_members tm
+      ON tm.team_id = t.id
+     AND tm.user_id = $2
+     AND tm.status = 'active'
+    WHERE t.project_id = $1
+    ORDER BY
+      CASE tm.role
+        WHEN 'owner' THEN 1
+        WHEN 'admin' THEN 2
+        WHEN 'member' THEN 3
+        WHEN 'viewer' THEN 4
+        ELSE 5
+      END
+    LIMIT 1
+    `,
+    [project_id, user_id]
+  );
+  return result.rows[0]?.role ?? null;
+}
+
+async function assertProjectAccess(project_id: string, user_id: string): Promise<{
+  row: ProjectRow;
+  viewer_role: TeamRole | null;
+}> {
+  const row = await getProjectRowById(project_id);
+  if (!row) {
+    throw new Error("Project not found");
   }
 
-  return result.rows[0];
+  const [projectRole, teamRole] = await Promise.all([
+    getProjectRole(project_id, user_id),
+    getHighestTeamRole(project_id, user_id),
+  ]);
+  const viewerRole = pickHigherRole(projectRole, teamRole);
+
+  if (!viewerRole && !row.is_public) {
+    throw new Error("Project not found or not accessible");
+  }
+
+  return { row, viewer_role: viewerRole };
 }
 
 async function assertProjectPermission(
   project_id: string,
   user_id: string,
   allowedRoles: TeamRole[] = ["owner", "admin", "member"]
-): Promise<ProjectMembership & { viewer_role: TeamRole }> {
-  const membership = await getProjectMembership(project_id, user_id);
-  if (!membership || !membership.project_role) {
+): Promise<{ row: ProjectRow; viewer_role: TeamRole }> {
+  const { row, viewer_role } = await assertProjectAccess(project_id, user_id);
+  if (!viewer_role) {
     throw new Error("Project not found or not accessible");
   }
-  const projectRole = membership.project_role as TeamRole;
-  if (allowedRoles.length > 0 && !allowedRoles.includes(projectRole)) {
+  if (!allowedRoles.includes(viewer_role)) {
     throw new Error("Not authorized for this project");
   }
-  return { ...membership, viewer_role: projectRole };
+  return { row, viewer_role };
 }
 
-async function assertTeamMembership(
-  team_id: string,
-  user_id: string,
-  allowedRoles: TeamRole[] = ["owner", "admin", "member"]
-): Promise<TeamRole> {
-  const result = await query<{ role: TeamRole }>(
-    `
-    SELECT role
-    FROM team_members
-    WHERE team_id = $1
-      AND user_id = $2
-      AND status = 'active'
-    LIMIT 1
-    `,
-    [team_id, user_id]
-  );
+async function resolveTeamSlugCandidate(name: string): Promise<string> {
+  const sanitize = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/['"]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || `team-${Math.random().toString(36).slice(2, 10)}`;
 
-  if (result.rowCount === 0 || !allowedRoles.includes(result.rows[0].role)) {
-    throw new Error("Team not found or not accessible");
+  const base = sanitize(name);
+  let candidate = base;
+  let suffix = 1;
+
+  while (true) {
+    const existing = await query<{ id: string }>(
+      `
+      SELECT id
+      FROM teams
+      WHERE slug = $1
+      LIMIT 1
+      `,
+      [candidate]
+    );
+    if (existing.rowCount === 0) {
+      return candidate;
+    }
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
   }
-
-  return result.rows[0].role;
 }
 
-export async function getProjectsForTeam(
-  team_id: string,
-  user_id: string
-): Promise<Project[]> {
-  const teamRole = await assertTeamMembership(team_id, user_id);
-  const result = await query<ProjectRow>(
+function defaultTeamName(projectName: string): string {
+  const trimmed = projectName.trim();
+  if (!trimmed) {
+    return "Core Team";
+  }
+  if (trimmed.toLowerCase().includes("team")) {
+    return trimmed;
+  }
+  return `${trimmed} Team`;
+}
+
+export async function getProjects(user_id: string): Promise<Project[]> {
+  const direct = await query<ProjectRow & { project_role: TeamRole | null }>(
     `
     SELECT
-      ${PROJECT_FIELDS_SELECT},
-      up.role AS viewer_role
+      ${PROJECT_FIELDS},
+      up.role AS project_role
     FROM projects p
     JOIN user_projects up
       ON up.project_id = p.id
-     AND up.user_id = $2
-    WHERE p.team_id = $1
-    ORDER BY
-      CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
-      p.position ASC,
-      p.created_at DESC
+     AND up.user_id = $1
     `,
-    [team_id, user_id]
+    [user_id]
   );
 
-  if ((result.rowCount ?? 0) === 0 && (teamRole === "owner" || teamRole === "admin")) {
-    return [];
+  const teamBased = await query<ProjectRow & { team_role: TeamRole }>(
+    `
+    SELECT DISTINCT
+      ${PROJECT_FIELDS},
+      tm.role AS team_role
+    FROM projects p
+    JOIN teams t
+      ON t.project_id = p.id
+    JOIN team_members tm
+      ON tm.team_id = t.id
+     AND tm.user_id = $1
+     AND tm.status = 'active'
+    `,
+    [user_id]
+  );
+
+  const projects = new Map<
+    string,
+    {
+      row: ProjectRow;
+      project_role: TeamRole | null;
+      team_role: TeamRole | null;
+    }
+  >();
+
+  for (const row of direct.rows) {
+    projects.set(row.id, {
+      row,
+      project_role: row.project_role ?? null,
+      team_role: null,
+    });
   }
 
-  return result.rows.map(mapProjectRow);
+  for (const row of teamBased.rows) {
+    const existing = projects.get(row.id);
+    if (existing) {
+      existing.team_role = pickHigherRole(existing.team_role, row.team_role ?? null);
+      continue;
+    }
+    projects.set(row.id, {
+      row,
+      project_role: null,
+      team_role: row.team_role ?? null,
+    });
+  }
+
+  const mapped = Array.from(projects.values()).map(({ row, project_role, team_role }) =>
+    mapProjectRow(row, pickHigherRole(project_role, team_role))
+  );
+
+  mapped.sort((a, b) => {
+    const posA = a.position ?? Number.MAX_SAFE_INTEGER;
+    const posB = b.position ?? Number.MAX_SAFE_INTEGER;
+    if (posA !== posB) {
+      return posA - posB;
+    }
+    const dateA = a.created_at ? Date.parse(a.created_at) : 0;
+    const dateB = b.created_at ? Date.parse(b.created_at) : 0;
+    return dateB - dateA;
+  });
+
+  return mapped;
 }
 
-export async function getProjectById(
-  id: string,
-  user_id: string
-): Promise<Project> {
-  const membership = await assertProjectPermission(id, user_id);
-
-  const projRes = await query<ProjectRow>(
-    `
-    SELECT ${PROJECT_FIELDS_SELECT}
-    FROM projects p
-    WHERE p.id = $1
-    `,
-    [id]
-  );
-
-  if (projRes.rowCount === 0) {
-    throw new Error("Project not found or not accessible");
-  }
-
-  const project = mapProjectRow({
-    ...projRes.rows[0],
-    viewer_role: membership.viewer_role,
-  });
+export async function getProjectById(id: string, user_id: string): Promise<Project> {
+  const { row, viewer_role } = await assertProjectAccess(id, user_id);
 
   const taskRes = await query<
     Task & {
@@ -221,26 +301,23 @@ export async function getProjectById(
       t.backlog_id,
       t.sprint_id,
       t.project_id,
-      p.team_id,
-      t.position
+      t.team_id,
+      t.position,
+      t.assignee_id,
+      t.created_at,
+      t.updated_at
     FROM tasks t
-    JOIN projects p ON p.id = t.project_id
-    LEFT JOIN stages s ON s.id = t.stage_id
     WHERE t.project_id = $1
-    ORDER BY
-      CASE WHEN t.stage_id IS NULL THEN 1 ELSE 0 END,
-      COALESCE(s.position, 0) ASC,
-      t.position ASC,
-      t.created_at ASC
+    ORDER BY t.created_at ASC
     `,
     [id]
   );
 
   return {
-    ...project,
+    ...mapProjectRow(row, viewer_role),
     tasks: taskRes.rows.map((task) => ({
       ...task,
-      team_id: task.team_id,
+      description: task.description ?? null,
       backlog_id: task.backlog_id ?? null,
       sprint_id: task.sprint_id ?? null,
       estimate: task.estimate ?? null,
@@ -248,57 +325,146 @@ export async function getProjectById(
   };
 }
 
+export async function userHasProjectAccess(project_id: string, user_id: string): Promise<boolean> {
+  const row = await getProjectRowById(project_id);
+  if (!row) {
+    return false;
+  }
+  if (row.is_public) {
+    return true;
+  }
+  const [projectRole, teamRole] = await Promise.all([
+    getProjectRole(project_id, user_id),
+    getHighestTeamRole(project_id, user_id),
+  ]);
+  return Boolean(projectRole ?? teamRole ?? null);
+}
+
+export async function getProjectMembers(project_id: string): Promise<User[]> {
+  const result = await query<User & { source: string }>(
+    `
+    WITH project_members AS (
+      SELECT
+        u.id,
+        u.first_name,
+        u.last_name,
+        u.username,
+        u.avatar_color,
+        'project'::text AS source
+      FROM user_projects up
+      JOIN users u ON u.id = up.user_id
+      WHERE up.project_id = $1
+    ),
+    team_memberships AS (
+      SELECT DISTINCT
+        u.id,
+        u.first_name,
+        u.last_name,
+        u.username,
+        u.avatar_color,
+        'team'::text AS source
+      FROM teams t
+      JOIN team_members tm
+        ON tm.team_id = t.id
+       AND tm.status = 'active'
+      JOIN users u
+        ON u.id = tm.user_id
+      WHERE t.project_id = $1
+    )
+    SELECT *
+    FROM (
+      SELECT * FROM project_members
+      UNION
+      SELECT * FROM team_memberships
+    ) members
+    `,
+    [project_id]
+  );
+
+  const unique = new Map<string, User>();
+  for (const member of result.rows) {
+    if (!unique.has(member.id)) {
+      unique.set(member.id, {
+        id: member.id,
+        first_name: member.first_name,
+        last_name: member.last_name,
+        username: member.username,
+        avatar_color: member.avatar_color ?? null,
+      });
+    }
+  }
+  return Array.from(unique.values());
+}
+
 export async function addProject(
-  team_id: string,
   name: string,
   description: string | null,
   is_public: boolean,
   user_id: string
 ): Promise<Project> {
-  const role = await assertTeamMembership(team_id, user_id, ["owner", "admin"]);
-
   const result = await query<ProjectRow>(
     `
-    INSERT INTO projects (team_id, name, description, is_public, position)
+    INSERT INTO projects (name, description, is_public, position, created_by)
     VALUES (
       $1,
       $2,
       $3,
-      $4,
-      (
-        SELECT COALESCE(MAX(position), 0) + 1
-        FROM projects
-        WHERE team_id = $1
-      )
+      COALESCE((SELECT MAX(position) FROM projects), 0) + 1,
+      $4
     )
-    RETURNING ${PROJECT_FIELDS_RETURNING}
+    RETURNING ${PROJECT_RETURNING_FIELDS}
     `,
-    [team_id, name, description, is_public]
+    [name.trim(), description ?? null, is_public, user_id]
   );
 
-  const project = mapProjectRow({
-    ...result.rows[0],
-    viewer_role: role,
-  });
+  const projectRow = result.rows[0];
+  const project_id = projectRow.id;
 
   await query(
     `
     INSERT INTO user_projects (user_id, project_id, role)
     VALUES ($1, $2, 'owner')
-    ON CONFLICT (user_id, project_id) DO NOTHING
+    ON CONFLICT (user_id, project_id) DO UPDATE
+      SET role = 'owner'
     `,
-    [user_id, project.id]
+    [user_id, project_id]
+  );
+
+  const teamName = defaultTeamName(name);
+  const teamSlug = await resolveTeamSlugCandidate(teamName);
+
+  const teamResult = await query<{ id: string }>(
+    `
+    INSERT INTO teams (project_id, name, description, slug, created_by)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id
+    `,
+    [project_id, teamName, description ?? null, teamSlug, user_id]
+  );
+
+  const teamId = teamResult.rows[0].id;
+
+  await query(
+    `
+    INSERT INTO team_members (team_id, user_id, role, status)
+    VALUES ($1, $2, 'owner', 'active')
+    ON CONFLICT (team_id, user_id) DO UPDATE
+      SET role = 'owner',
+          status = 'active',
+          updated_at = now()
+    `,
+    [teamId, user_id]
   );
 
   await query(
     `
-    INSERT INTO workflows (project_id, name, workflow_type)
-    VALUES ($1, $2, $3)
+    INSERT INTO workflows (project_id, team_id, name, workflow_type)
+    VALUES ($1, $2, $3, $4)
     `,
-    [project.id, `${project.name} Board`, DEFAULT_BOARD_WORKFLOW_TYPE]
+    [project_id, teamId, `${name.trim() || "Project"} Board`, DEFAULT_BOARD_WORKFLOW_TYPE]
   );
 
-  return project;
+  return mapProjectRow(projectRow, "owner");
 }
 
 export async function updateProject(
@@ -308,172 +474,126 @@ export async function updateProject(
   description?: string,
   is_public?: boolean
 ): Promise<Project> {
-  const membership = await assertProjectPermission(id, user_id, ["owner", "admin"]);
+  await assertProjectPermission(id, user_id, ["owner", "admin"]);
 
   const result = await query<ProjectRow>(
     `
     UPDATE projects
-    SET name = COALESCE($2, name),
-        description = COALESCE($3, description),
-        is_public = COALESCE($4, is_public),
-        updated_at = now()
+    SET
+      name = COALESCE($2, name),
+      description = COALESCE($3, description),
+      is_public = COALESCE($4, is_public),
+      updated_at = now()
     WHERE id = $1
-    RETURNING ${PROJECT_FIELDS_RETURNING}
+    RETURNING ${PROJECT_RETURNING_FIELDS}
     `,
-    [id, name ?? null, description ?? null, is_public ?? null]
+    [
+      id,
+      typeof name === "string" ? name.trim() || null : null,
+      description ?? null,
+      typeof is_public === "boolean" ? is_public : null,
+    ]
   );
 
   if (result.rowCount === 0) {
-    throw new Error("Project not found or not accessible");
+    throw new Error("Project not found");
   }
 
-  return mapProjectRow({
-    ...result.rows[0],
-    viewer_role: membership.viewer_role,
-  });
+  const projectRole = await getProjectRole(id, user_id);
+  const teamRole = await getHighestTeamRole(id, user_id);
+  const viewerRole = pickHigherRole(projectRole, teamRole) ?? "owner";
+
+  return mapProjectRow(result.rows[0], viewerRole);
 }
 
-export async function deleteProject(
-  id: string,
-  user_id: string
-): Promise<boolean> {
+export async function deleteProject(id: string, user_id: string): Promise<boolean> {
   await assertProjectPermission(id, user_id, ["owner"]);
-
   const result = await query(`DELETE FROM projects WHERE id = $1`, [id]);
   return (result.rowCount ?? 0) > 0;
 }
 
-export async function reorderProjects(
-  team_id: string,
-  project_ids: string[],
-  user_id: string
-): Promise<boolean> {
+export async function reorderProjects(project_ids: string[], user_id: string): Promise<boolean> {
   if (project_ids.length === 0) {
-    return false;
-  }
-
-  await assertTeamMembership(team_id, user_id);
-
-  const countRes = await query<{ count: string }>(
-    `
-    SELECT COUNT(*)::int AS count
-    FROM projects
-    WHERE id = ANY($1::uuid[])
-      AND team_id = $2
-    `,
-    [project_ids, team_id]
-  );
-
-  const count = Number(countRes.rows[0]?.count ?? 0);
-  if (count !== project_ids.length) {
-    throw new Error("One or more projects not found in the specified team");
-  }
-
-  const result = await query(
-    `
-    WITH ordered AS (
-      SELECT id, ordinality AS position
-      FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, ordinality)
-    )
-    UPDATE projects p
-    SET position = ordered.position,
-        updated_at = now()
-    FROM ordered
-    WHERE p.id = ordered.id
-      AND p.team_id = $2
-    `,
-    [project_ids, team_id]
-  );
-
-  return (result.rowCount ?? 0) > 0;
-}
-
-export async function getProjectMembers(project_id: string): Promise<User[]> {
-  const result = await query<User>(
-    `
-    SELECT u.id, u.first_name, u.last_name, u.username, u.avatar_color, u.created_at, u.updated_at
-    FROM user_projects up
-    JOIN users u ON u.id = up.user_id
-    WHERE up.project_id = $1
-    ORDER BY u.first_name ASC, u.last_name ASC
-    `,
-    [project_id]
-  );
-
-  return result.rows;
-}
-
-export async function userHasProjectAccess(
-  project_id: string,
-  user_id: string
-): Promise<boolean> {
-  const membership = await getProjectMembership(project_id, user_id);
-  if (!membership) {
-    return false;
-  }
-  if (membership.team_role === "owner" || membership.team_role === "admin") {
     return true;
   }
-  return membership.project_role !== null;
-}
 
-export async function getUserRoleInProject(
-  project_id: string,
-  user_id: string
-): Promise<TeamRole | null> {
-  const membership = await getProjectMembership(project_id, user_id);
-  if (!membership) return null;
-  return (membership.project_role as TeamRole | null) ?? membership.team_role;
-}
+  const projects = await query<{ id: string; role: TeamRole | null }>(
+    `
+    SELECT up.project_id AS id, up.role
+    FROM user_projects up
+    WHERE up.user_id = $1
+      AND up.project_id = ANY($2::uuid[])
+    `,
+    [user_id, project_ids]
+  );
 
-export async function leaveProject(project_id: string, user_id: string): Promise<boolean> {
-  const membership = await getProjectMembership(project_id, user_id);
-  if (!membership) {
-    throw new Error("You are not a member of this project");
+  const allowed = new Set(
+    projects.rows
+      .filter((row) => row.role === "owner" || row.role === "admin")
+      .map((row) => row.id)
+  );
+
+  const updates: Array<Promise<unknown>> = [];
+  let position = 1;
+  for (const projectId of project_ids) {
+    if (!allowed.has(projectId)) {
+      continue;
+    }
+    updates.push(
+      query(
+        `
+        UPDATE projects
+        SET position = $2, updated_at = now()
+        WHERE id = $1
+        `,
+        [projectId, position]
+      )
+    );
+    position += 1;
   }
 
-  await ensureProjectOwnerCanBeRemoved(project_id, user_id);
-  await removeProjectMemberRecords(project_id, user_id);
-
+  await Promise.all(updates);
   return true;
 }
 
-async function ensureProjectOwnerCanBeRemoved(project_id: string, user_id: string): Promise<void> {
-  const roleRes = await query<{ role: string | null }>(
+export async function leaveProject(project_id: string, user_id: string): Promise<boolean> {
+  const projectRole = await getProjectRole(project_id, user_id);
+  if (!projectRole) {
+    throw new Error("You are not a collaborator on this project");
+  }
+  if (projectRole === "owner") {
+    const ownerCount = await query<{ count: number }>(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM user_projects
+      WHERE project_id = $1
+        AND role = 'owner'
+      `,
+      [project_id]
+    );
+    if ((ownerCount.rows[0]?.count ?? 0) <= 1) {
+      throw new Error("Transfer ownership before leaving the project");
+    }
+  }
+
+  await query(
     `
-    SELECT role
-    FROM user_projects
+    DELETE FROM user_projects
     WHERE project_id = $1
       AND user_id = $2
     `,
     [project_id, user_id]
   );
 
-  const role = roleRes.rows[0]?.role ?? null;
-  if (role !== "owner") {
-    return;
-  }
-
-  const ownerCountRes = await query<{ count: string }>(
-    `
-    SELECT COUNT(*)::int AS count
-    FROM user_projects
-    WHERE project_id = $1
-      AND role = 'owner'
-    `,
-    [project_id]
-  );
-
-  if (Number(ownerCountRes.rows[0]?.count ?? 0) <= 1) {
-    throw new Error("Transfer ownership before removing the last owner");
-  }
-}
-
-async function removeProjectMemberRecords(project_id: string, user_id: string): Promise<void> {
   await query(
     `
-    DELETE FROM user_projects
-    WHERE project_id = $1 AND user_id = $2
+    DELETE FROM team_members
+    WHERE user_id = $2
+      AND team_id IN (
+        SELECT id
+        FROM teams
+        WHERE project_id = $1
+      )
     `,
     [project_id, user_id]
   );
@@ -484,44 +604,76 @@ async function removeProjectMemberRecords(project_id: string, user_id: string): 
     SET assignee_id = NULL,
         updated_at = now()
     WHERE project_id = $1
-      AND assignee_id = $2::uuid
+      AND assignee_id = $2
     `,
     [project_id, user_id]
   );
+
+  return true;
 }
 
 export async function removeProjectMember(
   project_id: string,
-  member_id: string,
-  actor_id: string
+  target_user_id: string,
+  acting_user_id: string
 ): Promise<boolean> {
-  if (member_id === actor_id) {
-    return await leaveProject(project_id, actor_id);
-  }
+  const { viewer_role } = await assertProjectPermission(project_id, acting_user_id, ["owner", "admin"]);
+  const targetRole = await getProjectRole(project_id, target_user_id);
 
-  const actorMembership = await getProjectMembership(project_id, actor_id);
-  if (!actorMembership) {
-    throw new Error("Project not found or not accessible");
-  }
-
-  const actorProjectRole = actorMembership.project_role as TeamRole | null;
-  const actorTeamRole = actorMembership.team_role;
-  const canManage =
-    actorTeamRole === "owner" ||
-    actorTeamRole === "admin" ||
-    actorProjectRole === "owner";
-
-  if (!canManage) {
-    throw new Error("Only project or team owners/admins can remove members");
-  }
-
-  const targetMembership = await getProjectMembership(project_id, member_id);
-  if (!targetMembership || !targetMembership.project_role) {
+  if (!targetRole) {
     throw new Error("User is not a member of this project");
   }
 
-  await ensureProjectOwnerCanBeRemoved(project_id, member_id);
-  await removeProjectMemberRecords(project_id, member_id);
+  if (targetRole === "owner") {
+    if (viewer_role !== "owner") {
+      throw new Error("Only owners can remove another owner");
+    }
+    const owners = await query<{ count: number }>(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM user_projects
+      WHERE project_id = $1
+        AND role = 'owner'
+      `,
+      [project_id]
+    );
+    if ((owners.rows[0]?.count ?? 0) <= 1) {
+      throw new Error("Cannot remove the last owner from the project");
+    }
+  }
+
+  await query(
+    `
+    DELETE FROM user_projects
+    WHERE project_id = $1
+      AND user_id = $2
+    `,
+    [project_id, target_user_id]
+  );
+
+  await query(
+    `
+    DELETE FROM team_members
+    WHERE user_id = $2
+      AND team_id IN (
+        SELECT id
+        FROM teams
+        WHERE project_id = $1
+      )
+    `,
+    [project_id, target_user_id]
+  );
+
+  await query(
+    `
+    UPDATE tasks
+    SET assignee_id = NULL,
+        updated_at = now()
+    WHERE project_id = $1
+      AND assignee_id = $2
+    `,
+    [project_id, target_user_id]
+  );
 
   return true;
 }

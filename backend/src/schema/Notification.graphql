@@ -5,6 +5,7 @@ type Notification {
   status: String!
   is_read: Boolean!
   recipient_id: ID
+  project_id: ID
   team_id: ID
   project: Project
   sender: User

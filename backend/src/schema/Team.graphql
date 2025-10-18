@@ -22,6 +22,7 @@ type TeamMember {
 
 type Team {
   id: ID!
+  project_id: ID!
   name: String!
   description: String
   slug: String!
@@ -29,16 +30,20 @@ type Team {
   updated_at: String
   role: TeamRole
   members: [TeamMember!]
-  projects: [Project!]
+  project: Project
+  boards: [Board!]
+  backlogs: [Backlog!]
+  sprints: [Sprint!]
+  tasks: [Task!]
 }
 
 extend type Query {
-  teams: [Team!]!
+  teams(project_id: ID): [Team!]!
   team(id: ID!): Team
 }
 
 extend type Mutation {
-  createTeam(name: String!, description: String): Team!
+  createTeam(project_id: ID!, name: String!, description: String): Team!
   updateTeam(id: ID!, name: String, description: String): Team!
   deleteTeam(id: ID!): Boolean!
   leaveTeam(team_id: ID!): Boolean!

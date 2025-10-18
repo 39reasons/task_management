@@ -1,13 +1,27 @@
-import { useCallback } from "react";
-import { FolderOpen, Sparkles, Users } from "lucide-react";
-import type { AuthUser, Team, Task } from "@shared/types";
-import { useTeamContext } from "../providers/TeamProvider";
-import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import { useCallback, useState } from "react";
+import { FolderOpen, Sparkles } from "lucide-react";
+import { useMutation, useQuery } from "@apollo/client";
 import { useNavigate } from "react-router-dom";
-import { useHomeTeamMetrics } from "../hooks/useHomeTeamMetrics";
-import { useLeaveTeam } from "../hooks/useLeaveTeam";
-import { TeamCard } from "../components/home/TeamCard";
-import { TeamsSnapshot } from "../components/home/TeamsSnapshot";
+import type { AuthUser, Project, Task } from "@shared/types";
+import { ADD_PROJECT, GET_PROJECTS } from "../graphql";
+import { NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH } from "../hooks/useProjectSettingsDialog";
+import { ProjectCard } from "../components/home/ProjectCard";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Switch,
+  Textarea,
+} from "../components/ui";
 
 interface HomePageProps {
   user: AuthUser | null;
@@ -15,165 +29,230 @@ interface HomePageProps {
 }
 
 export function HomePage({ user }: HomePageProps) {
-  const { teams, loadingTeams, refetchTeams } = useTeamContext();
+  void user;
   const navigate = useNavigate();
-  const { totals, teamCards } = useHomeTeamMetrics(teams);
-  const { leaveTeam, isLeaving, error: leaveTeamError } = useLeaveTeam(refetchTeams);
+  const { data, loading, error, refetch } = useQuery<{ projects: Project[] }>(GET_PROJECTS, {
+    skip: !user,
+    fetchPolicy: "network-only",
+    nextFetchPolicy: "cache-first",
+  });
+  const [addProjectMutation] = useMutation(ADD_PROJECT);
 
-  const noTeams = !loadingTeams && teamCards.length === 0;
+  const projects = data?.projects ?? [];
+  const noProjects = Boolean(user && !loading && projects.length === 0);
 
-  const handleOpenTeam = useCallback(
-    (team: Team) => {
-      if (!team?.id) return;
-      navigate(`/teams/${team.id}`);
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+  const [createProjectName, setCreateProjectName] = useState("");
+  const [createProjectDescription, setCreateProjectDescription] = useState("");
+  const [createProjectIsPublic, setCreateProjectIsPublic] = useState(false);
+  const [createProjectError, setCreateProjectError] = useState<string | null>(null);
+  const [createProjectSubmitting, setCreateProjectSubmitting] = useState(false);
+
+  const resetProjectForm = useCallback(() => {
+    setCreateProjectName("");
+    setCreateProjectDescription("");
+    setCreateProjectIsPublic(false);
+    setCreateProjectError(null);
+  }, []);
+
+  const handleCreateProject = useCallback(async () => {
+    if (!user) {
+      setCreateProjectError("Sign in to create a project.");
+      return;
+    }
+
+    const trimmedName = createProjectName.trim();
+    const trimmedDescription = createProjectDescription.trim();
+
+    if (!trimmedName) {
+      setCreateProjectError("Project name is required.");
+      return;
+    }
+
+    if (trimmedName.length > NAME_MAX_LENGTH) {
+      setCreateProjectError(`Project name cannot exceed ${NAME_MAX_LENGTH} characters.`);
+      return;
+    }
+
+    if (trimmedDescription.length > DESCRIPTION_MAX_LENGTH) {
+      setCreateProjectError(`Description cannot exceed ${DESCRIPTION_MAX_LENGTH} characters.`);
+      return;
+    }
+
+    setCreateProjectSubmitting(true);
+    setCreateProjectError(null);
+
+    try {
+      const response = await addProjectMutation({
+        variables: {
+          name: trimmedName,
+          description: trimmedDescription || null,
+          is_public: createProjectIsPublic,
+        },
+      });
+
+      await refetch();
+
+      const createdId = response.data?.addProject?.id ?? null;
+      setIsCreateProjectOpen(false);
+      resetProjectForm();
+      if (createdId) {
+        navigate(`/projects/${createdId}`);
+      }
+    } catch (mutationError) {
+      setCreateProjectError((mutationError as Error).message ?? "Unable to create project.");
+    } finally {
+      setCreateProjectSubmitting(false);
+    }
+  }, [
+    addProjectMutation,
+    createProjectDescription,
+    createProjectIsPublic,
+    createProjectName,
+    navigate,
+    refetch,
+    resetProjectForm,
+    user,
+  ]);
+
+  const handleOpenProject = useCallback(
+    (projectId: string) => {
+      if (!projectId) return;
+      navigate(`/projects/${projectId}`);
     },
     [navigate]
   );
 
-  const handleLeaveTeam = useCallback(
-    async (team: Team) => {
-      if (!team?.id) return;
-      const confirmed = window.confirm(`Leave the team "${team.name}"?`);
-      if (!confirmed) return;
-
-      await leaveTeam(team);
-    },
-    [leaveTeam]
-  );
-
   return (
-    <div className="space-y-8 pb-6">
-      <section className="rounded-3xl border border-border bg-card px-6 py-8 shadow-lg shadow-slate-950/5">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">
-              {user ? `Welcome back, ${user.first_name ?? user.username}!` : "Welcome to JellyFlow"}
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              {user ? "Choose a team to get started" : "Organize teams, projects, and boards"}
-            </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">
-              Teams bring your projects, boards, and teammates together. Keep track of ownership, membership, and visibility
-              before diving into the work itself.
-            </p>
-          </div>
-          <div className="w-full max-w-xs">
-            {user ? (
-              <TeamsSnapshot totals={totals} />
-            ) : (
-              <div className="rounded-3xl border border-dashed border-border px-6 py-5 text-center text-sm text-muted-foreground">
-                Sign in to explore teams.
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {loadingTeams ? (
-        <Alert>
-          <AlertTitle>Loading teams…</AlertTitle>
-          <AlertDescription>We’re fetching your teams. Hang tight!</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {leaveTeamError ? (
+    <div className="space-y-6 pb-6">
+      {error ? (
         <Alert variant="destructive">
-          <AlertTitle>Unable to leave team</AlertTitle>
-          <AlertDescription>{leaveTeamError}</AlertDescription>
+          <AlertTitle>Unable to load projects</AlertTitle>
+          <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       ) : null}
 
-      {user && noTeams ? (
+      {loading ? (
+        <Alert>
+          <AlertTitle>Loading projects…</AlertTitle>
+          <AlertDescription>We’re gathering your workspace projects. Hang tight!</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {user && noProjects ? (
         <div className="space-y-2">
           <Alert>
-            <AlertTitle>No teams yet</AlertTitle>
-            <AlertDescription>Create your first team from the sidebar to start collaborating.</AlertDescription>
+            <AlertTitle>No projects yet</AlertTitle>
+            <AlertDescription>Create your first project to organize teams and workflows.</AlertDescription>
           </Alert>
           <div className="rounded-2xl border border-dashed border-border bg-muted/70 px-6 py-8 text-center text-sm text-muted-foreground">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-border bg-card text-muted-foreground">
               <FolderOpen className="h-6 w-6" />
             </div>
-            <p className="mt-4 font-semibold text-foreground">Ready to spin up a team?</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Open the sidebar and click “Create team” to invite collaborators and start planning.
-            </p>
+            <p className="mt-4 font-semibold text-foreground">Ready to spin up a project?</p>
+            <div className="mt-4">
+              <Button type="button" onClick={() => setIsCreateProjectOpen(true)}>
+                Create project
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
 
-      {teamCards.length > 0 ? (
+      {!loading && projects.length > 0 ? (
         <section className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">Your teams</h2>
+            <h2 className="text-lg font-semibold text-foreground">Your projects</h2>
+            <Button type="button" variant="outline" onClick={() => setIsCreateProjectOpen(true)}>
+              New project
+            </Button>
           </div>
-
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            {teamCards.map(({ team, ...metrics }) => (
-              <TeamCard
-                key={team.id}
-                team={team}
-                metrics={metrics}
-                onOpenTeam={handleOpenTeam}
-                onLeaveTeam={handleLeaveTeam}
-                canLeave={team.role !== "owner"}
-                isLeaving={isLeaving(team.id)}
-              />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => (
+              <ProjectCard key={project.id} project={project} onOpenProject={handleOpenProject} />
             ))}
           </div>
         </section>
       ) : null}
 
-      {user && teamCards.length > 0 ? (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#d2e2fb] text-[#1f6feb] transition dark:bg-blue-500/30 dark:text-blue-200">
-                <Users className="h-5 w-5" />
-              </span>
-              <span className="text-xs text-muted-foreground">Teams</span>
+      <Dialog
+        open={isCreateProjectOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateProjectOpen(false);
+            resetProjectForm();
+          } else {
+            setIsCreateProjectOpen(true);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create a new project</DialogTitle>
+            <DialogDescription>Projects bundle teams, workflows, and workstreams in one place.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="home-project-name">Project name</Label>
+              <Input
+                id="home-project-name"
+                value={createProjectName}
+                onChange={(event) => setCreateProjectName(event.target.value)}
+                placeholder="e.g. Mobile app launch"
+                disabled={createProjectSubmitting}
+                maxLength={NAME_MAX_LENGTH}
+                required
+              />
             </div>
-            <p className="mt-5 text-3xl font-semibold text-foreground">{totals.totalTeams}</p>
-            <p className="text-sm text-muted-foreground">Active teams</p>
-          </div>
-
-          <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
-                <FolderOpen className="h-5 w-5" />
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {totals.publicProjects} public · {totals.privateProjects} private
-              </span>
+            <div className="space-y-2">
+              <Label htmlFor="home-project-description">Description</Label>
+              <Textarea
+                id="home-project-description"
+                value={createProjectDescription}
+                onChange={(event) => setCreateProjectDescription(event.target.value)}
+                placeholder="Share the focus for this project"
+                disabled={createProjectSubmitting}
+                maxLength={DESCRIPTION_MAX_LENGTH}
+              />
             </div>
-            <p className="mt-5 text-3xl font-semibold text-foreground">{totals.totalProjects}</p>
-            <p className="text-sm text-muted-foreground">Projects across teams</p>
-          </div>
-
-          <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/10 text-purple-600">
-                <Sparkles className="h-5 w-5" />
-              </span>
-              <span className="text-xs text-muted-foreground">Collaborators</span>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/70 bg-muted/30 px-3 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Make project public</p>
+                <p className="text-xs text-muted-foreground">Public projects are discoverable to everyone in your workspace.</p>
+              </div>
+              <Switch
+                id="home-project-public"
+                checked={createProjectIsPublic}
+                onCheckedChange={(checked) => setCreateProjectIsPublic(Boolean(checked))}
+                disabled={createProjectSubmitting}
+              />
             </div>
-            <p className="mt-5 text-3xl font-semibold text-foreground">{totals.totalMembers}</p>
-            <p className="text-sm text-muted-foreground">Unique teammates</p>
+            {createProjectError ? <p className="text-sm text-destructive">{createProjectError}</p> : null}
           </div>
-
-          <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
-                <Sparkles className="h-5 w-5" />
-              </span>
-              <span className="text-xs text-muted-foreground">Momentum</span>
-            </div>
-            <p className="mt-5 text-3xl font-semibold text-foreground">
-              {totals.totalTeams > 0 ? (totals.totalProjects / totals.totalTeams).toFixed(1) : "0"}
-            </p>
-            <p className="text-sm text-muted-foreground">Projects per team (avg)</p>
-          </div>
-        </section>
-      ) : null}
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsCreateProjectOpen(false);
+                resetProjectForm();
+              }}
+              disabled={createProjectSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleCreateProject()}
+              disabled={createProjectSubmitting}
+              className="gap-2"
+            >
+              {createProjectSubmitting ? <Sparkles className="h-4 w-4 animate-spin" /> : null}
+              {createProjectSubmitting ? "Creating…" : "Create project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

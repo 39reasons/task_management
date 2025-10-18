@@ -13,6 +13,7 @@ type TaskMutationOptions = {
 type TaskRow = {
   id: string;
   project_id: string;
+  team_id: string;
   stage_id: string | null;
   backlog_id: string | null;
   sprint_id: string | null;
@@ -24,7 +25,6 @@ type TaskRow = {
   estimate: number | null;
   status: string;
   position: number;
-  team_id: string;
   board_id: string | null;
   created_at: Date | string | null;
   updated_at: Date | string | null;
@@ -34,6 +34,7 @@ const TASK_BASE_SELECT = `
   SELECT
     t.id,
     t.project_id,
+    t.team_id,
     t.stage_id,
     t.backlog_id,
     t.sprint_id,
@@ -45,7 +46,6 @@ const TASK_BASE_SELECT = `
     t.estimate,
     t.status,
     t.position,
-    p.team_id,
     s.workflow_id AS board_id,
     t.created_at,
     t.updated_at
@@ -122,17 +122,18 @@ async function getUserHistorySnapshot(userId: string | null | undefined): Promis
 async function insertTaskHistoryEvent(params: {
   task_id: string;
   project_id: string;
+  team_id: string;
   actor_id?: string | null;
   event_type: string;
   payload: Record<string, unknown>;
 }): Promise<void> {
-  const { task_id, project_id, actor_id, event_type, payload } = params;
+  const { task_id, project_id, team_id, actor_id, event_type, payload } = params;
   await query(
     `
-      INSERT INTO task_history_events (task_id, project_id, actor_id, event_type, payload)
-      VALUES ($1, $2, $3, $4, $5::jsonb)
+      INSERT INTO task_history_events (task_id, project_id, team_id, actor_id, event_type, payload)
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb)
     `,
-    [task_id, project_id, actor_id ?? null, event_type, serializeHistoryPayload(payload)]
+    [task_id, project_id, team_id, actor_id ?? null, event_type, serializeHistoryPayload(payload)]
   );
 }
 
@@ -144,6 +145,7 @@ async function recordTaskStatusChange(existing: Task, updated: Task, actorId?: s
   await insertTaskHistoryEvent({
     task_id: updated.id,
     project_id: updated.project_id,
+    team_id: updated.team_id,
     actor_id: actorId ?? null,
     event_type: "STATUS_CHANGED",
     payload: {
@@ -169,6 +171,7 @@ async function recordTaskStageChange(previous: Task, next: Task, actorId?: strin
   await insertTaskHistoryEvent({
     task_id: next.id,
     project_id: next.project_id,
+    team_id: next.team_id,
     actor_id: actorId ?? null,
     event_type: "STAGE_CHANGED",
     payload: {
@@ -194,6 +197,7 @@ async function recordTaskAssigneeChange(previous: Task, next: Task, actorId?: st
   await insertTaskHistoryEvent({
     task_id: next.id,
     project_id: next.project_id,
+    team_id: next.team_id,
     actor_id: actorId ?? null,
     event_type: "ASSIGNEE_CHANGED",
     payload: {
@@ -207,6 +211,7 @@ type TaskHistoryEventRow = {
   id: string;
   task_id: string;
   project_id: string;
+  team_id: string;
   actor_id: string | null;
   event_type: string;
   payload: Record<string, unknown> | null;
@@ -227,6 +232,7 @@ function mapTaskHistoryEventRow(row: TaskHistoryEventRow): TaskHistoryEvent {
     created_at: normalizeTimestamp(row.created_at) ?? new Date().toISOString(),
     task_id: row.task_id,
     project_id: row.project_id,
+    team_id: row.team_id,
     actor_id: row.actor_id ?? null,
     actor: null,
   };
@@ -245,7 +251,7 @@ function mapTaskRow(row: TaskRow): Task {
     backlog_id: row.backlog_id ?? null,
     sprint_id: row.sprint_id ?? null,
     project_id: row.project_id,
-    team_id: row.team_id ?? null,
+    team_id: row.team_id,
     position: row.position,
     assignee_id: row.assignee_id ?? null,
     assignee: null,
@@ -326,7 +332,7 @@ export async function getTasks(filter: TaskFilter, user_id: string | null): Prom
 
   if (filter.team_id) {
     params.push(filter.team_id);
-    conditions.push(`p.team_id = $${params.length}`);
+    conditions.push(`t.team_id = $${params.length}`);
   }
 
   if (filter.project_id) {
@@ -368,11 +374,18 @@ export async function getTasks(filter: TaskFilter, user_id: string | null): Prom
 
   if (user_id) {
     params.push(user_id);
+    const idx = params.length;
     conditions.push(`(
-      p.is_public = true OR EXISTS (
+      p.is_public = true
+      OR EXISTS (
+        SELECT 1 FROM user_projects up
+        WHERE up.project_id = t.project_id
+          AND up.user_id = $${idx}
+      )
+      OR EXISTS (
         SELECT 1 FROM team_members tm
-        WHERE tm.team_id = p.team_id
-          AND tm.user_id = $${params.length}
+        WHERE tm.team_id = t.team_id
+          AND tm.user_id = $${idx}
           AND tm.status = 'active'
       )
     )`);
@@ -404,7 +417,11 @@ async function getProjectTeamForStage(stage_id: string): Promise<{ project_id: s
   return await getProjectIdForStage(stage_id);
 }
 
-async function assertStageMatchesProject(stage_id: string, project_id: string): Promise<void> {
+async function assertStageMatchesContext(
+  stage_id: string,
+  project_id: string,
+  team_id?: string | null
+): Promise<void> {
   const context = await getProjectTeamForStage(stage_id);
   if (!context) {
     throw new Error("Stage not found");
@@ -412,34 +429,68 @@ async function assertStageMatchesProject(stage_id: string, project_id: string): 
   if (context.project_id !== project_id) {
     throw new Error("Stage does not belong to the specified project");
   }
+  if (team_id && context.team_id !== team_id) {
+    throw new Error("Stage does not belong to the specified team");
+  }
 }
 
-async function assertBacklogMatchesProject(backlog_id: string, project_id: string): Promise<void> {
+async function assertBacklogMatchesContext(
+  backlog_id: string,
+  project_id: string,
+  team_id?: string | null
+): Promise<void> {
   const result = await query<{ team_id: string }>(
     `
       SELECT b.team_id
       FROM backlogs b
-      JOIN projects p ON p.team_id = b.team_id
-      WHERE b.id = $1 AND p.id = $2
+      JOIN teams t ON t.id = b.team_id
+      WHERE b.id = $1 AND t.project_id = $2
     `,
     [backlog_id, project_id]
   );
-  if (result.rowCount === 0) {
+  const row = result.rows[0];
+  if (!row) {
     throw new Error("Backlog does not belong to the specified project");
   }
-}
-
-async function assertSprintMatchesProject(sprint_id: string, project_id: string): Promise<void> {
-  const result = await query<{ id: string }>(
-    `SELECT id FROM sprints WHERE id = $1 AND project_id = $2`,
-    [sprint_id, project_id]
-  );
-  if (result.rowCount === 0) {
-    throw new Error("Sprint does not belong to the specified project");
+  if (team_id && row.team_id !== team_id) {
+    throw new Error("Backlog does not belong to the specified team");
   }
 }
 
-function buildPositionQuery(stage_id?: string | null, backlog_id?: string | null) {
+async function assertSprintMatchesContext(
+  sprint_id: string,
+  project_id: string,
+  team_id?: string | null
+): Promise<void> {
+  const result = await query<{ team_id: string }>(
+    `SELECT team_id FROM sprints WHERE id = $1 AND project_id = $2`,
+    [sprint_id, project_id]
+  );
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error("Sprint does not belong to the specified project");
+  }
+  if (team_id && row.team_id !== team_id) {
+    throw new Error("Sprint does not belong to the specified team");
+  }
+}
+
+async function assertTeamBelongsToProject(team_id: string, project_id: string): Promise<void> {
+  const result = await query<{ id: string }>(
+    `SELECT id FROM teams WHERE id = $1 AND project_id = $2`,
+    [team_id, project_id]
+  );
+  if (result.rowCount === 0) {
+    throw new Error("Team does not belong to the specified project");
+  }
+}
+
+function buildPositionQuery(
+  stage_id?: string | null,
+  backlog_id?: string | null,
+  team_id?: string | null,
+  project_id?: string | null
+) {
   if (stage_id) {
     return {
       sql: `
@@ -456,25 +507,43 @@ function buildPositionQuery(stage_id?: string | null, backlog_id?: string | null
       sql: `
         SELECT COALESCE(MAX(position) + 1, 0) AS pos
         FROM tasks
-        WHERE backlog_id = $1 AND stage_id IS NULL
+        WHERE backlog_id = $1
+          AND stage_id IS NULL
       `,
       params: [backlog_id],
     };
+  }
+
+  const params: unknown[] = [];
+  let whereClause = `
+      stage_id IS NULL
+      AND backlog_id IS NULL
+  `;
+
+  if (project_id) {
+    params.push(project_id);
+    whereClause += ` AND project_id = $${params.length}`;
+  }
+
+  if (team_id) {
+    params.push(team_id);
+    whereClause += ` AND team_id = $${params.length}`;
   }
 
   return {
     sql: `
       SELECT COALESCE(MAX(position) + 1, 0) AS pos
       FROM tasks
-      WHERE stage_id IS NULL AND backlog_id IS NULL AND project_id = $1
+      WHERE ${whereClause}
     `,
-    params: [],
+    params,
   };
 }
 
 export async function createTask(
   {
     project_id,
+    team_id,
     stage_id,
     backlog_id,
     sprint_id,
@@ -495,6 +564,7 @@ export async function createTask(
     priority?: string | null;
     estimate?: number | null;
     status?: string | null;
+    team_id: string;
   },
   options?: TaskMutationOptions
 ): Promise<Task> {
@@ -502,16 +572,22 @@ export async function createTask(
     throw new Error("Project is required to create a task");
   }
 
+  if (!team_id) {
+    throw new Error("Team is required to create a task");
+  }
+
+  await assertTeamBelongsToProject(team_id, project_id);
+
   if (stage_id) {
-    await assertStageMatchesProject(stage_id, project_id);
+    await assertStageMatchesContext(stage_id, project_id, team_id);
   }
 
   if (backlog_id) {
-    await assertBacklogMatchesProject(backlog_id, project_id);
+    await assertBacklogMatchesContext(backlog_id, project_id, team_id);
   }
 
   if (sprint_id) {
-    await assertSprintMatchesProject(sprint_id, project_id);
+    await assertSprintMatchesContext(sprint_id, project_id, team_id);
   }
 
   const sanitizedStatus = sanitizeTaskStatus(status ?? undefined);
@@ -519,17 +595,18 @@ export async function createTask(
   const normalizedBacklogId = normalizedStageId ? null : backlog_id ?? null;
   const normalizedSprintId = sprint_id ?? null;
 
-  const positionQuery = buildPositionQuery(normalizedStageId, normalizedBacklogId);
-  const positionResult = await query<{ pos: number }>(
-    positionQuery.sql,
-    positionQuery.params.length ? positionQuery.params : [project_id]
-  );
+  const positionQuery = buildPositionQuery(normalizedStageId, normalizedBacklogId, team_id, project_id);
+  const positionParams =
+    positionQuery.params.length > 0 ? positionQuery.params : [project_id, team_id].filter(Boolean);
+
+  const positionResult = await query<{ pos: number }>(positionQuery.sql, positionParams);
   const nextPosition = positionResult.rows[0]?.pos ?? 0;
 
   const result = await query<{ id: string }>(
     `
       INSERT INTO tasks (
         project_id,
+        team_id,
         stage_id,
         backlog_id,
         sprint_id,
@@ -543,21 +620,23 @@ export async function createTask(
       )
       VALUES (
         $1,
-        $2::uuid,
+        $2,
         $3::uuid,
         $4::uuid,
-        $5,
+        $5::uuid,
         $6,
         $7,
-        COALESCE($8::DATE, NULL),
-        $9,
+        $8,
+        COALESCE($9::DATE, NULL),
         $10,
-        $11
+        $11,
+        $12
       )
       RETURNING id
     `,
     [
       project_id,
+      team_id,
       normalizedStageId,
       normalizedBacklogId,
       normalizedSprintId,
@@ -611,6 +690,7 @@ export async function updateTask(
   }
 
   const targetProjectId = existing.project_id;
+  const targetTeamId = existing.team_id;
 
   let normalizedStageId = stage_id === undefined ? existing.stage_id ?? null : stage_id;
   let normalizedBacklogId =
@@ -619,17 +699,17 @@ export async function updateTask(
       : backlog_id;
 
   if (normalizedStageId) {
-    await assertStageMatchesProject(normalizedStageId, targetProjectId);
+    await assertStageMatchesContext(normalizedStageId, targetProjectId, targetTeamId);
     normalizedBacklogId = null;
   } else if (normalizedBacklogId) {
-    await assertBacklogMatchesProject(normalizedBacklogId, targetProjectId);
+    await assertBacklogMatchesContext(normalizedBacklogId, targetProjectId, targetTeamId);
   }
 
   let normalizedSprintId =
     sprint_id === undefined ? existing.sprint_id ?? null : sprint_id;
 
   if (normalizedSprintId) {
-    await assertSprintMatchesProject(normalizedSprintId, targetProjectId);
+    await assertSprintMatchesContext(normalizedSprintId, targetProjectId, targetTeamId);
   }
 
   const sanitizedStatus = status === undefined ? null : sanitizeTaskStatus(status);
@@ -693,7 +773,7 @@ export async function moveTask(
     throw new Error("Task not found");
   }
 
-  await assertStageMatchesProject(to_stage_id, beforeMove.project_id);
+  await assertStageMatchesContext(to_stage_id, beforeMove.project_id, beforeMove.team_id);
 
   const result = await query<{ id: string }>(
     `
@@ -810,6 +890,7 @@ export async function reorderTasks(
 
 export async function reorderBacklogTasks(
   project_id: string,
+  team_id: string,
   backlog_id: string | null,
   task_ids: string[],
   options?: TaskMutationOptions
@@ -818,8 +899,14 @@ export async function reorderBacklogTasks(
     return;
   }
 
+  if (!team_id) {
+    throw new Error("Team is required to reorder backlog tasks");
+  }
+
+  await assertTeamBelongsToProject(team_id, project_id);
+
   if (backlog_id) {
-    await assertBacklogMatchesProject(backlog_id, project_id);
+    await assertBacklogMatchesContext(backlog_id, project_id, team_id);
   } else {
     // Ensure the project exists before attempting to reorder unassigned tasks.
     const projectResult = await query<{ id: string }>(`SELECT id FROM projects WHERE id = $1`, [project_id]);
@@ -828,12 +915,12 @@ export async function reorderBacklogTasks(
     }
   }
 
-  const params: unknown[] = [project_id, task_ids];
+  const params: unknown[] = [project_id, task_ids, team_id];
   let backlogCondition = "t.backlog_id IS NULL";
 
   if (backlog_id) {
     params.push(backlog_id);
-    backlogCondition = "t.backlog_id = $3::uuid";
+    backlogCondition = "t.backlog_id = $4::uuid";
   }
 
   await query(
@@ -852,17 +939,15 @@ export async function reorderBacklogTasks(
         AND t.stage_id IS NULL
         AND ${backlogCondition}
         AND t.project_id = $1
+        AND t.team_id = $3
     `,
     params
   );
 
-  const teamResult = await query<{ team_id: string }>(`SELECT team_id FROM projects WHERE id = $1`, [project_id]);
-  const teamId = teamResult.rows[0]?.team_id ?? null;
-
   await broadcastTaskEvent({
     action: "TASKS_REORDERED",
     project_id,
-    team_id: teamId,
+    team_id,
     board_id: null,
     stage_id: null,
     task_ids,
@@ -873,10 +958,9 @@ export async function reorderBacklogTasks(
 export async function getProjectIdForStage(stage_id: string): Promise<{ project_id: string; team_id: string } | null> {
   const result = await query<{ project_id: string; team_id: string }>(
     `
-    SELECT w.project_id, p.team_id
+    SELECT w.project_id, w.team_id
     FROM stages s
     JOIN workflows w ON w.id = s.workflow_id
-    JOIN projects p ON p.id = w.project_id
     WHERE s.id = $1
     `,
     [stage_id]
@@ -890,7 +974,7 @@ export async function getTaskHistory(task_id: string, limit: number = 50): Promi
   const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 50;
   const result = await query<TaskHistoryEventRow>(
     `
-      SELECT id, task_id, project_id, actor_id, event_type, payload, created_at
+      SELECT id, task_id, project_id, team_id, actor_id, event_type, payload, created_at
       FROM task_history_events
       WHERE task_id = $1
       ORDER BY created_at DESC, id DESC

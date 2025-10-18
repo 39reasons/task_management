@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Bell, LogIn, LogOut, Settings } from "lucide-react";
+import { Bell, LogOut, Settings } from "lucide-react";
 import type { AuthUser } from "@shared/types";
 import { useModal } from "../ModalStack";
 import { useNotifications } from "../../hooks/useNotifications";
@@ -140,14 +140,7 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
-          ) : (
-            <Button asChild className="gap-2">
-              <Link to="/signin">
-                <LogIn className="h-4 w-4" />
-                Sign In
-              </Link>
-            </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </nav>

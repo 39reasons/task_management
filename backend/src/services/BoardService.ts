@@ -8,7 +8,7 @@ function buildProjectAccessClause(user_id: string | null, paramIndex: number) {
       clause: `(
         p.is_public = true OR EXISTS (
           SELECT 1 FROM team_members tm
-          WHERE tm.team_id = p.team_id
+          WHERE tm.team_id = w.team_id
             AND tm.user_id = $${paramIndex}
             AND tm.status = 'active'
         )
@@ -52,7 +52,7 @@ export async function getBoardsByProject(
 
   const result = await query<BoardRow>(
     `
-    SELECT w.id, w.name, w.project_id, p.team_id, w.workflow_type
+    SELECT w.id, w.name, w.project_id, w.team_id, w.workflow_type
     FROM workflows w
     JOIN projects p ON p.id = w.project_id
     WHERE w.project_id = $1
@@ -75,7 +75,7 @@ export async function getBoardById(
 
   const result = await query<BoardRow>(
     `
-    SELECT w.id, w.name, w.project_id, p.team_id, w.workflow_type
+    SELECT w.id, w.name, w.project_id, w.team_id, w.workflow_type
     FROM workflows w
     JOIN projects p ON p.id = w.project_id
     WHERE w.id = $1
@@ -110,7 +110,7 @@ async function ensureBoardAccess(
 
   const result = await query<{ project_id: string; team_id: string }>(
     `
-    SELECT w.project_id, p.team_id
+    SELECT w.project_id, w.team_id
     FROM workflows w
     JOIN projects p ON p.id = w.project_id
     WHERE w.id = $1

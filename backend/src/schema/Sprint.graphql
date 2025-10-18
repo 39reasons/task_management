@@ -1,6 +1,7 @@
 type Sprint {
   id: ID!
   project_id: ID!
+  team_id: ID!
   name: String!
   goal: String
   start_date: String
@@ -10,5 +11,5 @@ type Sprint {
 }
 
 extend type Query {
-  sprints(project_id: ID!): [Sprint!]!
+  sprints(project_id: ID, team_id: ID): [Sprint!]!
 }

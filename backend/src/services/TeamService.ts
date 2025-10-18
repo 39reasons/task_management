@@ -1,5 +1,5 @@
 import { query } from "../db/index.js";
-import * as ProjectService from "./ProjectService.js";
+import { DEFAULT_BOARD_WORKFLOW_TYPE } from "../../../shared/types.js";
 import type { Team, TeamMember, TeamRole } from "../../../shared/types.js";
 
 const TEAM_NAME_MAX_LENGTH = 120;
@@ -38,7 +38,12 @@ async function resolveUniqueSlug(baseName: string): Promise<string> {
 
   while (true) {
     const existing = await query<{ id: string }>(
-      `SELECT id FROM teams WHERE slug = $1 LIMIT 1`,
+      `
+      SELECT id
+      FROM teams
+      WHERE slug = $1
+      LIMIT 1
+      `,
       [candidate]
     );
     if (existing.rowCount === 0) {
@@ -52,14 +57,19 @@ async function resolveUniqueSlug(baseName: string): Promise<string> {
 function mapTeamRow(row: any): Team {
   return {
     id: row.id,
+    project_id: row.project_id,
     name: row.name,
     description: row.description,
     slug: row.slug,
     created_at: normalizeTimestamp(row.created_at),
     updated_at: normalizeTimestamp(row.updated_at),
     role: (row.role as TeamRole) ?? null,
-    projects: [],
+    project: null,
     members: [],
+    boards: [],
+    backlogs: [],
+    sprints: [],
+    tasks: [],
   };
 }
 
@@ -80,11 +90,44 @@ function mapTeamMemberRow(row: any): TeamMember {
   };
 }
 
-export async function getTeamsForUser(user_id: string): Promise<Team[]> {
+async function getProjectRole(project_id: string, user_id: string): Promise<TeamRole | null> {
+  const result = await query<{ role: TeamRole }>(
+    `
+    SELECT role
+    FROM user_projects
+    WHERE project_id = $1
+      AND user_id = $2
+    LIMIT 1
+    `,
+    [project_id, user_id]
+  );
+  return result.rows[0]?.role ?? null;
+}
+
+async function getProjectIdForTeam(team_id: string): Promise<string | null> {
+  const result = await query<{ project_id: string }>(
+    `
+    SELECT project_id
+    FROM teams
+    WHERE id = $1
+    `,
+    [team_id]
+  );
+  return result.rows[0]?.project_id ?? null;
+}
+
+export async function getTeamsForUser(user_id: string, project_id?: string): Promise<Team[]> {
+  const params: unknown[] = [user_id];
+  const projectFilter = project_id ? `AND t.project_id = $2` : "";
+  if (project_id) {
+    params.push(project_id);
+  }
+
   const result = await query(
     `
     SELECT
       t.id,
+      t.project_id,
       t.name,
       t.description,
       t.slug,
@@ -95,9 +138,10 @@ export async function getTeamsForUser(user_id: string): Promise<Team[]> {
     JOIN teams t ON t.id = tm.team_id
     WHERE tm.user_id = $1
       AND tm.status = 'active'
+      ${projectFilter}
     ORDER BY t.created_at ASC
     `,
-    [user_id]
+    params
   );
 
   return result.rows.map(mapTeamRow);
@@ -108,6 +152,7 @@ export async function getTeamById(id: string, user_id: string): Promise<Team> {
     `
     SELECT
       t.id,
+      t.project_id,
       t.name,
       t.description,
       t.slug,
@@ -115,10 +160,11 @@ export async function getTeamById(id: string, user_id: string): Promise<Team> {
       t.updated_at,
       tm.role
     FROM teams t
-    JOIN team_members tm ON tm.team_id = t.id
+    JOIN team_members tm
+      ON tm.team_id = t.id
+     AND tm.user_id = $2
+     AND tm.status = 'active'
     WHERE t.id = $1
-      AND tm.user_id = $2
-      AND tm.status = 'active'
     `,
     [id, user_id]
   );
@@ -131,20 +177,26 @@ export async function getTeamById(id: string, user_id: string): Promise<Team> {
 }
 
 export async function createTeam(
+  project_id: string,
   name: string,
   description: string | null,
   user_id: string
 ): Promise<Team> {
+  const membership = await getProjectRole(project_id, user_id);
+  if (!membership || (membership !== "owner" && membership !== "admin")) {
+    throw new Error("Not authorized to create a team for this project");
+  }
+
   const sanitizedName = sanitizeTeamName(name);
   const slug = await resolveUniqueSlug(sanitizedName);
 
   const result = await query(
     `
-    INSERT INTO teams (name, description, slug, created_by)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id, name, description, slug, created_at, updated_at
+    INSERT INTO teams (project_id, name, description, slug, created_by)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, project_id, name, description, slug, created_at, updated_at
     `,
-    [sanitizedName, description, slug, user_id]
+    [project_id, sanitizedName, description ?? null, slug, user_id]
   );
 
   const team = mapTeamRow(result.rows[0]);
@@ -161,12 +213,13 @@ export async function createTeam(
     [team.id, user_id]
   );
 
-  try {
-    await ProjectService.addProject(team.id, `${team.name} Project`, null, false, user_id);
-  } catch (error) {
-    // If the default project creation fails, we don't want to block team creation.
-    console.error("Failed to create default project for team:", error);
-  }
+  await query(
+    `
+    INSERT INTO workflows (project_id, team_id, name, workflow_type)
+    VALUES ($1, $2, $3, $4)
+    `,
+    [project_id, team.id, `${sanitizedName} Board`, DEFAULT_BOARD_WORKFLOW_TYPE]
+  );
 
   return { ...team, role: "owner" };
 }
@@ -192,7 +245,7 @@ export async function updateTeam(
       description = COALESCE($3, description),
       updated_at = now()
     WHERE id = $1
-    RETURNING id, name, description, slug, created_at, updated_at
+    RETURNING id, project_id, name, description, slug, created_at, updated_at
     `,
     [id, sanitizedName, description ?? null]
   );
@@ -293,31 +346,49 @@ async function removeTeamMemberRecords(team_id: string, user_id: string): Promis
   await query(
     `
     DELETE FROM team_members
-    WHERE team_id = $1 AND user_id = $2
+    WHERE team_id = $1
+      AND user_id = $2
     `,
     [team_id, user_id]
   );
 
-  await query(
+  const projectId = await getProjectIdForTeam(team_id);
+  if (!projectId) {
+    return;
+  }
+
+  const remainingMembership = await query(
     `
-    DELETE FROM user_projects
-    WHERE user_id = $2
-      AND project_id IN (
-        SELECT id FROM projects WHERE team_id = $1
-      )
+    SELECT 1
+    FROM team_members tm
+    JOIN teams t ON t.id = tm.team_id
+    WHERE tm.user_id = $2
+      AND tm.status = 'active'
+      AND t.project_id = $1
+    LIMIT 1
     `,
-    [team_id, user_id]
+    [projectId, user_id]
   );
+
+  if (remainingMembership.rowCount === 0) {
+    await query(
+      `
+      DELETE FROM user_projects
+      WHERE project_id = $1
+        AND user_id = $2
+        AND role <> 'owner'
+      `,
+      [projectId, user_id]
+    );
+  }
 
   await query(
     `
     UPDATE tasks
     SET assignee_id = NULL,
         updated_at = now()
-    WHERE project_id IN (
-      SELECT id FROM projects WHERE team_id = $1
-    )
-      AND assignee_id = $2::uuid
+    WHERE team_id = $1
+      AND assignee_id = $2
     `,
     [team_id, user_id]
   );

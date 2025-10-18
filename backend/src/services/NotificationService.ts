@@ -13,20 +13,23 @@ function mapNotificationRow(row: any): Notification {
     status: row.status,
     is_read: row.is_read,
     recipient_id: row.recipient_id,
-    team_id: row.project_team_id ?? null,
+    project_id: row.project_id ?? null,
+    team_id: row.notification_team_id ?? null,
     created_at,
     updated_at,
     project: row.project_id
       ? {
           id: row.project_id,
-          team_id: row.project_team_id,
           name: row.project_name,
           description: row.project_description,
-          created_at: row.project_created_at,
-          updated_at: row.project_updated_at,
+          created_at: row.project_created_at ? normalizeTimestamp(row.project_created_at) : undefined,
+          updated_at: row.project_updated_at ? normalizeTimestamp(row.project_updated_at) : undefined,
           is_public: row.project_is_public,
           viewer_role: null,
           viewer_is_owner: false,
+          teams: [],
+          members: [],
+          boards: [],
         } as Project
       : null,
     sender: row.sender_id
@@ -62,7 +65,7 @@ export async function getNotificationsForUser(user_id: string): Promise<Notifica
       n.created_at,
       n.updated_at,
       n.project_id,
-      p.team_id AS project_team_id,
+      n.team_id AS notification_team_id,
       p.name AS project_name,
       p.description AS project_description,
       p.created_at AS project_created_at,
@@ -98,7 +101,7 @@ export async function getNotificationById(id: string): Promise<Notification | nu
       n.created_at,
       n.updated_at,
       n.project_id,
-      p.team_id AS project_team_id,
+      n.team_id AS notification_team_id,
       p.name AS project_name,
       p.description AS project_description,
       p.created_at AS project_created_at,
@@ -138,15 +141,29 @@ export async function sendProjectInvite(
   const recipient = recipientRes.rows[0];
 
   // Prevent inviting if already member
-  const projectRes = await query<{ name: string; team_id: string }>(
-    `SELECT name, team_id FROM projects WHERE id = $1`,
+  const projectRes = await query<{ name: string }>(
+    `SELECT name FROM projects WHERE id = $1`,
     [project_id]
   );
   if (projectRes.rowCount === 0) {
     throw new Error("Project not found");
   }
 
-  const teamId = projectRes.rows[0].team_id;
+  const teamRes = await query<{ id: string }>(
+    `
+    SELECT id
+    FROM teams
+    WHERE project_id = $1
+    ORDER BY created_at ASC
+    LIMIT 1
+    `,
+    [project_id]
+  );
+
+  const teamId = teamRes.rows[0]?.id ?? null;
+  if (!teamId) {
+    throw new Error("Project does not have a team to invite members into yet");
+  }
 
   const membershipRes = await query(
     `
@@ -181,11 +198,11 @@ export async function sendProjectInvite(
 
   const insertRes = await query<{ id: string }>(
     `
-    INSERT INTO notifications (recipient_id, sender_id, project_id, type, message)
-    VALUES ($1, $2, $3, 'PROJECT_INVITE', $4)
+    INSERT INTO notifications (recipient_id, sender_id, project_id, team_id, type, message)
+    VALUES ($1, $2, $3, $4, 'PROJECT_INVITE', $5)
     RETURNING id
     `,
-    [recipient.id, sender_id, project_id, message]
+    [recipient.id, sender_id, project_id, teamId, message]
   );
 
   await query(
@@ -220,15 +237,16 @@ export async function respondToNotification(
   if (!notification) throw new Error("Notification not found");
 
   const notifRes = await query(
-    `SELECT recipient_id, project_id, type FROM notifications WHERE id = $1`,
+    `SELECT recipient_id, project_id, team_id, type FROM notifications WHERE id = $1`,
     [id]
   );
 
   if (notifRes.rowCount === 0) throw new Error("Notification not found");
 
-  const { recipient_id, project_id, type } = notifRes.rows[0] as {
+  const { recipient_id, project_id, team_id: notificationTeamId, type } = notifRes.rows[0] as {
     recipient_id: string;
     project_id: string | null;
+    team_id: string | null;
     type: string;
   };
 
@@ -249,14 +267,13 @@ export async function respondToNotification(
     [id, status]
   );
 
-  if (accept && type === "PROJECT_INVITE" && project_id) {
-    const projectRes = await query<{ team_id: string }>(
-      `SELECT team_id FROM projects WHERE id = $1`,
-      [project_id]
+  if (accept && type === "PROJECT_INVITE" && project_id && notificationTeamId) {
+    const teamExists = await query<{ id: string }>(
+      `SELECT id FROM teams WHERE id = $1 AND project_id = $2`,
+      [notificationTeamId, project_id]
     );
 
-    const teamId = projectRes.rows[0]?.team_id ?? null;
-    if (teamId) {
+    if ((teamExists.rowCount ?? 0) > 0) {
       await query(
         `
         INSERT INTO team_members (team_id, user_id, role, status)
@@ -269,7 +286,7 @@ export async function respondToNotification(
               END,
               updated_at = now()
         `,
-        [teamId, user_id]
+        [notificationTeamId, user_id]
       );
 
       await query(

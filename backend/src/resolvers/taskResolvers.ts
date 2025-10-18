@@ -37,6 +37,7 @@ export const taskResolvers = {
       _: unknown,
       {
         project_id,
+        team_id,
         stage_id,
         backlog_id,
         sprint_id,
@@ -48,6 +49,7 @@ export const taskResolvers = {
         status,
       }: {
         project_id: string;
+        team_id: string;
         stage_id?: string | null;
         backlog_id?: string | null;
         sprint_id?: string | null;
@@ -64,6 +66,7 @@ export const taskResolvers = {
       return await TaskService.createTask(
         {
           project_id,
+          team_id,
           stage_id,
           backlog_id,
           sprint_id,
@@ -182,14 +185,16 @@ export const taskResolvers = {
       _: unknown,
       {
         project_id,
+        team_id,
         backlog_id,
         task_ids,
-      }: { project_id: string; backlog_id?: string | null; task_ids: string[] },
+      }: { project_id: string; team_id: string; backlog_id?: string | null; task_ids: string[] },
       ctx: GraphQLContext
     ): Promise<boolean> => {
       if (!ctx.user) throw new Error("Not authenticated");
       await TaskService.reorderBacklogTasks(
         project_id,
+        team_id,
         backlog_id ?? null,
         task_ids,
         {

@@ -12,7 +12,6 @@ interface MutationOptions {
 
 interface UseProjectSettingsDialogOptions {
   project: Project | null;
-  projectTeamId: string | null;
   overviewRefetchDocument: DocumentNode;
   updateProject: (options: MutationOptions) => Promise<unknown>;
   removeProject: (options: MutationOptions) => Promise<unknown>;
@@ -23,7 +22,6 @@ interface UseProjectSettingsDialogOptions {
 
 export function useProjectSettingsDialog({
   project,
-  projectTeamId,
   overviewRefetchDocument,
   updateProject,
   removeProject,
@@ -88,9 +86,8 @@ export function useProjectSettingsDialog({
   }, [description, dialogProject, isPublic, name]);
 
   const refetchQueries = useMemo(() => {
-    if (!projectTeamId) return [];
-    return [{ query: overviewRefetchDocument, variables: { team_id: projectTeamId } }];
-  }, [overviewRefetchDocument, projectTeamId]);
+    return [{ query: overviewRefetchDocument }];
+  }, [overviewRefetchDocument]);
 
   const saveSettings = useCallback(async () => {
     if (!dialogProject) return;

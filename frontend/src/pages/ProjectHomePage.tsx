@@ -5,6 +5,8 @@ import type { AuthUser, Project } from "@shared/types";
 import {
   Card,
   CardContent,
+  CardHeader,
+  CardTitle,
   Badge,
   Button,
   Avatar,
@@ -59,7 +61,7 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
   const [leavingProject, setLeavingProject] = useState(false);
 
   const project = data?.project ?? null;
-  const projectTeamId = project?.team?.id ?? null;
+  const primaryTeam = project?.teams?.[0] ?? null;
   const viewerId = user?.id ?? null;
   const projectName = project?.name ?? "this project";
 
@@ -97,13 +99,13 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
         variables: { project_id: projectId },
       });
       await refetch().catch(() => {});
-      navigate(projectTeamId ? `/teams/${projectTeamId}` : "/");
+      navigate("/");
     } catch (error) {
       setMemberActionError((error as Error).message ?? "Unable to leave project.");
     } finally {
       setLeavingProject(false);
     }
-  }, [leaveProjectMutation, navigate, projectId, projectTeamId, projectName, refetch]);
+  }, [leaveProjectMutation, navigate, projectName, projectId, refetch]);
 
   if (!projectId) {
     return <div className="p-6 text-destructive">Project identifier is missing.</div>;
@@ -160,18 +162,23 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
               </span>
               <Separator orientation="vertical" className="hidden h-4 lg:flex" />
               <span>{project.is_public ? "Public project" : "Private project"}</span>
-              {project.team ? (
+              {primaryTeam ? (
                 <>
                   <Separator orientation="vertical" className="hidden h-4 lg:flex" />
                   <button
                     type="button"
                     className="text-xs font-medium text-primary hover:underline"
-                    onClick={() => navigate(`/teams/${project.team?.id}`)}
+                    onClick={() => navigate(`/teams/${primaryTeam.id}`)}
                   >
-                    {project.team?.name}
+                    {primaryTeam.name}
                   </button>
                 </>
-              ) : null}
+              ) : (
+                <>
+                  <Separator orientation="vertical" className="hidden h-4 lg:flex" />
+                  <span>No teams yet</span>
+                </>
+              )}
             </div>
           </div>
           {canManageProject ? (
@@ -236,6 +243,45 @@ export function ProjectHomePage({ user, onInvite }: ProjectHomePageProps) {
       </CardContent>
     </Card>
   </section>
+
+  <Card className="border border-border bg-card px-6 py-6 shadow-sm">
+        <CardHeader className="flex flex-col gap-1 px-0 pb-4">
+          <CardTitle className="text-lg font-semibold text-foreground">Teams in this project</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Explore the squads collaborating on this project.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3 px-0">
+          {project?.teams && project.teams.length > 0 ? (
+            project.teams.map((team) => (
+              <div
+                key={team.id}
+                className="flex items-start justify-between rounded-lg border border-border/70 bg-background/40 p-4"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{team.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {team.role ? `Your role: ${team.role}` : "Collaborator"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => navigate(`/teams/${team.id}`)}
+                >
+                  View team
+                </Button>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No teams yet. Create a team to organize workstreams within this project.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
   {memberActionError ? (
     <Alert variant="destructive">

@@ -11,6 +11,7 @@ function normalizeDate(value: unknown): string | undefined {
 type SprintRow = {
   id: string;
   project_id: string;
+  team_id: string;
   name: string;
   goal: string | null;
   start_date: Date | string | null;
@@ -23,6 +24,7 @@ function mapRow(row: SprintRow): Sprint {
   return {
     id: row.id,
     project_id: row.project_id,
+     team_id: row.team_id,
     name: row.name,
     goal: row.goal ?? undefined,
     start_date: row.start_date ? normalizeDate(row.start_date) : undefined,
@@ -32,15 +34,40 @@ function mapRow(row: SprintRow): Sprint {
   };
 }
 
-export async function getSprintsByProject(project_id: string): Promise<Sprint[]> {
+export async function getSprintsByFilter({
+  project_id,
+  team_id,
+}: {
+  project_id?: string | null;
+  team_id?: string | null;
+}): Promise<Sprint[]> {
+  if (!project_id && !team_id) {
+    throw new Error("Provide a project or team identifier to list sprints.");
+  }
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (project_id) {
+    params.push(project_id);
+    conditions.push(`project_id = $${params.length}`);
+  }
+
+  if (team_id) {
+    params.push(team_id);
+    conditions.push(`team_id = $${params.length}`);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const result = await query<SprintRow>(
     `
-      SELECT id, project_id, name, goal, start_date, end_date, created_at, updated_at
+      SELECT id, project_id, team_id, name, goal, start_date, end_date, created_at, updated_at
       FROM sprints
-      WHERE project_id = $1
+      ${whereClause}
       ORDER BY start_date NULLS FIRST, created_at ASC
     `,
-    [project_id]
+    params
   );
   return result.rows.map(mapRow);
 }
@@ -48,7 +75,7 @@ export async function getSprintsByProject(project_id: string): Promise<Sprint[]>
 export async function getSprintById(id: string): Promise<Sprint | null> {
   const result = await query<SprintRow>(
     `
-      SELECT id, project_id, name, goal, start_date, end_date, created_at, updated_at
+      SELECT id, project_id, team_id, name, goal, start_date, end_date, created_at, updated_at
       FROM sprints
       WHERE id = $1
     `,

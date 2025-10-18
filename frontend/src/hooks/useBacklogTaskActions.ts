@@ -7,6 +7,7 @@ import type { TaskStatus } from "@shared/types";
 
 interface UseBacklogTaskActionsOptions {
   projectId: string | null;
+  teamId: string | null;
   selectedBacklogId: string;
   isUnassignedView: boolean;
   refetchTasks: () => Promise<unknown>;
@@ -25,6 +26,7 @@ interface UseBacklogTaskActionsResult {
 
 export function useBacklogTaskActions({
   projectId,
+  teamId,
   selectedBacklogId,
   isUnassignedView,
   refetchTasks,
@@ -114,7 +116,7 @@ export function useBacklogTaskActions({
 
   const handleReorderTasks = useCallback(
     async (orderedIds: string[]) => {
-      if (!projectId || orderedIds.length === 0 || isReorderingTasks) {
+      if (!projectId || !teamId || orderedIds.length === 0 || isReorderingTasks) {
         return;
       }
 
@@ -127,6 +129,7 @@ export function useBacklogTaskActions({
         await reorderBacklogTasksMutation({
           variables: {
             project_id: projectId,
+            team_id: teamId,
             backlog_id: backlogId,
             task_ids: orderedIds,
           },
@@ -146,6 +149,7 @@ export function useBacklogTaskActions({
       projectId,
       refetchTasks,
       reorderBacklogTasksMutation,
+      teamId,
       selectedBacklogId,
     ]
   );

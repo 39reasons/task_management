@@ -4,17 +4,18 @@ export const GET_TEAMS = gql`
   query GetTeams {
     teams {
       id
+      project_id
       name
       description
       slug
       role
       created_at
       updated_at
-      projects {
+      project {
         id
+        name
+        description
         is_public
-        created_at
-        updated_at
       }
       members {
         role
@@ -35,23 +36,48 @@ export const GET_TEAM = gql`
   query GetTeam($id: ID!) {
     team(id: $id) {
       id
+      project_id
       name
       description
       slug
       role
       created_at
       updated_at
-      projects {
+      project {
         id
-        team_id
         name
         description
         is_public
+      }
+      boards {
+        id
+        name
+        team_id
+        workflow_type
+        stages {
+          id
+          name
+          position
+          board_id
+        }
+      }
+      backlogs {
+        id
+        name
+        description
+        position
         created_at
         updated_at
-        viewer_is_owner
-        viewer_role
-        position
+      }
+      sprints {
+        id
+        name
+        goal
+        start_date
+        end_date
+        created_at
+        updated_at
+        team_id
       }
       members {
         role
@@ -69,9 +95,10 @@ export const GET_TEAM = gql`
 `;
 
 export const CREATE_TEAM = gql`
-  mutation CreateTeam($name: String!, $description: String) {
-    createTeam(name: $name, description: $description) {
+  mutation CreateTeam($project_id: ID!, $name: String!, $description: String) {
+    createTeam(project_id: $project_id, name: $name, description: $description) {
       id
+      project_id
       name
       description
       slug
@@ -86,6 +113,7 @@ export const UPDATE_TEAM = gql`
   mutation UpdateTeam($id: ID!, $name: String, $description: String) {
     updateTeam(id: $id, name: $name, description: $description) {
       id
+      project_id
       name
       description
       slug

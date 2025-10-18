@@ -53,19 +53,19 @@ export function useTaskMutations({
 
   const createTask = useCallback(
     async (stage_id: string, title: string) => {
-      if (!projectId) return;
+      if (!projectId || !board?.team_id) return;
 
       const stageMeta = stages.find((stage) => stage.id === stage_id);
       const { task: optimisticTask, optimisticId } = createOptimisticTask({
         stage: stageMeta,
         stageId: stage_id,
         projectId,
-        teamId: board?.team_id ?? null,
+        teamId: board.team_id ?? null,
         title,
       });
 
       await createTaskMutation({
-        variables: { project_id: projectId, stage_id, title, status: "new" },
+        variables: { project_id: projectId, team_id: board.team_id, stage_id, title, status: "new" },
         optimisticResponse: {
           createTask: {
             ...optimisticTask,
@@ -94,7 +94,7 @@ export function useTaskMutations({
         },
       });
     },
-    [createTaskMutation, projectId, stages]
+    [board?.team_id, createTaskMutation, projectId, stages]
   );
 
   const deleteTask = useCallback(

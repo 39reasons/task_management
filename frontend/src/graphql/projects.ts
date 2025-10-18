@@ -1,72 +1,40 @@
 import { gql } from "@apollo/client";
 
 export const GET_PROJECTS = gql`
-  query GetProjects($team_id: ID!) {
-    projects(team_id: $team_id) {
+  query GetProjects {
+    projects {
       id
-      team_id
       name
       description
       is_public
-      viewer_is_owner
       viewer_role
+      viewer_is_owner
       position
       created_at
       updated_at
-      team {
+      teams {
         id
+        project_id
         name
         slug
-      }
-      members {
-        id
-        first_name
-        last_name
-        username
-        avatar_color
-      }
-      boards {
-        id
-        name
-        workflow_type
-        stages {
+        role
+        backlogs {
           id
           name
+          description
           position
-          board_id
-          tasks {
-            id
-            title
-            due_date
-            priority
-            estimate
-            status
-            stage_id
-            backlog_id
-            sprint_id
-            project_id
-            team_id
-            position
-            assignee_id
-            assignee {
-              id
-              first_name
-              last_name
-              username
-              avatar_color
-            }
-            sprint {
-              id
-              name
-              start_date
-              end_date
-            }
-            tags {
-              id
-              name
-              color
-            }
-          }
+          created_at
+          updated_at
+        }
+        sprints {
+          id
+          name
+          goal
+          start_date
+          end_date
+          created_at
+          updated_at
+          team_id
         }
       }
     }
@@ -77,18 +45,21 @@ export const GET_PROJECT = gql`
   query GetProject($id: ID!) {
     project(id: $id) {
       id
-      team_id
       name
       description
       is_public
-      viewer_is_owner
       viewer_role
+      viewer_is_owner
       created_at
       updated_at
-      team {
+      position
+      created_by
+      teams {
         id
+        project_id
         name
         slug
+        role
       }
       members {
         id
@@ -100,6 +71,7 @@ export const GET_PROJECT = gql`
       boards {
         id
         name
+        team_id
         workflow_type
         stages {
           id
@@ -109,6 +81,7 @@ export const GET_PROJECT = gql`
           tasks {
             id
             title
+            description
             due_date
             priority
             estimate
@@ -116,97 +89,6 @@ export const GET_PROJECT = gql`
             stage_id
             backlog_id
             sprint_id
-            assignee_id
-            assignee {
-              id
-              first_name
-              last_name
-              username
-              avatar_color
-            }
-            sprint {
-              id
-              name
-              start_date
-              end_date
-            }
-          }
-        }
-      }
-      backlogs {
-        id
-        team_id
-        name
-        description
-        position
-        created_at
-        updated_at
-      }
-      sprints {
-        id
-        name
-        goal
-        start_date
-        end_date
-        created_at
-        updated_at
-      }
-    }
-  }
-`;
-
-export const ADD_PROJECT = gql`
-  mutation AddProject(
-    $team_id: ID!
-    $name: String!
-    $description: String
-    $is_public: Boolean
-  ) {
-    addProject(
-      team_id: $team_id
-      name: $name
-      description: $description
-      is_public: $is_public
-    ) {
-      id
-      team_id
-      name
-      description
-      is_public
-      viewer_is_owner
-      viewer_role
-      position
-      created_at
-      updated_at
-      team {
-        id
-        name
-        slug
-      }
-      members {
-        id
-        first_name
-        last_name
-        username
-        avatar_color
-      }
-      boards {
-        id
-        name
-        workflow_type
-        stages {
-          id
-          name
-          position
-          board_id
-          tasks {
-            id
-            title
-            due_date
-            priority
-            estimate
-            status
-            stage_id
             project_id
             team_id
             position
@@ -218,19 +100,42 @@ export const ADD_PROJECT = gql`
               username
               avatar_color
             }
-            tags {
-              id
-              name
-              color
-            }
             sprint {
               id
               name
               start_date
               end_date
             }
+            tags {
+              id
+              name
+              color
+            }
           }
         }
+      }
+    }
+  }
+`;
+
+export const ADD_PROJECT = gql`
+  mutation AddProject($name: String!, $description: String, $is_public: Boolean) {
+    addProject(name: $name, description: $description, is_public: $is_public) {
+      id
+      name
+      description
+      is_public
+      viewer_role
+      viewer_is_owner
+      position
+      created_at
+      updated_at
+      teams {
+        id
+        project_id
+        name
+        slug
+        role
       }
     }
   }
@@ -240,62 +145,14 @@ export const UPDATE_PROJECT = gql`
   mutation UpdateProject($id: ID!, $name: String, $description: String, $is_public: Boolean) {
     updateProject(id: $id, name: $name, description: $description, is_public: $is_public) {
       id
-      team_id
       name
       description
       is_public
-      viewer_is_owner
       viewer_role
+      viewer_is_owner
       position
       created_at
       updated_at
-      team {
-        id
-        name
-        slug
-      }
-      members {
-        id
-        first_name
-        last_name
-        username
-        avatar_color
-      }
-      boards {
-        id
-        name
-        workflow_type
-        stages {
-          id
-          name
-          position
-          board_id
-          tasks {
-            id
-            title
-            due_date
-            priority
-            status
-            stage_id
-            project_id
-            team_id
-            position
-            assignee_id
-            assignee {
-              id
-              first_name
-              last_name
-              username
-              avatar_color
-            }
-            tags {
-              id
-              name
-              color
-            }
-          }
-        }
-      }
     }
   }
 `;
@@ -305,9 +162,10 @@ export const DELETE_PROJECT = gql`
     deleteProject(id: $id)
   }
 `;
+
 export const REORDER_PROJECTS = gql`
-  mutation ReorderProjects($team_id: ID!, $project_ids: [ID!]!) {
-    reorderProjects(team_id: $team_id, project_ids: $project_ids)
+  mutation ReorderProjects($project_ids: [ID!]!) {
+    reorderProjects(project_ids: $project_ids)
   }
 `;
 
@@ -324,65 +182,23 @@ export const REMOVE_PROJECT_MEMBER = gql`
 `;
 
 export const GET_PROJECTS_OVERVIEW = gql`
-  query GetProjectsOverview($team_id: ID!) {
-    projects(team_id: $team_id) {
+  query GetProjectsOverview {
+    projects {
       id
-      team_id
       name
       description
       is_public
+      viewer_role
+      viewer_is_owner
+      position
       created_at
       updated_at
-      viewer_is_owner
-      viewer_role
-      position
-      team {
+      teams {
         id
+        project_id
         name
         slug
-      }
-      members {
-        id
-        first_name
-        last_name
-        username
-        avatar_color
-      }
-      boards {
-        id
-        name
-        workflow_type
-        stages {
-          id
-          name
-          position
-          board_id
-          tasks {
-            id
-            title
-            description
-            due_date
-            priority
-            status
-            stage_id
-            project_id
-            team_id
-            position
-            assignee_id
-            assignee {
-              id
-              first_name
-              last_name
-              username
-              avatar_color
-            }
-            tags {
-              id
-              name
-              color
-            }
-          }
-        }
+        role
       }
     }
   }

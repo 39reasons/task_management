@@ -5,6 +5,8 @@ type TaskHistoryEvent {
   event_type: String!
   payload: JSON
   created_at: String!
+  project_id: ID
+  team_id: ID
   actor_id: ID
   actor: User
 }
@@ -21,7 +23,7 @@ type Task {
   backlog_id: ID
   sprint_id: ID
   project_id: ID!
-  team_id: ID
+  team_id: ID!
   tags: [Tag!]!
   stage: Stage
   sprint: Sprint
@@ -63,6 +65,7 @@ extend type Query {
 extend type Mutation {
   createTask(
     project_id: ID!
+    team_id: ID!
     stage_id: ID
     backlog_id: ID
     sprint_id: ID
@@ -106,6 +109,7 @@ extend type Mutation {
 
   reorderBacklogTasks(
     project_id: ID!
+    team_id: ID!
     backlog_id: ID
     task_ids: [ID!]!
   ): Boolean!

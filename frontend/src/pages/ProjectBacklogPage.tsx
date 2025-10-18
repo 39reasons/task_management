@@ -82,9 +82,10 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
   });
 
   const project = projectData?.project ?? null;
-  const backlogs = project?.backlogs ?? [];
-  const sprints = project?.sprints ?? [];
-  const teamIdForBacklog = project?.team_id ?? null;
+  const primaryTeam = project?.teams?.[0] ?? null;
+  const backlogs = primaryTeam?.backlogs ?? [];
+  const sprints = primaryTeam?.sprints ?? [];
+  const teamIdForBacklog = primaryTeam?.id ?? null;
 
   useEffect(() => {
     if (backlogs.length === 0) {
@@ -110,6 +111,7 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
     variables: projectId
       ? {
           project_id: projectId,
+          team_id: teamIdForBacklog,
           stage_id: null,
           backlog_id: isUnassignedView ? null : selectedBacklogId,
         }
@@ -209,6 +211,10 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
       setCreateTaskError("Project context is missing.");
       return;
     }
+    if (!teamIdForBacklog) {
+      setCreateTaskError("Team context is missing.");
+      return;
+    }
     const trimmedTitle = createTaskTitle.trim();
     if (!trimmedTitle) {
       setCreateTaskError("Task title is required.");
@@ -221,6 +227,7 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
       await createTaskMutation({
         variables: {
           project_id: projectId,
+          team_id: teamIdForBacklog,
           stage_id: null,
           backlog_id: isUnassignedView ? null : selectedBacklogId,
           sprint_id: createTaskSprintId || null,
@@ -300,7 +307,7 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
 
   const handleReorderTasks = useCallback(
     async (orderedIds: string[]) => {
-      if (!projectId || orderedIds.length === 0 || isReorderingTasks) {
+      if (!projectId || !teamIdForBacklog || orderedIds.length === 0 || isReorderingTasks) {
         return;
       }
 
@@ -313,6 +320,7 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
         await reorderBacklogTasksMutation({
           variables: {
             project_id: projectId,
+            team_id: teamIdForBacklog,
             backlog_id: backlogId,
             task_ids: orderedIds,
           },
@@ -327,6 +335,7 @@ export function ProjectBacklogPage({ setSelectedTask }: ProjectBacklogPageProps)
     },
     [
       projectId,
+      teamIdForBacklog,
       isUnassignedView,
       selectedBacklogId,
       isReorderingTasks,

@@ -3,8 +3,6 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   KanbanSquare,
-  Users,
-  Settings,
   ArrowLeft,
   ClipboardList,
   ListTodo,
@@ -48,7 +46,7 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
         },
         {
           to: `/projects/${projectId}/board`,
-          label: "Board",
+          label: "Boards",
           icon: KanbanSquare,
         },
         {
@@ -66,18 +64,6 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
           to: `/projects/${projectId}/sprints`,
           label: "Sprints",
           icon: Gauge,
-        },
-        {
-          to: `/projects/${projectId}/members`,
-          label: "Members",
-          icon: Users,
-          disabled: true,
-        },
-        {
-          to: `/projects/${projectId}/settings`,
-          label: "Settings",
-          icon: Settings,
-          disabled: true,
         },
       ] as Array<{
         to: string;
