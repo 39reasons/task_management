@@ -60,6 +60,19 @@ export const GET_PROJECT = gql`
         name
         slug
         role
+        description
+        created_at
+        members {
+          role
+          status
+          user {
+            id
+            first_name
+            last_name
+            username
+            avatar_color
+          }
+        }
       }
       members {
         id

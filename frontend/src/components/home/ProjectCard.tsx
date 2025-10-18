@@ -1,5 +1,6 @@
 import type { Project } from "@shared/types";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "../ui";
+import { useCallback } from "react";
+import { Badge, Card, CardContent, CardHeader, CardTitle } from "../ui";
 
 interface ProjectCardProps {
   project: Project;
@@ -27,8 +28,23 @@ export function ProjectCard({ project, onOpenProject, onInvite }: ProjectCardPro
   const teams = project.teams ?? [];
   const members = project.members ?? [];
 
+  const handleClick = useCallback(() => {
+    onOpenProject(project.id);
+  }, [onOpenProject, project.id]);
+
   return (
-    <Card className="border-border/70 bg-card/80 shadow-sm transition hover:shadow-lg">
+    <Card
+      role="button"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          handleClick();
+        }
+      }}
+      className="border-border/70 bg-card/80 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+    >
       <CardHeader className="space-y-4 pb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -60,27 +76,28 @@ export function ProjectCard({ project, onOpenProject, onInvite }: ProjectCardPro
             <span className="text-sm font-semibold text-foreground">{formatDate(project.updated_at)}</span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            className="gap-2"
-            onClick={() => onOpenProject(project.id)}
-          >
-            Open project
-          </Button>
-          {onInvite ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="gap-2"
-              onClick={() => onInvite(project.id)}
+        {onInvite ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+              onClick={(event) => {
+                event.stopPropagation();
+                onInvite(project.id);
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onInvite(project.id);
+                }
+              }}
             >
               Invite teammates
-            </Button>
-          ) : null}
-        </div>
+            </div>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

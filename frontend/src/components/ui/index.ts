@@ -16,3 +16,4 @@ export * from "./textarea";
 export * from "./tooltip";
 export * from "./alert";
 export * from "./alert-dialog";
+export * from "./table";

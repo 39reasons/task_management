@@ -7,6 +7,7 @@ import {
   ClipboardList,
   ListTodo,
   Gauge,
+  Users,
 } from "lucide-react";
 import { useQuery } from "@apollo/client";
 import { GET_PROJECT } from "../../graphql";
@@ -64,6 +65,11 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
           to: `/projects/${projectId}/sprints`,
           label: "Sprints",
           icon: Gauge,
+        },
+        {
+          to: `/projects/${projectId}/teams`,
+          label: "Teams",
+          icon: Users,
         },
       ] as Array<{
         to: string;

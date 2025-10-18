@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactElement } from "react";
 import Navbar from "./components/layout/Navbar";
 import Sidebar from "./components/layout/Sidebar";
 import { ProjectSidebar } from "./components/layout/ProjectSidebar";
@@ -13,6 +13,8 @@ import { ProjectInviteModal } from "./components/notifications/ProjectInviteModa
 import { HomePage } from "./pages/HomePage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import { ProjectHomePage } from "./pages/ProjectHomePage";
+import { ProjectTeamsPage } from "./pages/ProjectTeamsPage";
+import { ProjectTeamMembersPage } from "./pages/ProjectTeamMembersPage";
 import { ProjectWorkItemsPage } from "./pages/ProjectWorkItemsPage";
 import { ProjectBacklogPage } from "./pages/ProjectBacklogPage";
 import { ProjectSprintsPage } from "./pages/ProjectSprintsPage";
@@ -41,6 +43,16 @@ function AppContent() {
   const activeProjectId = projectMatch ? projectMatch[1] : null;
   const showProjectSidebar = !isAuthRoute && Boolean(activeProjectId);
   const showTeamSidebar = !isAuthRoute && !showProjectSidebar && !isHomeRoute;
+  const loadingFallback = (
+    <div className="p-6 text-muted-foreground">Confirming your session…</div>
+  );
+
+  const requireAuth = (element: ReactElement) => {
+    if (!authChecked) {
+      return loadingFallback;
+    }
+    return user ? element : <Navigate to="/signin" replace state={{ from: location.pathname }} />;
+  };
 
   const handleLogout = async () => {
     localStorage.removeItem("token");
@@ -112,7 +124,7 @@ function AppContent() {
                   <Route
                     path="/"
                     element={
-                      user ? (
+                      requireAuth(
                         <HomePage
                           user={user}
                           setSelectedTask={(task) => {
@@ -120,15 +132,13 @@ function AppContent() {
                             openModal("task");
                           }}
                         />
-                      ) : (
-                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
                       )
                     }
                   />
                   <Route
                     path="/projects/:id"
                     element={
-                      user ? (
+                      requireAuth(
                         <ProjectHomePage
                           user={user}
                           onInvite={(projectId) => {
@@ -136,15 +146,13 @@ function AppContent() {
                             openModal("invite");
                           }}
                         />
-                      ) : (
-                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
                       )
                     }
                   />
                   <Route
                     path="/projects/:id/board"
                     element={
-                      user ? (
+                      requireAuth(
                         <ProjectBoardPage
                           user={user}
                           setSelectedTask={(task) => {
@@ -156,8 +164,6 @@ function AppContent() {
                             openModal("invite");
                           }}
                         />
-                      ) : (
-                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
                       )
                     }
                   />
@@ -167,47 +173,39 @@ function AppContent() {
                   />
                   <Route
                     path="/projects/:id/work-items"
-                    element={<ProjectWorkItemsPage user={user} />}
+                    element={requireAuth(<ProjectWorkItemsPage user={user} />)}
                   />
                   <Route
                     path="/projects/:id/tasks/:taskId"
-                    element={<TaskDetailsPage user={user} />}
+                    element={requireAuth(<TaskDetailsPage user={user} />)}
                   />
                   <Route
                     path="/projects/:id/backlog"
                     element={
-                      <ProjectBacklogPage
-                        setSelectedTask={(task) => {
-                          setSelectedTask(task);
-                          openModal("task");
-                        }}
-                      />
+                      requireAuth(
+                        <ProjectBacklogPage
+                          setSelectedTask={(task) => {
+                            setSelectedTask(task);
+                            openModal("task");
+                          }}
+                        />
+                      )
                     }
                   />
                   <Route
                     path="/projects/:id/sprints"
-                    element={<ProjectSprintsPage />}
+                    element={requireAuth(<ProjectSprintsPage />)}
                   />
                   <Route
-                    path="/teams/:teamId"
-                    element={
-                      user ? (
-                        <TeamPage user={user} />
-                      ) : (
-                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
-                      )
-                    }
+                    path="/projects/:id/teams"
+                    element={requireAuth(<ProjectTeamsPage />)}
                   />
                   <Route
-                    path="/teams/:teamId/settings"
-                    element={
-                      user ? (
-                        <TeamSettingsPage user={user} />
-                      ) : (
-                        <Navigate to="/signin" replace state={{ from: location.pathname }} />
-                      )
-                    }
+                    path="/projects/:id/teams/:teamId"
+                    element={requireAuth(<ProjectTeamMembersPage />)}
                   />
+                  <Route path="/teams/:teamId" element={requireAuth(<TeamPage user={user} />)} />
+                  <Route path="/teams/:teamId/settings" element={requireAuth(<TeamSettingsPage user={user} />)} />
                   <Route
                     path="/settings"
                     element={
