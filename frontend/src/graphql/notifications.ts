@@ -13,7 +13,6 @@ export const GET_NOTIFICATIONS = gql`
       project {
         id
         name
-        team_id
       }
       sender {
         id
@@ -44,7 +43,6 @@ export const RESPOND_NOTIFICATION = gql`
       project {
         id
         name
-        team_id
       }
     }
   }
@@ -82,7 +80,6 @@ export const NOTIFICATION_EVENTS = gql`
         project {
           id
           name
-          team_id
         }
         sender {
           id

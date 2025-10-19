@@ -76,7 +76,7 @@ export function AssigneeDropdown({
                 >
                   {getInitials(assignee)}
                 </span>
-                <span className="flex min-w-0 flex-col leading-tight">
+                <span className="flex min-w-0 flex-col leading-tight text-left">
                   <span className="truncate text-xs font-semibold text-foreground">{assigneePrimaryLabel}</span>
                   {assigneeSecondaryLabel ? (
                     <span className="text-[10px] text-muted-foreground">{assigneeSecondaryLabel}</span>
@@ -156,7 +156,7 @@ export function AssigneeDropdown({
                         {getInitials(member)}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="flex flex-col leading-tight">
+                    <span className="flex flex-col leading-tight text-left">
                       <span className="text-sm font-medium text-foreground">{primaryLabel}</span>
                       {secondaryLabel ? (
                         <span className="text-xs text-muted-foreground">{secondaryLabel}</span>

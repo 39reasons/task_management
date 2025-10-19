@@ -33,16 +33,13 @@ export function useNotifications(enabled: boolean = true, _userId: string | null
   const [deleteNotificationMutation] = useMutation(DELETE_NOTIFICATION);
 
   const respond = async (id: string, accept: boolean) => {
-    const response = await respondMutation({
+    await respondMutation({
       variables: { id, accept },
       refetchQueries: [{ query: GET_NOTIFICATIONS }],
     });
 
     if (accept) {
-      const projectTeamId = response.data?.respondToNotification?.project?.team_id ?? null;
-      if (projectTeamId) {
-        await refetchTeams().catch(() => {});
-      }
+      await refetchTeams().catch(() => {});
     }
   };
 

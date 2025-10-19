@@ -219,7 +219,7 @@ interface TagEditDialogProps {
   buttonClassName?: string;
 }
 
-function TagEditDialog({ tag, onSubmit, isUpdating, buttonClassName }: TagEditDialogProps) {
+export function TagEditDialog({ tag, onSubmit, isUpdating, buttonClassName }: TagEditDialogProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [name, setName] = useState(tag.name);
   const [color, setColor] = useState<string | null>(tag.color ?? null);

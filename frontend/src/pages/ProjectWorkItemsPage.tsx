@@ -3,7 +3,18 @@ import { useQuery } from "@apollo/client";
 import { Link, useParams } from "react-router-dom";
 import { ArrowUpRight, CalendarDays } from "lucide-react";
 import type { AuthUser, Task, TaskStatus } from "@shared/types";
-import { Alert, AlertDescription, AlertTitle, Badge, Card, CardContent, CardHeader, CardTitle, Skeleton } from "../components/ui";
+
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+} from "../components/ui";
 import { GET_TASKS } from "../graphql";
 
 type TasksQueryResult = {

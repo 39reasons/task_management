@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery } from "@apollo/client";
+import { useQuery } from "@apollo/client";
 import type { Team } from "@shared/types";
-import { GET_PROJECT, REMOVE_TEAM_MEMBER } from "../graphql";
+import { GET_PROJECT } from "../graphql";
 import {
   Alert,
   AlertDescription,
@@ -32,12 +32,11 @@ interface ProjectWithTeamResult {
 export function ProjectTeamMembersPage() {
   const { id: projectId, teamId } = useParams<{ id: string; teamId: string }>();
   const navigate = useNavigate();
-  const { data, loading, error, refetch } = useQuery<ProjectWithTeamResult>(GET_PROJECT, {
+  const { data, loading, error } = useQuery<ProjectWithTeamResult>(GET_PROJECT, {
     variables: { id: projectId ?? "" },
     skip: !projectId,
     fetchPolicy: "network-only",
   });
-  const [removeTeamMemberMutation] = useMutation(REMOVE_TEAM_MEMBER);
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
 
   const toggleMemberSelection = (memberId: string, checked: boolean) => {
@@ -50,19 +49,6 @@ export function ProjectTeamMembersPage() {
       }
       return next;
     });
-  };
-
-  const removeSelectedMembers = async () => {
-    if (!teamId || selectedMemberIds.size === 0) return;
-    try {
-      await Promise.all(Array.from(selectedMemberIds).map((memberId) =>
-        removeTeamMemberMutation({ variables: { team_id: teamId, user_id: memberId } })
-      ));
-      setSelectedMemberIds(new Set());
-      await refetch();
-    } catch (error) {
-      console.error('Unable to remove team members', error);
-    }
   };
 
   const project = data?.project ?? null;

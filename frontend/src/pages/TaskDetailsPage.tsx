@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLazyQuery, useMutation, useQuery } from "@apollo/client";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Save, X } from "lucide-react";
 import type { AuthUser, Task, TaskStatus } from "@shared/types";
 
 import {
@@ -10,24 +10,36 @@ import {
   AlertTitle,
   Avatar,
   AvatarFallback,
-  Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   Skeleton,
+  Input,
+  Textarea,
 } from "../components/ui";
 import { AssigneeDropdown } from "../components/TaskModal/AssigneeDropdown";
-import type { ProjectMember } from "../components/TaskModal/types";
+import type { CommentWithUser, ProjectMember } from "../components/TaskModal/types";
 import { useAssigneePicker } from "../components/TaskModal/useAssigneePicker";
 import { TaskStatusDropdown } from "../components/tasks/TaskStatusDropdown";
+import { TaskCommentsPanel } from "../components/TaskModal/TaskCommentsPanel";
+import { TaskTagsAddButton, TagEditDialog } from "../components/TaskModal/TaskTagsList";
 import {
+  ADD_COMMENT,
+  ADD_TAG,
+  ASSIGN_TAG_TO_TASK,
+  DELETE_COMMENT,
+  GET_COMMENTS,
+  GET_PROJECT_TAGS,
   GET_PROJECT_MEMBERS,
   GET_TASK,
+  REMOVE_TAG_FROM_TASK,
   SEARCH_USERS,
   SET_TASK_ASSIGNEE,
+  UPDATE_COMMENT,
   UPDATE_TASK,
+  UPDATE_TAG,
 } from "../graphql";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
 import { getFullName, getInitials } from "../utils/user";
@@ -166,32 +178,121 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     [projectMembersData]
   );
 
+  const {
+    data: projectTagsData,
+    loading: isProjectTagsLoading,
+    refetch: refetchProjectTags,
+  } = useQuery(GET_PROJECT_TAGS, {
+    variables: projectId ? { project_id: projectId } : undefined,
+    skip: !projectId,
+  });
+
+  const availableTags = useMemo<Array<{ id: string; name: string; color: string | null }>>(
+    () => {
+      const tags = (projectTagsData?.tags ?? []) as Array<{ id: string; name: string | null; color: string | null }>;
+      return tags.map((tag) => ({
+        id: tag.id,
+        name: tag.name ?? "",
+        color: tag.color ?? null,
+      }));
+    },
+    [projectTagsData?.tags]
+  );
+
+  const {
+    data: commentsData,
+    loading: commentsLoading,
+    refetch: refetchComments,
+  } = useQuery(GET_COMMENTS, {
+    variables: taskId ? { task_id: taskId } : undefined,
+    skip: !taskId,
+  });
+
+  const comments = useMemo(
+    () => ((commentsData?.task?.comments ?? []) as CommentWithUser[]),
+    [commentsData?.task?.comments]
+  );
+
   const [searchUsers, { loading: isSearchingMembers }] = useLazyQuery(SEARCH_USERS, {
     fetchPolicy: "no-cache",
   });
 
+  const [stagedTitle, setStagedTitle] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
   const [stagedStatus, setStagedStatus] = useState<TaskStatus>("new");
   const [stagedAssignee, setStagedAssignee] = useState<Task["assignee"] | null>(null);
+  const [stagedDescription, setStagedDescription] = useState("");
+  const [stagedTags, setStagedTags] = useState<Array<{ id: string; name: string; color: string | null }>>([]);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [assigneeError, setAssigneeError] = useState<string | null>(null);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [tagsError, setTagsError] = useState<string | null>(null);
   const [isStatusUpdating, setIsStatusUpdating] = useState(false);
   const [isAssigneeUpdating, setIsAssigneeUpdating] = useState(false);
+  const [isDescriptionUpdating, setIsDescriptionUpdating] = useState(false);
+  const [isTagsUpdating, setIsTagsUpdating] = useState(false);
+  const [updatingTagId, setUpdatingTagId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [updatedByLabel, setUpdatedByLabel] = useState<string>("");
+  const [commentText, setCommentText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const titleSizerRef = useRef<HTMLSpanElement | null>(null);
+
+  const originalTagIdsSorted = useMemo(
+    () => (task?.tags ?? []).map((tag) => tag.id).sort(),
+    [task?.tags]
+  );
+
+  const stagedTagIdsSorted = useMemo(
+    () => stagedTags.map((tag) => tag.id).sort(),
+    [stagedTags]
+  );
 
   useEffect(() => {
     if (!task) {
+      setStagedTitle("");
+      setIsEditingTitle(false);
+      setTitleError(null);
       setStagedStatus("new");
       setStagedAssignee(null);
+      setStagedDescription("");
+      setStagedTags([]);
+      setIsEditingDescription(false);
       setStatusError(null);
       setAssigneeError(null);
-      return;
-    }
-    setStagedStatus((task.status ?? "new") as TaskStatus);
-    setStagedAssignee(task.assignee ?? null);
-    setStatusError(null);
-    setAssigneeError(null);
-  }, [task?.assignee, task?.id, task?.status]);
+      setDescriptionError(null);
+    setIsDescriptionUpdating(false);
+    setTagsError(null);
+    setIsTagsUpdating(false);
+    setUpdatingTagId(null);
+    setCommentText("");
+    setEditingCommentId(null);
+    setEditingCommentText("");
+    return;
+  }
+  setStagedStatus((task.status ?? "new") as TaskStatus);
+  setStagedTitle(task.title ?? "");
+  setIsEditingTitle(false);
+  setTitleError(null);
+  setStagedAssignee(task.assignee ?? null);
+  setStagedDescription(task.description ?? "");
+  setStagedTags((task.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color ?? null })));
+  setIsEditingDescription(false);
+  setStatusError(null);
+  setAssigneeError(null);
+  setDescriptionError(null);
+  setIsDescriptionUpdating(false);
+  setTagsError(null);
+  setIsTagsUpdating(false);
+  setUpdatingTagId(null);
+  setCommentText("");
+  setEditingCommentId(null);
+  setEditingCommentText("");
+}, [task?.assignee, task?.description, task?.id, task?.status, task?.tags, task?.title]);
 
   useEffect(() => {
     if (!task) {
@@ -203,8 +304,37 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     setUpdatedByLabel(buildUpdatedByLabel(label, timestamp));
   }, [task?.updated_at, task?.created_at, task?.id, user?.first_name, user?.last_name, user?.username]);
 
+  useEffect(() => {
+    if (isEditingTitle) {
+      const id = window.setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 0);
+      return () => window.clearTimeout(id);
+    }
+    return undefined;
+  }, [isEditingTitle]);
+
+  const updateTitleWidth = useCallback(() => {
+    if (!titleSizerRef.current || !titleInputRef.current) return;
+    const measuredWidth = titleSizerRef.current.offsetWidth;
+    const basePadding = 24;
+    const width = Math.max(measuredWidth + basePadding, 120);
+    titleInputRef.current.style.width = `${width}px`;
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    updateTitleWidth();
+  }, [updateTitleWidth, stagedTitle]);
+
   const [updateTaskMutation] = useMutation(UPDATE_TASK);
   const [setTaskAssigneeMutation] = useMutation(SET_TASK_ASSIGNEE);
+  const [assignTagToTaskMutation] = useMutation(ASSIGN_TAG_TO_TASK);
+  const [removeTagFromTaskMutation] = useMutation(REMOVE_TAG_FROM_TASK);
+  const [createTagMutation] = useMutation(ADD_TAG);
+  const [updateTagMutation] = useMutation(UPDATE_TAG);
+  const [addCommentMutation] = useMutation(ADD_COMMENT);
+  const [updateCommentMutation] = useMutation(UPDATE_COMMENT);
+  const [deleteCommentMutation] = useMutation(DELETE_COMMENT);
 
   const handleStatusChange = useCallback(
     (nextStatus: TaskStatus) => {
@@ -212,6 +342,66 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
       setStagedStatus(nextStatus);
     },
     []
+  );
+
+  const handleTitleChange = useCallback((value: string) => {
+    setStagedTitle(value);
+    if (value.trim().length > 0) {
+      setTitleError(null);
+    }
+  }, []);
+
+  const handleSubmitComment = useCallback(async () => {
+    if (!taskId) return;
+    const trimmed = commentText.trim();
+    if (!trimmed) return;
+    try {
+      await addCommentMutation({ variables: { task_id: taskId, content: trimmed } });
+      await refetchComments();
+      setCommentText("");
+    } catch (error) {
+      console.error("Failed to add comment", error);
+    }
+  }, [addCommentMutation, commentText, refetchComments, taskId]);
+
+  const handleStartEditComment = useCallback((commentId: string, content: string | null) => {
+    setEditingCommentId(commentId);
+    setEditingCommentText(content ?? "");
+  }, []);
+
+  const handleCancelCommentEdit = useCallback(() => {
+    setEditingCommentId(null);
+    setEditingCommentText("");
+  }, []);
+
+  const handleSubmitCommentEdit = useCallback(async () => {
+    if (!editingCommentId) return;
+    const trimmed = editingCommentText.trim();
+    if (!trimmed) return;
+    try {
+      await updateCommentMutation({ variables: { id: editingCommentId, content: trimmed } });
+      await refetchComments();
+      setEditingCommentId(null);
+      setEditingCommentText("");
+    } catch (error) {
+      console.error("Failed to update comment", error);
+    }
+  }, [editingCommentId, editingCommentText, refetchComments, updateCommentMutation]);
+
+  const handleDeleteComment = useCallback(
+    async (commentId: string) => {
+      try {
+        await deleteCommentMutation({ variables: { id: commentId } });
+        await refetchComments();
+        if (editingCommentId === commentId) {
+          setEditingCommentId(null);
+          setEditingCommentText("");
+        }
+      } catch (error) {
+        console.error("Failed to delete comment", error);
+      }
+    },
+    [deleteCommentMutation, editingCommentId, refetchComments]
   );
 
   const stageAssigneeById = useCallback(
@@ -252,6 +442,144 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     stageAssigneeById(null);
   }, [stageAssigneeById]);
 
+  const handleRemoveTag = useCallback((tagId: string) => {
+    setTagsError(null);
+    setStagedTags((previous) => previous.filter((tag) => tag.id !== tagId));
+  }, []);
+
+  const handleAddExistingTag = useCallback(
+    (tagId: string) => {
+      setTagsError(null);
+      setStagedTags((previous) => {
+        if (previous.some((tag) => tag.id === tagId)) {
+          return previous;
+        }
+        const matching = availableTags.find((candidate) => candidate.id === tagId);
+        if (!matching) {
+          return previous;
+        }
+        return [
+          ...previous,
+          {
+            id: matching.id,
+            name: matching.name,
+            color: matching.color ?? null,
+          },
+        ];
+      });
+    },
+    [availableTags]
+  );
+
+  const handleCreateTag = useCallback(
+    async ({ name, color }: { name: string; color: string }) => {
+      if (!projectId) {
+        const message = "Project context is missing";
+        setTagsError(message);
+        throw new Error(message);
+      }
+
+      const trimmedName = name.trim();
+      const trimmedColor = color.trim();
+
+      if (!trimmedName) {
+        const message = "Tag name is required";
+        setTagsError(message);
+        throw new Error(message);
+      }
+
+      setTagsError(null);
+
+      try {
+        const { data } = await createTagMutation({
+          variables: {
+            project_id: projectId,
+            name: trimmedName,
+            color: trimmedColor || null,
+          },
+        });
+
+        await refetchProjectTags().catch(() => undefined);
+
+        const createdTag = data?.addTag;
+        if (createdTag) {
+          setStagedTags((previous) => {
+            if (previous.some((tag) => tag.id === createdTag.id)) {
+              return previous;
+            }
+            return [
+              ...previous,
+              {
+                id: createdTag.id,
+                name: createdTag.name,
+                color: createdTag.color ?? null,
+              },
+            ];
+          });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to create tag";
+        setTagsError(message);
+        throw new Error(message);
+      }
+    },
+    [createTagMutation, projectId, refetchProjectTags]
+  );
+
+  const handleUpdateTag = useCallback(
+    async ({ id, name, color }: { id: string; name: string; color: string | null }) => {
+      const currentTag =
+        availableTags.find((candidate) => candidate.id === id) ??
+        stagedTags.find((candidate) => candidate.id === id) ??
+        null;
+      const trimmedNameInput = name.trim();
+      const resolvedName = trimmedNameInput || currentTag?.name?.trim() || "";
+      if (!resolvedName) {
+        const message = "Tag name is required";
+        setTagsError(message);
+        throw new Error(message);
+      }
+      const sanitizedColor = color?.trim() ?? "";
+
+      setTagsError(null);
+      setUpdatingTagId(id);
+      try {
+        const { data } = await updateTagMutation({
+          variables: {
+            id,
+            name: resolvedName,
+            color: sanitizedColor || null,
+          },
+        });
+
+        await refetchProjectTags().catch(() => undefined);
+
+        const updatedTag = data?.updateTag;
+        const nextName = updatedTag?.name?.trim() || resolvedName;
+        const nextColor = updatedTag?.color ?? (sanitizedColor || null);
+
+        setStagedTags((previous) =>
+          previous.map((existing) =>
+            existing.id === id
+              ? {
+                  id,
+                  name: nextName,
+                  color: nextColor,
+                }
+              : existing
+          )
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to update tag";
+        setTagsError(message);
+        throw new Error(message);
+      } finally {
+        setUpdatingTagId(null);
+      }
+    },
+    [availableTags, refetchProjectTags, stagedTags, updateTagMutation]
+  );
+
   const handleSearchMembers = useCallback(
     async (query: string) => {
       const trimmed = query.trim();
@@ -281,37 +609,98 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
   const handleSave = useCallback(async () => {
     if (!task || !user) return;
 
+    const currentTitleValue = (task.title ?? "").trim();
+    const trimmedTitle = stagedTitle.trim();
     const currentStatusValue = (task.status ?? "new") as TaskStatus;
     const currentAssigneeId = task.assignee?.id ?? null;
     const stagedAssigneeId = stagedAssignee?.id ?? null;
+    const normalizedCurrentDescription = (task.description ?? "").trim();
+    const normalizedStagedDescription = stagedDescription.trim();
+    const originalTagIds = (task.tags ?? []).map((tag) => tag.id);
+    const stagedTagIds = stagedTags.map((tag) => tag.id);
+    const originalTagIdSet = new Set(originalTagIds);
+    const stagedTagIdSet = new Set(stagedTagIds);
+    const tagsToAdd = stagedTagIds.filter((id) => !originalTagIdSet.has(id));
+    const tagsToRemove = originalTagIds.filter((id) => !stagedTagIdSet.has(id));
 
+    const titleChanged = trimmedTitle !== currentTitleValue;
     const statusChanged = stagedStatus !== currentStatusValue;
     const assigneeChanged = currentAssigneeId !== stagedAssigneeId;
+    const descriptionChanged = normalizedStagedDescription !== normalizedCurrentDescription;
+    const tagsChanged = tagsToAdd.length > 0 || tagsToRemove.length > 0;
 
-    if (!statusChanged && !assigneeChanged) {
+    if (titleChanged && trimmedTitle.length === 0) {
+      setTitleError("Title is required");
       return;
     }
 
+    if (!titleChanged && !statusChanged && !assigneeChanged && !descriptionChanged && !tagsChanged) {
+      return;
+    }
+
+    setTitleError(null);
     setStatusError(null);
     setAssigneeError(null);
+    setDescriptionError(null);
+    setTagsError(null);
     setIsSaving(true);
     setIsStatusUpdating(statusChanged);
     setIsAssigneeUpdating(assigneeChanged);
+    setIsDescriptionUpdating(descriptionChanged);
+    setIsTagsUpdating(tagsChanged);
 
+    let didUpdateTitle = false;
     let didUpdateStatus = false;
     let didUpdateAssignee = false;
+    let didUpdateDescription = false;
+    let didUpdateTags = false;
+    let tagOperationError: string | null = null;
 
-    if (statusChanged) {
+    if (titleChanged || statusChanged || descriptionChanged) {
       try {
+        const variables: {
+          id: string;
+          title?: string;
+          status?: TaskStatus;
+          description?: string | null;
+        } = { id: task.id };
+        if (titleChanged) {
+          variables.title = trimmedTitle;
+        }
+        if (statusChanged) {
+          variables.status = stagedStatus;
+        }
+        if (descriptionChanged) {
+          variables.description = normalizedStagedDescription;
+        }
         await updateTaskMutation({
-          variables: { id: task.id, status: stagedStatus },
+          variables,
         });
-        didUpdateStatus = true;
+        if (titleChanged) {
+          didUpdateTitle = true;
+          setIsEditingTitle(false);
+          setStagedTitle(trimmedTitle);
+        }
+        if (statusChanged) {
+          didUpdateStatus = true;
+        }
+        if (descriptionChanged) {
+          didUpdateDescription = true;
+          setIsEditingDescription(false);
+        }
       } catch (updateError) {
-        console.error("Failed to update task status", updateError);
-        setStatusError(
-          updateError instanceof Error ? updateError.message : "Failed to update status"
-        );
+        console.error("Failed to update task details", updateError);
+        const message =
+          updateError instanceof Error ? updateError.message : "Failed to update task";
+        if (titleChanged) {
+          setTitleError(message);
+        }
+        if (statusChanged) {
+          setStatusError(message);
+        }
+        if (descriptionChanged) {
+          setDescriptionError(message);
+        }
       }
     }
 
@@ -329,7 +718,42 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
       }
     }
 
-    const shouldRefetch = didUpdateStatus || didUpdateAssignee;
+    if (tagsChanged) {
+      for (const tagId of tagsToAdd) {
+        try {
+          await assignTagToTaskMutation({
+            variables: { task_id: task.id, tag_id: tagId },
+          });
+          didUpdateTags = true;
+        } catch (assignTagError) {
+          console.error("Failed to assign tag to task", assignTagError);
+          const message =
+            assignTagError instanceof Error ? assignTagError.message : "Failed to assign tag";
+          tagOperationError = message;
+        }
+      }
+
+      for (const tagId of tagsToRemove) {
+        try {
+          await removeTagFromTaskMutation({
+            variables: { task_id: task.id, tag_id: tagId },
+          });
+          didUpdateTags = true;
+        } catch (removeTagError) {
+          console.error("Failed to remove tag from task", removeTagError);
+          const message =
+            removeTagError instanceof Error ? removeTagError.message : "Failed to remove tag";
+          tagOperationError = message;
+        }
+      }
+
+      if (tagOperationError) {
+        setTagsError(tagOperationError);
+      }
+    }
+
+    const shouldRefetch =
+      didUpdateTitle || didUpdateStatus || didUpdateAssignee || didUpdateDescription || didUpdateTags;
 
     if (shouldRefetch) {
       const label = resolveUserLabel(user);
@@ -340,8 +764,22 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     setIsSaving(false);
     setIsStatusUpdating(false);
     setIsAssigneeUpdating(false);
-  }, [refetch, setTaskAssigneeMutation, stagedAssignee, stagedStatus, task, updateTaskMutation, user]);
-
+    setIsDescriptionUpdating(false);
+    setIsTagsUpdating(false);
+  }, [
+    assignTagToTaskMutation,
+    refetch,
+    removeTagFromTaskMutation,
+    setTaskAssigneeMutation,
+    stagedAssignee,
+    stagedDescription,
+    stagedTags,
+    stagedStatus,
+    stagedTitle,
+    task,
+    updateTaskMutation,
+    user,
+  ]);
   const {
     isOpen: isAssigneeMenuOpen,
     setIsOpen: setIsAssigneeMenuOpen,
@@ -379,18 +817,52 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
 
   const sprintLabel = task?.sprint?.name ?? "Not added to a sprint";
   const dueDateLabel = formatDate(task?.due_date);
-  const updatedLabel = formatDate(task?.updated_at ?? task?.created_at);
 
-  const tags = task?.tags ?? [];
-  const hasTags = tags.length > 0;
+  const hasTags = stagedTags.length > 0;
   const currentAssignee = task?.assignee ?? null;
   const currentStatus = (task?.status ?? "new") as TaskStatus;
   const stagedAssigneeId = stagedAssignee?.id ?? null;
   const currentAssigneeId = currentAssignee?.id ?? null;
+  const normalizedStagedTitle = stagedTitle.trim();
+  const normalizedTaskTitle = (task?.title ?? "").trim();
+  const hasTitleChanged = task
+    ? normalizedStagedTitle !== normalizedTaskTitle
+    : normalizedStagedTitle.length > 0;
   const hasStatusChanged = task ? stagedStatus !== currentStatus : false;
   const hasAssigneeChanged = task ? currentAssigneeId !== stagedAssigneeId : false;
-  const hasUnsavedChanges = hasStatusChanged || hasAssigneeChanged;
+  const normalizedStagedDescription = stagedDescription.trim();
+  const normalizedTaskDescription = (task?.description ?? "").trim();
+  const hasDescriptionChanged = task ? normalizedStagedDescription !== normalizedTaskDescription : false;
+  const hasTagsChanged = task
+    ? stagedTagIdsSorted.length !== originalTagIdsSorted.length ||
+      stagedTagIdsSorted.some((id, index) => id !== originalTagIdsSorted[index])
+    : stagedTagIdsSorted.length > 0;
+  const hasUnsavedChanges =
+    hasTitleChanged || hasStatusChanged || hasAssigneeChanged || hasDescriptionChanged || hasTagsChanged;
   const isSaveDisabled = !task || !hasUnsavedChanges || isSaving;
+  const addTagTrigger = hasTags ? (
+    <Button
+      type="button"
+      size="icon"
+      variant="ghost"
+      disabled={!task || isSaving || isTagsUpdating}
+      className="h-7 w-7 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
+      aria-label="Add tag"
+    >
+      <Plus size={14} />
+    </Button>
+  ) : (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={!task || isSaving || isTagsUpdating}
+      className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
+    >
+      <Plus className="h-3.5 w-3.5" />
+      Add tag
+    </Button>
+  );
 
   return (
     <div className="space-y-6">
@@ -429,11 +901,116 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
           <div className="rounded-xl border border-border/70 bg-[hsl(var(--card))] p-6 shadow-sm">
             <div className="flex flex-col gap-6">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-1">
+                <div className="space-y-3">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Work item</p>
-                  <CardTitle className="text-3xl font-semibold leading-tight text-foreground">{task.title}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-3 md:gap-4">
+                    <div className="relative flex items-center">
+                      <span
+                        className="pointer-events-none invisible absolute whitespace-pre text-3xl font-semibold leading-tight"
+                        ref={(element) => {
+                          titleSizerRef.current = element;
+                        }}
+                      >
+                        {stagedTitle || "Add a title..."}
+                      </span>
+                      {isEditingTitle ? (
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-y-0 left-0 flex h-full w-[1.25rem] items-center justify-center rounded-l-md border border-border bg-[hsl(var(--card))]"
+                        />
+                      ) : null}
+                      <Input
+                        ref={titleInputRef}
+                        value={stagedTitle}
+                        readOnly={!isEditingTitle}
+                        onClick={() => {
+                          if (!isEditingTitle) {
+                            setIsEditingTitle(true);
+                            setTitleError(null);
+                          }
+                        }}
+                        onChange={(event) => handleTitleChange(event.target.value)}
+                        onBlur={() => setIsEditingTitle(false)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            void handleSave();
+                          } else if (event.key === "Escape") {
+                            event.preventDefault();
+                            setIsEditingTitle(false);
+                            setStagedTitle(task.title ?? "");
+                            setTitleError(null);
+                          }
+                        }}
+                        disabled={isEditingTitle && isSaving}
+                        aria-invalid={titleError ? "true" : "false"}
+                        className={
+                          isEditingTitle
+                            ? "relative z-10 h-11 min-w-[7.5rem] rounded-md border border-border bg-transparent pl-2 pr-1 text-left text-3xl font-semibold leading-tight text-foreground shadow-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                            : "relative z-10 h-11 min-w-[7.5rem] rounded-md border border-transparent bg-transparent pl-2 pr-1 text-left text-3xl font-semibold leading-tight text-foreground cursor-text"
+                        }
+                        style={{ width: "auto" }}
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                      {hasTags
+                        ? stagedTags.map((tag) => {
+                          const hasColor = Boolean(tag.color);
+                          const isUpdatingCurrentTag = updatingTagId === tag.id;
+                          const isToolbarForcedVisible = isTagsUpdating || isUpdatingCurrentTag;
+                          return (
+                            <div key={tag.id} className="group relative flex items-center pr-2">
+                              <div
+                                className={`flex min-h-[30px] items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide shadow-sm ${
+                                  hasColor
+                                    ? "border border-transparent text-primary-foreground"
+                                    : "border border-border/60 bg-muted/20 text-foreground"
+                                }`}
+                                style={hasColor ? { backgroundColor: tag.color ?? undefined } : undefined}
+                              >
+                                <span className="truncate">{tag.name}</span>
+                              </div>
+                              <div
+                                className={`pointer-events-none absolute right-0 top-0 flex -translate-y-1/2 -translate-x-2 items-center gap-[1px] rounded-sm border border-border/60 bg-[hsl(var(--card))] px-[2px] py-0 text-[10px] shadow-sm opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 z-10${
+                                  isToolbarForcedVisible ? " pointer-events-auto opacity-100" : ""
+                                }`}
+                              >
+                                <TagEditDialog
+                                  tag={tag}
+                                  isUpdating={isUpdatingCurrentTag || isTagsUpdating}
+                                  onSubmit={handleUpdateTag}
+                                  buttonClassName="pointer-events-auto"
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => handleRemoveTag(tag.id)}
+                                  disabled={!task || isSaving || isTagsUpdating || isUpdatingCurrentTag}
+                                  className="pointer-events-auto h-[14px] w-[14px] rounded-sm border border-transparent text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                                  aria-label={`Remove ${tag.name}`}
+                                >
+                                  <X size={9} strokeWidth={2} />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })
+                        : null}
+                      <TaskTagsAddButton
+                        tags={stagedTags}
+                        availableTags={availableTags}
+                        loadingAvailableTags={isProjectTagsLoading}
+                        onAddTag={handleAddExistingTag}
+                        onCreateTag={handleCreateTag}
+                        trigger={addTagTrigger}
+                      />
+                    </div>
+                  </div>
+                  {titleError ? <p className="text-xs text-destructive">{titleError}</p> : null}
+                  {tagsError ? <p className="text-xs text-destructive">{tagsError}</p> : null}
                 </div>
-                <div className="lg:-mt-12">
+                <div className="lg:-mt-10">
                   <Button
                     type="button"
                     size="sm"
@@ -479,25 +1056,6 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                   />
                   {assigneeError ? <span className="text-xs text-destructive">{assigneeError}</span> : null}
                 </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tags</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {hasTags ? (
-                      tags.map((tag) => (
-                        <Badge
-                          key={tag.id}
-                          variant="outline"
-                          className="border border-border px-2 py-0.5 text-[11px] font-medium"
-                          style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
-                        >
-                          {tag.name}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">None</span>
-                    )}
-                  </div>
-                </div>
                 {updatedByLabel ? (
                   <div className="ml-auto mt-6 flex text-right lg:mt-10">
                     <p className="text-xs text-muted-foreground">{updatedByLabel}</p>
@@ -510,18 +1068,84 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
             <div className="space-y-6">
               <Card className="border border-border/60">
-                <CardHeader>
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle className="text-base font-semibold text-foreground">Description</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {task.description?.trim() ? (
-                    <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
-                      <p>{task.description}</p>
+                  {isEditingDescription ? (
+                    <div className="space-y-3">
+                      <Textarea
+                        value={stagedDescription}
+                        onChange={(event) => setStagedDescription(event.target.value)}
+                        placeholder="Add background context, goals, or implementation notes for this work item."
+                        className="min-h-[160px] resize-y"
+                        disabled={isSaving}
+                      />
+                      {descriptionError ? (
+                        <p className="text-sm text-destructive">{descriptionError}</p>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          onClick={() => void handleSave()}
+                          disabled={!task || isSaving || isDescriptionUpdating || !hasDescriptionChanged}
+                          className="inline-flex items-center gap-2"
+                        >
+                          {isDescriptionUpdating || isSaving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Saving…
+                            </>
+                          ) : (
+                            "Save"
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            setIsEditingDescription(false);
+                            setStagedDescription(task?.description ?? "");
+                            setDescriptionError(null);
+                          }}
+                          disabled={isSaving}
+                          className="border border-border/70 text-muted-foreground hover:border-border hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-sm italic text-muted-foreground">
-                      Add background context, goals, or implementation notes for this work item.
-                    </p>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="rounded-lg border border-transparent px-4 py-3 transition-colors hover:border-primary/40"
+                      onClick={() => {
+                        if (!task) return;
+                        setIsEditingDescription(true);
+                        setStagedDescription(task.description ?? "");
+                        setDescriptionError(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          if (!task) return;
+                          setIsEditingDescription(true);
+                          setStagedDescription(task.description ?? "");
+                          setDescriptionError(null);
+                        }
+                      }}
+                    >
+                      {task?.description?.trim() ? (
+                        <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                          {task.description}
+                        </div>
+                      ) : (
+                        <p className="text-sm italic text-muted-foreground">
+                          Add background context, goals, or implementation notes for this work item.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -542,10 +1166,21 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                   <CardTitle className="text-base font-semibold text-foreground">Discussion</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Conversation history will appear here. Collaborate with teammates directly from the task board while
-                    we finish building inline comments for this view.
-                  </p>
+                  <TaskCommentsPanel
+                    comments={comments}
+                    loading={commentsLoading}
+                    commentText={commentText}
+                    onCommentTextChange={setCommentText}
+                    onSubmitComment={handleSubmitComment}
+                    editingCommentId={editingCommentId}
+                    editingCommentText={editingCommentText}
+                    onEditCommentTextChange={setEditingCommentText}
+                    onStartEditComment={handleStartEditComment}
+                    onCancelEditComment={handleCancelCommentEdit}
+                    onSubmitEditComment={handleSubmitCommentEdit}
+                    onDeleteComment={handleDeleteComment}
+                    currentUserId={user?.id ?? null}
+                  />
                 </CardContent>
               </Card>
             </div>
@@ -626,17 +1261,6 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                 </CardContent>
               </Card>
 
-              <Card className="border border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold text-foreground">Deployment</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Connect your release pipeline to surface deployment status directly alongside the task once the
-                    integration is enabled.
-                  </p>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </div>

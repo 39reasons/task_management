@@ -714,12 +714,19 @@ export async function updateTask(
 
   const sanitizedStatus = status === undefined ? null : sanitizeTaskStatus(status);
 
+  const normalizedDescription = (() => {
+    if (description === undefined) return existing.description ?? null;
+    if (description === null) return null;
+    const trimmed = description.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  })();
+
   const result = await query<{ id: string }>(
     `
       UPDATE tasks
       SET
         title = COALESCE($2, title),
-        description = COALESCE($3, description),
+        description = $3,
         due_date = COALESCE($4::DATE, due_date),
         priority = COALESCE($5, priority),
         estimate = COALESCE($6, estimate),
@@ -735,7 +742,7 @@ export async function updateTask(
     [
       id,
       title ?? null,
-      description ?? null,
+      normalizedDescription,
       normalizeDate(due_date),
       priority ?? null,
       estimate ?? null,
