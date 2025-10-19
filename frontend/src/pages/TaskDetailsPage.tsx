@@ -48,6 +48,9 @@ import { getWorkItemIconMeta } from "../constants/workItemVisuals";
 import { getFullName, getInitials } from "../utils/user";
 import { CREATE_WORK_ITEM } from "../graphql/workItems";
 import { GET_PROJECT } from "../graphql/projects";
+import { formatDate, formatRelativeTimeFromNow } from "../utils/date";
+import { getPriorityLabel, resolveWorkItemLink } from "../utils/workItem";
+import { useCommentEditor } from "../hooks/useCommentEditor";
 
 type TaskQueryResult = {
   task: Task | null;
@@ -62,31 +65,6 @@ type ProjectQueryResult = {
     }>;
   } | null;
 };
-
-function formatDate(value?: string | null): string {
-  if (!value) return "Not set";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(value));
-  } catch {
-    return "Not set";
-  }
-}
-
-function getPriorityLabel(priority?: Task["priority"] | null): string {
-  if (!priority) return "None";
-  return priority.charAt(0).toUpperCase() + priority.slice(1);
-}
-
-function resolveWorkItemLink(projectId: string, itemId: string, type: WorkItemType): string {
-  if (type === "TASK" || type === "BUG") {
-    return `/projects/${projectId}/tasks/${itemId}`;
-  }
-  return `/projects/${projectId}/work-items/${itemId}`;
-}
 
 function TaskDetailsSkeleton() {
   return (
@@ -116,43 +94,6 @@ function TaskDetailsSkeleton() {
       </Card>
     </div>
   );
-}
-
-function formatRelativeTimeFromNow(timestamp?: string | null): string {
-  if (!timestamp) return "just now";
-  const parsed = new Date(timestamp);
-  const now = Date.now();
-  if (Number.isNaN(parsed.getTime())) {
-    return "just now";
-  }
-  const diffSeconds = Math.max(0, Math.floor((now - parsed.getTime()) / 1000));
-  if (diffSeconds < 5) return "just now";
-  if (diffSeconds < 60) {
-    const seconds = diffSeconds;
-    return `${seconds} second${seconds === 1 ? "" : "s"} ago`;
-  }
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) {
-    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
-  }
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) {
-    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-  }
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) {
-    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-  }
-  const diffWeeks = Math.floor(diffDays / 7);
-  if (diffWeeks < 5) {
-    return `${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`;
-  }
-  const diffMonths = Math.floor(diffDays / 30);
-  if (diffMonths < 12) {
-    return `${diffMonths} month${diffMonths === 1 ? "" : "s"} ago`;
-  }
-  const diffYears = Math.floor(diffDays / 365);
-  return `${diffYears} year${diffYears === 1 ? "" : "s"} ago`;
 }
 
 function resolveUserLabel(user: AuthUser | null): string {
@@ -311,9 +252,6 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
   const [updatingTagId, setUpdatingTagId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [updatedByLabel, setUpdatedByLabel] = useState<string>("");
-  const [commentText, setCommentText] = useState("");
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentText, setEditingCommentText] = useState("");
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const titleSizerRef = useRef<HTMLSpanElement | null>(null);
 
@@ -340,34 +278,35 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
       setStatusError(null);
       setAssigneeError(null);
       setDescriptionError(null);
+      setIsDescriptionUpdating(false);
+      setTagsError(null);
+      setIsTagsUpdating(false);
+      setUpdatingTagId(null);
+      setCommentText("");
+      cancelEditComment();
+      return;
+    }
+
+    setStagedStatus((task.status ?? "new") as TaskStatus);
+    setStagedTitle(task.title ?? "");
+    setIsEditingTitle(false);
+    setTitleError(null);
+    setStagedAssignee(task.assignee ?? null);
+    setStagedDescription(task.description ?? "");
+    setStagedTags(
+      (task.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color ?? null }))
+    );
+    setIsEditingDescription(false);
+    setStatusError(null);
+    setAssigneeError(null);
+    setDescriptionError(null);
     setIsDescriptionUpdating(false);
     setTagsError(null);
     setIsTagsUpdating(false);
     setUpdatingTagId(null);
     setCommentText("");
-    setEditingCommentId(null);
-    setEditingCommentText("");
-    return;
-  }
-  setStagedStatus((task.status ?? "new") as TaskStatus);
-  setStagedTitle(task.title ?? "");
-  setIsEditingTitle(false);
-  setTitleError(null);
-  setStagedAssignee(task.assignee ?? null);
-  setStagedDescription(task.description ?? "");
-  setStagedTags((task.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color ?? null })));
-  setIsEditingDescription(false);
-  setStatusError(null);
-  setAssigneeError(null);
-  setDescriptionError(null);
-  setIsDescriptionUpdating(false);
-  setTagsError(null);
-  setIsTagsUpdating(false);
-  setUpdatingTagId(null);
-  setCommentText("");
-  setEditingCommentId(null);
-  setEditingCommentText("");
-}, [defaultTemplateTitle, task?.assignee, task?.description, task?.id, task?.status, task?.tags, task?.title]);
+    cancelEditComment();
+  }, [cancelEditComment, defaultTemplateTitle, setCommentText, task]);
 
   useEffect(() => {
     if (!task) {
@@ -428,58 +367,38 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     }
   }, []);
 
-  const handleSubmitComment = useCallback(async () => {
-    if (!taskId) return;
-    const trimmed = commentText.trim();
-    if (!trimmed) return;
-    try {
-      await addCommentMutation({ variables: { task_id: taskId, content: trimmed } });
+  const {
+    commentText,
+    setCommentText,
+    editingCommentId,
+    editingCommentText,
+    setEditingCommentText,
+    startEditComment,
+    cancelEditComment,
+    submitNewComment,
+    submitEditComment,
+    deleteComment: deleteCommentById,
+  } = useCommentEditor({
+    async onAdd(content) {
+      if (!taskId) return;
+      await addCommentMutation({ variables: { task_id: taskId, content } });
       await refetchComments();
-      setCommentText("");
-    } catch (error) {
-      console.error("Failed to add comment", error);
-    }
-  }, [addCommentMutation, commentText, refetchComments, taskId]);
-
-  const handleStartEditComment = useCallback((commentId: string, content: string | null) => {
-    setEditingCommentId(commentId);
-    setEditingCommentText(content ?? "");
-  }, []);
-
-  const handleCancelCommentEdit = useCallback(() => {
-    setEditingCommentId(null);
-    setEditingCommentText("");
-  }, []);
-
-  const handleSubmitCommentEdit = useCallback(async () => {
-    if (!editingCommentId) return;
-    const trimmed = editingCommentText.trim();
-    if (!trimmed) return;
-    try {
-      await updateCommentMutation({ variables: { id: editingCommentId, content: trimmed } });
-      await refetchComments();
-      setEditingCommentId(null);
-      setEditingCommentText("");
-    } catch (error) {
-      console.error("Failed to update comment", error);
-    }
-  }, [editingCommentId, editingCommentText, refetchComments, updateCommentMutation]);
-
-  const handleDeleteComment = useCallback(
-    async (commentId: string) => {
-      try {
-        await deleteCommentMutation({ variables: { id: commentId } });
-        await refetchComments();
-        if (editingCommentId === commentId) {
-          setEditingCommentId(null);
-          setEditingCommentText("");
-        }
-      } catch (error) {
-        console.error("Failed to delete comment", error);
-      }
     },
-    [deleteCommentMutation, editingCommentId, refetchComments]
-  );
+    async onUpdate(commentId, content) {
+      await updateCommentMutation({ variables: { id: commentId, content } });
+      await refetchComments();
+    },
+    async onDelete(commentId) {
+      await deleteCommentMutation({ variables: { id: commentId } });
+      await refetchComments();
+    },
+  });
+
+  const handleSubmitComment = submitNewComment;
+  const handleStartEditComment = startEditComment;
+  const handleCancelCommentEdit = cancelEditComment;
+  const handleSubmitCommentEdit = submitEditComment;
+  const handleDeleteComment = deleteCommentById;
 
   const stageAssigneeById = useCallback(
     (memberId: string | null) => {
