@@ -3,18 +3,18 @@ import type { Comment } from "../../../shared/types.js";
 import { getTaskById } from "./TaskService.js";
 
 export async function addComment(
-  task_id: string,
+  work_item_id: string,
   userId: string,
   content: string,
   options?: { origin?: string | null }
 ): Promise<Comment> {
   const result = await query<Comment>(
     `
-    INSERT INTO comments (task_id, user_id, content)
+    INSERT INTO comments (work_item_id, user_id, content)
     VALUES ($1, $2, $3)
     RETURNING 
       id,
-      task_id,
+      work_item_id,
       user_id,
       content,
       created_at,
@@ -31,9 +31,11 @@ export async function addComment(
         WHERE u.id = $2
       ) AS user
     `,
-    [task_id, userId, content]
+    [work_item_id, userId, content]
   );
-  return result.rows[0] as Comment;
+  const comment = result.rows[0] as Comment;
+  (comment as unknown as { task_id?: string }).task_id = comment.work_item_id;
+  return comment;
 }
 
 export async function getCommentsByTask(task_id: string): Promise<Comment[]> {
@@ -41,7 +43,7 @@ export async function getCommentsByTask(task_id: string): Promise<Comment[]> {
     `
     SELECT 
       c.id,
-      c.task_id,
+      c.work_item_id,
       c.user_id,
       c.content,
       c.created_at,
@@ -55,12 +57,16 @@ export async function getCommentsByTask(task_id: string): Promise<Comment[]> {
       ) AS user
     FROM comments c
     JOIN users u ON u.id = c.user_id
-    WHERE c.task_id = $1
+    WHERE c.work_item_id = $1
     ORDER BY c.created_at ASC
     `,
     [task_id]
   );
-  return result.rows as Comment[];
+  const comments = result.rows as Comment[];
+  for (const comment of comments as Array<Comment & { task_id?: string }>) {
+    comment.task_id = comment.work_item_id;
+  }
+  return comments;
 }
 
 export async function deleteComment(
@@ -69,7 +75,7 @@ export async function deleteComment(
   options?: { origin?: string | null }
 ): Promise<boolean> {
   const result = await query<{ id: string; task_id: string }>(
-    "DELETE FROM comments WHERE id = $1 AND user_id = $2 RETURNING id, task_id",
+    "DELETE FROM comments WHERE id = $1 AND user_id = $2 RETURNING id, work_item_id AS task_id",
     [id, userId]
   );
   return (result.rowCount ?? 0) > 0;
@@ -89,7 +95,7 @@ export async function updateComment(
     WHERE id = $1 AND user_id = $2
     RETURNING 
       id,
-      task_id,
+      work_item_id,
       user_id,
       content,
       created_at,
@@ -113,5 +119,6 @@ export async function updateComment(
   if (!updated) {
     throw new Error("Comment not found or not authorized");
   }
+  (updated as unknown as { task_id?: string }).task_id = (updated as unknown as { work_item_id: string }).work_item_id;
   return updated as Comment;
 }

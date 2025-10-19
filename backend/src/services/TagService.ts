@@ -33,8 +33,8 @@ export async function getTagsForTask(task_id: string) {
     `
     SELECT t.id, t.name, t.color
     FROM tags t
-    JOIN task_tags tt ON tt.tag_id = t.id
-    WHERE tt.task_id = $1
+    JOIN work_item_tags tt ON tt.tag_id = t.id
+    WHERE tt.work_item_id = $1
     ORDER BY t.name ASC
     `,
     [task_id]
@@ -64,7 +64,7 @@ export async function addTagToTask(
 
   await query(
     `
-    INSERT INTO task_tags (task_id, tag_id)
+    INSERT INTO work_item_tags (work_item_id, tag_id)
     VALUES ($1, $2)
     ON CONFLICT DO NOTHING
     `,
@@ -77,7 +77,7 @@ export async function addTagToTask(
 export async function assignTagToTask(task_id: string, tag_id: string) {
   await query(
     `
-    INSERT INTO task_tags (task_id, tag_id)
+    INSERT INTO work_item_tags (work_item_id, tag_id)
     VALUES ($1, $2)
     ON CONFLICT DO NOTHING
     `,
@@ -94,8 +94,8 @@ export async function assignTagToTask(task_id: string, tag_id: string) {
 export async function removeTagFromTask(task_id: string, tag_id: string) {
   await query(
     `
-    DELETE FROM task_tags
-    WHERE task_id = $1 AND tag_id = $2
+    DELETE FROM work_item_tags
+    WHERE work_item_id = $1 AND tag_id = $2
     `,
     [task_id, tag_id]
   );

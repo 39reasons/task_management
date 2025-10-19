@@ -1,7 +1,66 @@
 export type TaskStatus = "new" | "active" | "closed";
+export type WorkItemType = "EPIC" | "FEATURE" | "STORY" | "TASK" | "BUG";
+export type TaskKind = "GENERAL" | "BUG" | "ISSUE";
+
+export interface BugTaskDetails {
+  severity?: "low" | "medium" | "high" | "critical" | null;
+  is_regression?: boolean | null;
+  environment?: string | null;
+  steps_to_reproduce?: string | null;
+  impact_summary?: string | null;
+  reported_version?: string | null;
+}
+
+export interface IssueTaskDetails {
+  issue_type?: string | null;
+  source?: string | null;
+  external_reference?: string | null;
+  reported_by?: string | null;
+  contact_channel?: string | null;
+  impact_summary?: string | null;
+}
+
+export interface WorkItemComment {
+  id: string;
+  work_item_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user: User;
+}
+
+export interface WorkItem {
+  id: string;
+  type: WorkItemType;
+  task_kind?: TaskKind | null;
+  title: string;
+  description?: string | null;
+  status: TaskStatus;
+  priority?: string | null;
+  estimate?: number | null;
+  due_date?: string | null;
+  position?: number | null;
+  project_id: string;
+  team_id: string;
+  stage_id?: string | null;
+  backlog_id?: string | null;
+  sprint_id?: string | null;
+  assignee_id?: string | null;
+  assignee?: User | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  parent_id?: string | null;
+  parent?: WorkItem | null;
+  children?: WorkItem[];
+  tags?: Tag[];
+  comments?: WorkItemComment[];
+  task?: Task | null;
+}
 
 export interface Task {
   id: string;
+  type?: WorkItemType;
   title: string;
   description?: string | null;
   due_date?: string | null;
@@ -22,6 +81,11 @@ export interface Task {
   created_at?: string;
   updated_at?: string;
   history?: TaskHistoryEvent[];
+  task_kind?: TaskKind;
+  parent_id?: string | null;
+  children?: WorkItem[];
+  bug_details?: BugTaskDetails | null;
+  issue_details?: IssueTaskDetails | null;
 }
 
 export interface TaskDraftSuggestion {
@@ -45,6 +109,7 @@ export interface TaskHistoryEvent {
   payload: TaskHistoryEventPayload | null;
   created_at: string;
   task_id?: string;
+  work_item_id?: string;
   project_id?: string;
   team_id?: string;
   actor_id?: string | null;
@@ -158,7 +223,8 @@ export interface Comment {
   content: string;
   created_at: string;
   updated_at: string;
-  task_id: string;
+  work_item_id: string;
+  task_id?: string;
   user: {
     id: string;
     username: string;

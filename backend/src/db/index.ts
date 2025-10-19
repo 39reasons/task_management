@@ -1,4 +1,4 @@
-import { Pool, QueryResult, QueryResultRow } from "pg";
+import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 import "dotenv/config";
 
 const connectionString = process.env.DATABASE_URL;
@@ -22,5 +22,26 @@ export async function query<T extends QueryResultRow>(
   } catch (err) {
     console.error("Database query error:", { text, params, err });
     throw err;
+  }
+}
+
+export async function withTransaction<T>(
+  handler: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await handler(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      console.error("Transaction rollback failed:", rollbackError);
+    }
+    throw error;
+  } finally {
+    client.release();
   }
 }

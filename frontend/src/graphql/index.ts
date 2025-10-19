@@ -9,3 +9,4 @@ export * from "./notifications";
 export * from "./teams";
 
 export * from "./backlogs";
+export * from "./workItems";

@@ -9,9 +9,11 @@ import { notificationResolvers } from "./notificationResolvers.js";
 import { teamResolvers } from "./teamResolvers.js";
 import { backlogResolvers } from "./backlogResolvers.js";
 import { sprintResolvers } from "./sprintResolvers.js";
+import { workItemResolvers } from "./workItemResolvers.js";
 
 export const resolvers = [
   scalarResolvers,
+  workItemResolvers,
   taskResolvers,
   projectResolvers,
   userResolvers,

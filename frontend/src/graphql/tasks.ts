@@ -3,12 +3,14 @@ import { gql } from "@apollo/client";
 export const TASK_FRAGMENT = gql`
   fragment TaskModalTaskFields on Task {
     id
+    type
     title
     description
     due_date
     priority
     estimate
     status
+    task_kind
     stage_id
     backlog_id
     sprint_id
@@ -44,6 +46,19 @@ export const TASK_FRAGMENT = gql`
       color
       __typename
     }
+    parent_id
+    parent {
+      id
+      type
+      title
+      __typename
+    }
+    children {
+      id
+      type
+      title
+      __typename
+    }
     created_at
     updated_at
     __typename
@@ -74,6 +89,8 @@ export const GET_TASKS = gql`
       priority
       estimate
       status
+      type
+      task_kind
       stage_id
       backlog_id
       sprint_id
@@ -106,6 +123,17 @@ export const GET_TASKS = gql`
         id
         name
         color
+      }
+      parent_id
+      parent {
+        id
+        type
+        title
+      }
+      children {
+        id
+        type
+        title
       }
     }
   }

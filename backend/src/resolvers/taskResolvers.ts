@@ -3,6 +3,7 @@ import * as CommentService from "../services/CommentService.js";
 import * as StageService from "../services/StageService.js";
 import * as SprintService from "../services/SprintService.js";
 import * as AIService from "../services/AIService.js";
+import * as WorkItemService from "../services/WorkItemService.js";
 import type { Task, TaskDraftSuggestion } from "../../../shared/types.js";
 import type { GraphQLContext } from "../types/context";
 
@@ -250,5 +251,15 @@ export const taskResolvers = {
     assignee: (parent: Task) => TaskService.getTaskAssignee(parent),
     history: (parent: Task, args: { limit?: number }) =>
       TaskService.getTaskHistory(parent.id, args?.limit ?? 50),
+    parent_id: (parent: Task) => parent.parent_id ?? null,
+    parent: async (parent: Task) => {
+      if (parent.parent_id) {
+        return await WorkItemService.getWorkItemById(parent.parent_id);
+      }
+      return await WorkItemService.getWorkItemParent(parent.id);
+    },
+    children: (parent: Task) => WorkItemService.getWorkItemChildren(parent.id),
+    bug_details: () => null,
+    issue_details: () => null,
   },
 };

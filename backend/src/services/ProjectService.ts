@@ -1,4 +1,4 @@
-import type { Project, Task, TeamRole, User } from "../../../shared/types.js";
+import type { Project, Task, TeamRole, User, WorkItemType, TaskKind } from "../../../shared/types.js";
 import { DEFAULT_BOARD_WORKFLOW_TYPE } from "../../../shared/types.js";
 import { query } from "../db/index.js";
 
@@ -280,35 +280,50 @@ export async function getProjects(user_id: string): Promise<Project[]> {
 export async function getProjectById(id: string, user_id: string): Promise<Project> {
   const { row, viewer_role } = await assertProjectAccess(id, user_id);
 
-  const taskRes = await query<
-    Task & {
-      team_id: string;
-      backlog_id: string | null;
-      sprint_id: string | null;
-      estimate: number | null;
-    }
-  >(
+  const taskRes = await query<{
+    id: string;
+    type: WorkItemType;
+    task_kind: TaskKind | null;
+    title: string;
+    description: string | null;
+    due_date: string | null;
+    priority: string | null;
+    estimate: number | null;
+    status: string;
+    stage_id: string | null;
+    backlog_id: string | null;
+    sprint_id: string | null;
+    project_id: string;
+    team_id: string;
+    position: number | null;
+    assignee_id: string | null;
+    created_at: Date | string | null;
+    updated_at: Date | string | null;
+  }>(
     `
     SELECT
-      t.id,
-      t.title,
-      t.description,
-      to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
-      t.priority,
-      t.estimate,
-      t.status,
-      t.stage_id,
-      t.backlog_id,
-      t.sprint_id,
-      t.project_id,
-      t.team_id,
-      t.position,
-      t.assignee_id,
-      t.created_at,
-      t.updated_at
-    FROM tasks t
-    WHERE t.project_id = $1
-    ORDER BY t.created_at ASC
+      wi.id,
+      wi.type,
+      wi.task_kind,
+      wi.title,
+      wi.description,
+      to_char(wi.due_date, 'YYYY-MM-DD') AS due_date,
+      wi.priority,
+      wi.estimate,
+      wi.status,
+      wi.stage_id,
+      wi.backlog_id,
+      wi.sprint_id,
+      wi.project_id,
+      wi.team_id,
+      wi.position,
+      wi.assignee_id,
+      wi.created_at,
+      wi.updated_at
+    FROM work_items wi
+    WHERE wi.project_id = $1
+      AND wi.type IN ('TASK', 'BUG')
+    ORDER BY wi.created_at ASC
     `,
     [id]
   );
@@ -316,11 +331,32 @@ export async function getProjectById(id: string, user_id: string): Promise<Proje
   return {
     ...mapProjectRow(row, viewer_role),
     tasks: taskRes.rows.map((task) => ({
-      ...task,
+      id: task.id,
+      type: task.type,
+      task_kind: task.task_kind ?? "GENERAL",
+      title: task.title,
       description: task.description ?? null,
+      due_date: task.due_date,
+      priority: (task.priority ?? null) as Task["priority"],
+      estimate: task.estimate ?? null,
+      status: task.status as Task["status"],
+      stage_id: task.stage_id ?? null,
       backlog_id: task.backlog_id ?? null,
       sprint_id: task.sprint_id ?? null,
-      estimate: task.estimate ?? null,
+      project_id: task.project_id,
+      team_id: task.team_id,
+      position: task.position ?? undefined,
+      assignee_id: task.assignee_id ?? null,
+      assignee: null,
+      stage: null,
+      sprint: null,
+      created_at: normalizeTimestamp(task.created_at),
+      updated_at: normalizeTimestamp(task.updated_at),
+      tags: [],
+      history: [],
+      children: [],
+      bug_details: null,
+      issue_details: null,
     })),
   };
 }

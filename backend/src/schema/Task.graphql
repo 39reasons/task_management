@@ -5,6 +5,7 @@ type TaskHistoryEvent {
   event_type: String!
   payload: JSON
   created_at: String!
+  work_item_id: ID
   project_id: ID
   team_id: ID
   actor_id: ID
@@ -13,12 +14,16 @@ type TaskHistoryEvent {
 
 type Task {
   id: ID!
+  type: WorkItemType
   title: String!
   description: String
   due_date: String
   priority: String
   estimate: Int
   status: String!
+  task_kind: TaskKind
+  bug_details: BugTaskDetails
+  issue_details: IssueTaskDetails
   stage_id: ID
   backlog_id: ID
   sprint_id: ID
@@ -32,6 +37,9 @@ type Task {
   position: Int
   created_at: String
   updated_at: String
+  parent_id: ID
+  parent: WorkItem
+  children: [WorkItem!]!
   history(limit: Int = 50): [TaskHistoryEvent!]!
 }
 

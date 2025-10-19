@@ -16,6 +16,7 @@ import { ProjectHomePage } from "./pages/ProjectHomePage";
 import { ProjectTeamsPage } from "./pages/ProjectTeamsPage";
 import { ProjectTeamMembersPage } from "./pages/ProjectTeamMembersPage";
 import { ProjectWorkItemsPage } from "./pages/ProjectWorkItemsPage";
+import { WorkItemDetailsPage } from "./pages/WorkItemDetailsPage";
 import { ProjectBacklogPage } from "./pages/ProjectBacklogPage";
 import { ProjectSprintsPage } from "./pages/ProjectSprintsPage";
 import { TeamSettingsPage } from "./pages/TeamSettingsPage";
@@ -174,6 +175,10 @@ function AppContent() {
                   <Route
                     path="/projects/:id/work-items"
                     element={requireAuth(<ProjectWorkItemsPage user={user} />)}
+                  />
+                  <Route
+                    path="/projects/:id/work-items/:workItemId"
+                    element={requireAuth(<WorkItemDetailsPage user={user} />)}
                   />
                   <Route
                     path="/projects/:id/tasks/:taskId"

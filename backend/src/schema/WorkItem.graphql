@@ -1,0 +1,160 @@
+enum WorkItemType {
+  EPIC
+  FEATURE
+  STORY
+  TASK
+  BUG
+}
+
+enum TaskKind {
+  GENERAL
+  BUG
+  ISSUE
+}
+
+type BugTaskDetails {
+  severity: String
+  is_regression: Boolean
+  environment: String
+  steps_to_reproduce: String
+  impact_summary: String
+  reported_version: String
+}
+
+input BugTaskInput {
+  severity: String
+  is_regression: Boolean
+  environment: String
+  steps_to_reproduce: String
+  impact_summary: String
+  reported_version: String
+}
+
+type IssueTaskDetails {
+  issue_type: String
+  source: String
+  external_reference: String
+  reported_by: String
+  contact_channel: String
+  impact_summary: String
+}
+
+input IssueTaskInput {
+  issue_type: String
+  source: String
+  external_reference: String
+  reported_by: String
+  contact_channel: String
+  impact_summary: String
+}
+
+type WorkItem {
+  id: ID!
+  type: WorkItemType!
+  task_kind: TaskKind
+  title: String!
+  description: String
+  status: String!
+  priority: String
+  estimate: Int
+  due_date: String
+  position: Int
+  project_id: ID!
+  team_id: ID!
+  stage_id: ID
+  backlog_id: ID
+  sprint_id: ID
+  assignee_id: ID
+  assignee: User
+  created_at: String
+  updated_at: String
+  parent_id: ID
+  parent: WorkItem
+  children: [WorkItem!]!
+  task: Task
+  tags: [Tag!]!
+  comments: [WorkItemComment!]!
+}
+
+type WorkItemLink {
+  parent_id: ID!
+  child_id: ID!
+  created_at: String
+}
+
+type WorkItemComment {
+  id: ID!
+  work_item_id: ID!
+  user_id: ID!
+  user: User!
+  content: String!
+  created_at: String!
+  updated_at: String!
+}
+
+input CreateWorkItemInput {
+  type: WorkItemType!
+  project_id: ID!
+  team_id: ID!
+  title: String!
+  description: String
+  status: String
+  priority: String
+  estimate: Int
+  due_date: String
+  stage_id: ID
+  backlog_id: ID
+  sprint_id: ID
+  assignee_id: ID
+  task_kind: TaskKind
+  bug_details: BugTaskInput
+  issue_details: IssueTaskInput
+  parent_id: ID
+}
+
+input LinkWorkItemsInput {
+  parent_id: ID!
+  child_id: ID!
+}
+
+input UpdateWorkItemInput {
+  title: String
+  description: String
+  status: String
+  priority: String
+  estimate: Int
+  due_date: String
+}
+
+input WorkItemCommentInput {
+  work_item_id: ID!
+  content: String!
+}
+
+input UpdateWorkItemCommentInput {
+  id: ID!
+  content: String!
+}
+
+extend type Query {
+  workItem(id: ID!): WorkItem
+  workItems(
+    project_id: ID
+    team_id: ID
+    types: [WorkItemType!]
+    parent_id: ID
+  ): [WorkItem!]!
+}
+
+extend type Mutation {
+  createWorkItem(input: CreateWorkItemInput!): WorkItem!
+  updateWorkItem(id: ID!, input: UpdateWorkItemInput!): WorkItem!
+  setWorkItemAssignee(work_item_id: ID!, assignee_id: ID): WorkItem!
+  assignTagToWorkItem(work_item_id: ID!, tag_id: ID!): WorkItem!
+  removeTagFromWorkItem(work_item_id: ID!, tag_id: ID!): WorkItem!
+  addWorkItemComment(input: WorkItemCommentInput!): WorkItemComment!
+  updateWorkItemComment(input: UpdateWorkItemCommentInput!): WorkItemComment!
+  deleteWorkItemComment(id: ID!): Boolean!
+  linkWorkItems(input: LinkWorkItemsInput!): Boolean!
+  unlinkWorkItems(input: LinkWorkItemsInput!): Boolean!
+}

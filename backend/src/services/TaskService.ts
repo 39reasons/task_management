@@ -1,5 +1,13 @@
-import { query } from "../db/index.js";
-import type { Task, User, TaskHistoryEvent } from "../../../shared/types.js";
+import { query, withTransaction } from "../db/index.js";
+import type {
+  Task,
+  User,
+  TaskHistoryEvent,
+  WorkItemType,
+  TaskKind,
+  BugTaskDetails,
+  IssueTaskDetails,
+} from "../../../shared/types.js";
 import * as TagService from "./TagService.js";
 import * as StageService from "./StageService.js";
 import * as UserService from "./UserService.js";
@@ -12,6 +20,8 @@ type TaskMutationOptions = {
 
 type TaskRow = {
   id: string;
+  type: WorkItemType;
+  task_kind: TaskKind | null;
   project_id: string;
   team_id: string;
   stage_id: string | null;
@@ -28,11 +38,14 @@ type TaskRow = {
   board_id: string | null;
   created_at: Date | string | null;
   updated_at: Date | string | null;
+  parent_id: string | null;
 };
 
 const TASK_BASE_SELECT = `
   SELECT
     t.id,
+    t.type,
+    t.task_kind,
     t.project_id,
     t.team_id,
     t.stage_id,
@@ -48,19 +61,26 @@ const TASK_BASE_SELECT = `
     t.position,
     s.workflow_id AS board_id,
     t.created_at,
-    t.updated_at
-  FROM tasks t
+    t.updated_at,
+    parent_link.parent_id
+  FROM work_items t
   JOIN projects p ON p.id = t.project_id
   LEFT JOIN stages s ON s.id = t.stage_id
+  LEFT JOIN LATERAL (
+    SELECT parent_id
+    FROM work_item_links
+    WHERE child_id = t.id
+    LIMIT 1
+  ) AS parent_link ON TRUE
 `;
 
-function normalizeDate(input?: string | null): string | null {
+export function normalizeDate(input?: string | null): string | null {
   if (!input) return null;
   const trimmed = input.trim();
   return trimmed.length === 0 ? null : trimmed;
 }
 
-function normalizeTimestamp(value: unknown): string | undefined {
+export function normalizeTimestamp(value: unknown): string | undefined {
   if (!value) return undefined;
   if (value instanceof Date) return value.toISOString();
   const parsed = new Date(value as string);
@@ -69,7 +89,7 @@ function normalizeTimestamp(value: unknown): string | undefined {
 
 const VALID_TASK_STATUSES: ReadonlySet<Task["status"]> = new Set(["new", "active", "closed"]);
 
-function sanitizeTaskStatus(input?: string | null): Task["status"] {
+export function sanitizeTaskStatus(input?: string | null): Task["status"] {
   const candidate = (input ?? "").trim().toLowerCase();
   if (!candidate) {
     return "new";
@@ -78,6 +98,19 @@ function sanitizeTaskStatus(input?: string | null): Task["status"] {
     return candidate as Task["status"];
   }
   throw new Error("Invalid task status.");
+}
+
+const VALID_TASK_KINDS: ReadonlySet<TaskKind> = new Set(["GENERAL", "BUG", "ISSUE"]);
+
+export function sanitizeTaskKind(input?: string | null): TaskKind {
+  const candidate = (input ?? "").trim().toUpperCase() as TaskKind;
+  if (!candidate) {
+    return "GENERAL";
+  }
+  if (VALID_TASK_KINDS.has(candidate)) {
+    return candidate;
+  }
+  throw new Error("Invalid task kind.");
 }
 
 type StageHistorySnapshot = { id: string; name?: string | null } | null;
@@ -120,20 +153,20 @@ async function getUserHistorySnapshot(userId: string | null | undefined): Promis
 }
 
 async function insertTaskHistoryEvent(params: {
-  task_id: string;
+  work_item_id: string;
   project_id: string;
   team_id: string;
   actor_id?: string | null;
   event_type: string;
   payload: Record<string, unknown>;
 }): Promise<void> {
-  const { task_id, project_id, team_id, actor_id, event_type, payload } = params;
+  const { work_item_id, project_id, team_id, actor_id, event_type, payload } = params;
   await query(
     `
-      INSERT INTO task_history_events (task_id, project_id, team_id, actor_id, event_type, payload)
+      INSERT INTO task_history_events (work_item_id, project_id, team_id, actor_id, event_type, payload)
       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
     `,
-    [task_id, project_id, team_id, actor_id ?? null, event_type, serializeHistoryPayload(payload)]
+    [work_item_id, project_id, team_id, actor_id ?? null, event_type, serializeHistoryPayload(payload)]
   );
 }
 
@@ -143,7 +176,7 @@ async function recordTaskStatusChange(existing: Task, updated: Task, actorId?: s
   }
 
   await insertTaskHistoryEvent({
-    task_id: updated.id,
+    work_item_id: updated.id,
     project_id: updated.project_id,
     team_id: updated.team_id,
     actor_id: actorId ?? null,
@@ -169,7 +202,7 @@ async function recordTaskStageChange(previous: Task, next: Task, actorId?: strin
   ]);
 
   await insertTaskHistoryEvent({
-    task_id: next.id,
+    work_item_id: next.id,
     project_id: next.project_id,
     team_id: next.team_id,
     actor_id: actorId ?? null,
@@ -195,7 +228,7 @@ async function recordTaskAssigneeChange(previous: Task, next: Task, actorId?: st
   ]);
 
   await insertTaskHistoryEvent({
-    task_id: next.id,
+    work_item_id: next.id,
     project_id: next.project_id,
     team_id: next.team_id,
     actor_id: actorId ?? null,
@@ -209,7 +242,7 @@ async function recordTaskAssigneeChange(previous: Task, next: Task, actorId?: st
 
 type TaskHistoryEventRow = {
   id: string;
-  task_id: string;
+  work_item_id: string;
   project_id: string;
   team_id: string;
   actor_id: string | null;
@@ -230,7 +263,7 @@ function mapTaskHistoryEventRow(row: TaskHistoryEventRow): TaskHistoryEvent {
     event_type: row.event_type as TaskHistoryEvent["event_type"],
     payload: normalizedPayload,
     created_at: normalizeTimestamp(row.created_at) ?? new Date().toISOString(),
-    task_id: row.task_id,
+    task_id: row.work_item_id,
     project_id: row.project_id,
     team_id: row.team_id,
     actor_id: row.actor_id ?? null,
@@ -241,6 +274,7 @@ function mapTaskHistoryEventRow(row: TaskHistoryEventRow): TaskHistoryEvent {
 function mapTaskRow(row: TaskRow): Task {
   return {
     id: row.id,
+    type: row.type,
     title: row.title,
     description: row.description ?? null,
     due_date: row.due_date,
@@ -260,6 +294,8 @@ function mapTaskRow(row: TaskRow): Task {
     tags: [],
     created_at: normalizeTimestamp(row.created_at),
     updated_at: normalizeTimestamp(row.updated_at),
+    task_kind: row.task_kind ?? "GENERAL",
+    parent_id: row.parent_id ?? null,
   };
 }
 
@@ -329,6 +365,8 @@ type TaskFilter = {
 export async function getTasks(filter: TaskFilter, user_id: string | null): Promise<Task[]> {
   const params: unknown[] = [];
   const conditions: string[] = [];
+
+  conditions.push("t.type IN ('TASK', 'BUG')");
 
   if (filter.team_id) {
     params.push(filter.team_id);
@@ -408,7 +446,10 @@ export async function getAllVisibleTasks(user_id: string | null): Promise<Task[]
 }
 
 export async function getTaskById(id: string): Promise<Task | null> {
-  const result = await query<TaskRow>(`${TASK_BASE_SELECT} WHERE t.id = $1`, [id]);
+  const result = await query<TaskRow>(
+    `${TASK_BASE_SELECT} WHERE t.id = $1 AND t.type IN ('TASK', 'BUG')`,
+    [id]
+  );
   if (result.rowCount === 0) return null;
   return mapTaskRow(result.rows[0]);
 }
@@ -495,8 +536,9 @@ function buildPositionQuery(
     return {
       sql: `
         SELECT COALESCE(MAX(position) + 1, 0) AS pos
-        FROM tasks
+        FROM work_items
         WHERE stage_id = $1
+          AND type IN ('TASK', 'BUG')
       `,
       params: [stage_id],
     };
@@ -506,9 +548,10 @@ function buildPositionQuery(
     return {
       sql: `
         SELECT COALESCE(MAX(position) + 1, 0) AS pos
-        FROM tasks
+        FROM work_items
         WHERE backlog_id = $1
           AND stage_id IS NULL
+          AND type IN ('TASK', 'BUG')
       `,
       params: [backlog_id],
     };
@@ -518,6 +561,7 @@ function buildPositionQuery(
   let whereClause = `
       stage_id IS NULL
       AND backlog_id IS NULL
+      AND type IN ('TASK', 'BUG')
   `;
 
   if (project_id) {
@@ -533,7 +577,7 @@ function buildPositionQuery(
   return {
     sql: `
       SELECT COALESCE(MAX(position) + 1, 0) AS pos
-      FROM tasks
+      FROM work_items
       WHERE ${whereClause}
     `,
     params,
@@ -553,6 +597,9 @@ export async function createTask(
     priority,
     estimate,
     status,
+    task_kind,
+    bug_details,
+    issue_details,
   }: {
     project_id: string;
     stage_id?: string | null;
@@ -565,9 +612,15 @@ export async function createTask(
     estimate?: number | null;
     status?: string | null;
     team_id: string;
+    task_kind?: TaskKind | string | null;
+    bug_details?: Partial<BugTaskDetails> | null;
+    issue_details?: Partial<IssueTaskDetails> | null;
   },
   options?: TaskMutationOptions
 ): Promise<Task> {
+  void bug_details;
+  void issue_details;
+
   if (!project_id) {
     throw new Error("Project is required to create a task");
   }
@@ -594,6 +647,13 @@ export async function createTask(
   const normalizedStageId = stage_id ?? null;
   const normalizedBacklogId = normalizedStageId ? null : backlog_id ?? null;
   const normalizedSprintId = sprint_id ?? null;
+  const normalizedTaskKind = sanitizeTaskKind(task_kind ?? "GENERAL");
+  const workItemType: WorkItemType = normalizedTaskKind === "BUG" ? "BUG" : "TASK";
+
+  const normalizedTitle = title.trim();
+  if (!normalizedTitle) {
+    throw new Error("Title is required to create a task");
+  }
 
   const positionQuery = buildPositionQuery(normalizedStageId, normalizedBacklogId, team_id, project_id);
   const positionParams =
@@ -602,56 +662,79 @@ export async function createTask(
   const positionResult = await query<{ pos: number }>(positionQuery.sql, positionParams);
   const nextPosition = positionResult.rows[0]?.pos ?? 0;
 
-  const result = await query<{ id: string }>(
-    `
-      INSERT INTO tasks (
+  const taskId = await withTransaction(async (client) => {
+    const insertResult = await client.query<{ id: string }>(
+      `
+        INSERT INTO work_items (
+          project_id,
+          team_id,
+          stage_id,
+          backlog_id,
+          sprint_id,
+          position,
+          title,
+          description,
+          due_date,
+          priority,
+          estimate,
+          status,
+          type,
+          task_kind
+        )
+        VALUES (
+          $1,
+          $2,
+          $3::uuid,
+          $4::uuid,
+          $5::uuid,
+          $6,
+          $7,
+          $8,
+          COALESCE($9::DATE, NULL),
+          $10,
+          $11,
+          $12,
+          $13::work_item_type,
+          $14::task_kind
+        )
+        RETURNING id
+      `,
+      [
         project_id,
         team_id,
-        stage_id,
-        backlog_id,
-        sprint_id,
-        position,
-        title,
-        description,
-        due_date,
-        priority,
-        estimate,
-        status
-      )
-      VALUES (
-        $1,
-        $2,
-        $3::uuid,
-        $4::uuid,
-        $5::uuid,
-        $6,
-        $7,
-        $8,
-        COALESCE($9::DATE, NULL),
-        $10,
-        $11,
-        $12
-      )
-      RETURNING id
-    `,
-    [
-      project_id,
-      team_id,
-      normalizedStageId,
-      normalizedBacklogId,
-      normalizedSprintId,
-      nextPosition,
-      title.trim(),
-      description ?? null,
-      normalizeDate(due_date),
-      priority ?? null,
-      estimate ?? null,
-      sanitizedStatus,
-    ]
-  );
+        normalizedStageId,
+        normalizedBacklogId,
+        normalizedSprintId,
+        nextPosition,
+        normalizedTitle,
+        description ?? null,
+        normalizeDate(due_date),
+        priority ?? null,
+        estimate ?? null,
+        sanitizedStatus,
+        workItemType,
+        normalizedTaskKind,
+      ]
+    );
 
-  const task = await getTaskById(result.rows[0].id);
-  if (!task) throw new Error("Failed to create task");
+    const createdId = insertResult.rows[0]?.id;
+    if (!createdId) {
+      throw new Error("Failed to create task");
+    }
+
+    const subtypeTable = workItemType === "BUG" ? "bug_items" : "task_items";
+    const oppositeTable = workItemType === "BUG" ? "task_items" : "bug_items";
+    await client.query(
+      `INSERT INTO ${subtypeTable} (work_item_id) VALUES ($1) ON CONFLICT (work_item_id) DO NOTHING`,
+      [createdId]
+    );
+    await client.query(`DELETE FROM ${oppositeTable} WHERE work_item_id = $1`, [createdId]);
+
+    return createdId;
+  });
+
+  const task = await getTaskById(taskId);
+  if (!task) throw new Error("Failed to load created task");
   const hydrated = await ensureTaskHydrated(task);
   await emitTaskUpdateEvent(hydrated, "TASK_CREATED", options?.origin ?? null);
   return hydrated;
@@ -723,7 +806,7 @@ export async function updateTask(
 
   const result = await query<{ id: string }>(
     `
-      UPDATE tasks
+      UPDATE work_items
       SET
         title = COALESCE($2, title),
         description = $3,
@@ -786,10 +869,11 @@ export async function moveTask(
     `
       WITH next_position AS (
         SELECT COALESCE(MAX(position) + 1, 0) AS pos
-        FROM tasks
+        FROM work_items
         WHERE stage_id = $2
+          AND type IN ('TASK', 'BUG')
       )
-      UPDATE tasks
+      UPDATE work_items
       SET stage_id = $2,
           backlog_id = NULL,
           position = (SELECT pos FROM next_position),
@@ -813,7 +897,10 @@ export async function moveTask(
 
 export async function deleteTask(id: string, options?: TaskMutationOptions): Promise<boolean> {
   const task = await getTaskById(id);
-  const result = await query(`DELETE FROM tasks WHERE id = $1`, [id]);
+  const result = await query(
+    `DELETE FROM work_items WHERE id = $1 AND type IN ('TASK', 'BUG')`,
+    [id]
+  );
   const deleted = (result.rowCount ?? 0) > 0;
   if (deleted && task) {
     const stage = task.stage_id ? task.stage ?? (await StageService.getStageById(task.stage_id)) : null;
@@ -837,10 +924,11 @@ export async function updateTaskPriority(
 ): Promise<Task> {
   const result = await query<{ id: string }>(
     `
-      UPDATE tasks
+      UPDATE work_items
       SET priority = $2,
           updated_at = now()
       WHERE id = $1
+        AND type IN ('TASK', 'BUG')
       RETURNING id
     `,
     [id, priority]
@@ -871,11 +959,11 @@ export async function reorderTasks(
           ordinality - 1 AS position
         FROM unnest($2::uuid[]) WITH ORDINALITY AS u(value, ordinality)
       )
-      UPDATE tasks t
+      UPDATE work_items t
       SET position = ordered.position,
           updated_at = now()
       FROM ordered
-      WHERE t.id = ordered.id AND t.stage_id = $1
+      WHERE t.id = ordered.id AND t.stage_id = $1 AND t.type IN ('TASK', 'BUG')
     `,
     [stage_id, task_ids]
   );
@@ -938,7 +1026,7 @@ export async function reorderBacklogTasks(
           ordinality - 1 AS position
         FROM unnest($2::uuid[]) WITH ORDINALITY AS u(value, ordinality)
       )
-      UPDATE tasks t
+      UPDATE work_items t
       SET position = ordered.position,
           updated_at = now()
       FROM ordered
@@ -947,6 +1035,7 @@ export async function reorderBacklogTasks(
         AND ${backlogCondition}
         AND t.project_id = $1
         AND t.team_id = $3
+        AND t.type IN ('TASK', 'BUG')
     `,
     params
   );
@@ -981,9 +1070,9 @@ export async function getTaskHistory(task_id: string, limit: number = 50): Promi
   const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 50;
   const result = await query<TaskHistoryEventRow>(
     `
-      SELECT id, task_id, project_id, team_id, actor_id, event_type, payload, created_at
+      SELECT id, work_item_id, project_id, team_id, actor_id, event_type, payload, created_at
       FROM task_history_events
-      WHERE task_id = $1
+      WHERE work_item_id = $1
       ORDER BY created_at DESC, id DESC
       LIMIT $2
     `,
@@ -1030,10 +1119,11 @@ export async function setTaskAssignee(
 
   await query(
     `
-    UPDATE tasks
+    UPDATE work_items
     SET assignee_id = $2,
         updated_at = now()
     WHERE id = $1
+      AND type IN ('TASK', 'BUG')
     `,
     [task_id, member_id]
   );
