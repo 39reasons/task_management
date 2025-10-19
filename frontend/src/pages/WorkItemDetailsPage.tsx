@@ -42,6 +42,7 @@ import { getWorkItemTypeLabel, WORK_ITEM_TYPE_LABELS } from "../constants/workIt
 import { getWorkItemIconMeta } from "../constants/workItemVisuals";
 import { formatDate, formatRelativeTimeFromNow } from "../utils/date";
 import { getPriorityLabel, resolveWorkItemLink } from "../utils/workItem";
+import { useCommentEditor } from "../hooks/useCommentEditor";
 
 type WorkItemQueryResult = {
   workItem: WorkItem | null;
@@ -173,46 +174,6 @@ export function WorkItemDetailsPage({ user: _user }: { user: AuthUser | null }) 
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const titleSizerRef = useRef<HTMLSpanElement | null>(null);
-
-  useEffect(() => {
-    if (!workItem) {
-      setStagedTitle("");
-      setIsEditingTitle(false);
-      setTitleError(null);
-      setStagedStatus("new");
-      setStagedAssignee(null);
-      setAssigneeError(null);
-      setStagedDescription("");
-      setIsEditingDescription(false);
-      setStagedTags([]);
-      setTagsError(null);
-      setIsTagsUpdating(false);
-      setUpdatingTagId(null);
-      setCommentText("");
-      cancelEditComment();
-      return;
-    }
-    setStagedTitle(workItem.title ?? "");
-    setStagedStatus((workItem.status ?? "new") as TaskStatus);
-    setStagedDescription(workItem.description ?? "");
-    setStagedAssignee(workItem.assignee ?? null);
-    setAssigneeError(null);
-    setStagedTags(
-      (workItem.tags ?? []).map((tag) => ({
-        id: tag.id,
-        name: tag.name ?? "",
-        color: tag.color ?? null,
-      }))
-    );
-    setTagsError(null);
-    setIsTagsUpdating(false);
-    setUpdatingTagId(null);
-    setCommentText("");
-    cancelEditComment();
-    setIsEditingTitle(false);
-    setTitleError(null);
-    setIsEditingDescription(false);
-  }, [cancelEditComment, setCommentText, workItem]);
 
   const updateTitleWidth = useCallback(() => {
     if (!titleSizerRef.current || !titleInputRef.current) return;
@@ -675,7 +636,7 @@ export function WorkItemDetailsPage({ user: _user }: { user: AuthUser | null }) 
     submitEditComment,
     deleteComment: deleteCommentById,
   } = useCommentEditor({
-    async onAdd(content) {
+    async onAdd(content: string) {
       if (!workItem) return;
       await addCommentMutation({
         variables: {
@@ -687,7 +648,7 @@ export function WorkItemDetailsPage({ user: _user }: { user: AuthUser | null }) 
       });
       await refetch();
     },
-    async onUpdate(commentId, content) {
+    async onUpdate(commentId: string, content: string) {
       await updateCommentMutation({
         variables: {
           input: {
@@ -698,11 +659,51 @@ export function WorkItemDetailsPage({ user: _user }: { user: AuthUser | null }) 
       });
       await refetch();
     },
-    async onDelete(commentId) {
+    async onDelete(commentId: string) {
       await deleteCommentMutation({ variables: { id: commentId } });
       await refetch();
     },
   });
+
+  useEffect(() => {
+    if (!workItem) {
+      setStagedTitle("");
+      setIsEditingTitle(false);
+      setTitleError(null);
+      setStagedStatus("new");
+      setStagedAssignee(null);
+      setAssigneeError(null);
+      setStagedDescription("");
+      setIsEditingDescription(false);
+      setStagedTags([]);
+      setTagsError(null);
+      setIsTagsUpdating(false);
+      setUpdatingTagId(null);
+      setCommentText("");
+      cancelEditComment();
+      return;
+    }
+    setStagedTitle(workItem.title ?? "");
+    setStagedStatus((workItem.status ?? "new") as TaskStatus);
+    setStagedDescription(workItem.description ?? "");
+    setStagedAssignee(workItem.assignee ?? null);
+    setAssigneeError(null);
+    setStagedTags(
+      (workItem.tags ?? []).map((tag) => ({
+        id: tag.id,
+        name: tag.name ?? "",
+        color: tag.color ?? null,
+      }))
+    );
+    setTagsError(null);
+    setIsTagsUpdating(false);
+    setUpdatingTagId(null);
+    setCommentText("");
+    cancelEditComment();
+    setIsEditingTitle(false);
+    setTitleError(null);
+    setIsEditingDescription(false);
+  }, [cancelEditComment, setCommentText, workItem]);
 
   const handleSubmitComment = submitNewComment;
   const handleStartEditComment = startEditComment;
