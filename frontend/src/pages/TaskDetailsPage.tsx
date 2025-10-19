@@ -50,7 +50,6 @@ import { CREATE_WORK_ITEM } from "../graphql/workItems";
 import { GET_PROJECT } from "../graphql/projects";
 import { formatDate, formatRelativeTimeFromNow } from "../utils/date";
 import { getPriorityLabel, resolveWorkItemLink } from "../utils/workItem";
-import { useCommentEditor } from "../hooks/useCommentEditor";
 
 type TaskQueryResult = {
   task: Task | null;
@@ -267,6 +266,49 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
 
   useEffect(() => {
     if (!task) {
+      setStagedTitle(defaultTemplateTitle);
+      setIsEditingTitle(false);
+      setTitleError(null);
+      setStagedStatus("new");
+      setStagedAssignee(null);
+      setStagedDescription("");
+      setStagedTags([]);
+      setIsEditingDescription(false);
+      setStatusError(null);
+      setAssigneeError(null);
+      setDescriptionError(null);
+      setIsDescriptionUpdating(false);
+      setTagsError(null);
+      setIsTagsUpdating(false);
+      setUpdatingTagId(null);
+      setCommentText("");
+      cancelEditComment();
+      return;
+    }
+
+    setStagedStatus((task.status ?? "new") as TaskStatus);
+    setStagedTitle(task.title ?? "");
+    setIsEditingTitle(false);
+    setTitleError(null);
+    setStagedAssignee(task.assignee ?? null);
+    setStagedDescription(task.description ?? "");
+    setStagedTags(
+      (task.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color ?? null }))
+    );
+    setIsEditingDescription(false);
+    setStatusError(null);
+    setAssigneeError(null);
+    setDescriptionError(null);
+    setIsDescriptionUpdating(false);
+    setTagsError(null);
+    setIsTagsUpdating(false);
+    setUpdatingTagId(null);
+    setCommentText("");
+    cancelEditComment();
+  }, [cancelEditComment, defaultTemplateTitle, setCommentText, task]);
+
+  useEffect(() => {
+    if (!task) {
       setUpdatedByLabel("");
       return;
     }
@@ -336,63 +378,20 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     submitEditComment,
     deleteComment: deleteCommentById,
   } = useCommentEditor({
-    async onAdd(content: string) {
+    async onAdd(content) {
       if (!taskId) return;
       await addCommentMutation({ variables: { task_id: taskId, content } });
       await refetchComments();
     },
-    async onUpdate(commentId: string, content: string) {
+    async onUpdate(commentId, content) {
       await updateCommentMutation({ variables: { id: commentId, content } });
       await refetchComments();
     },
-    async onDelete(commentId: string) {
+    async onDelete(commentId) {
       await deleteCommentMutation({ variables: { id: commentId } });
       await refetchComments();
     },
   });
-
-  useEffect(() => {
-    if (!task) {
-      setStagedTitle(defaultTemplateTitle);
-      setIsEditingTitle(false);
-      setTitleError(null);
-      setStagedStatus("new");
-      setStagedAssignee(null);
-      setStagedDescription("");
-      setStagedTags([]);
-      setIsEditingDescription(false);
-      setStatusError(null);
-      setAssigneeError(null);
-      setDescriptionError(null);
-      setIsDescriptionUpdating(false);
-      setTagsError(null);
-      setIsTagsUpdating(false);
-      setUpdatingTagId(null);
-      setCommentText("");
-      cancelEditComment();
-      return;
-    }
-
-    setStagedStatus((task.status ?? "new") as TaskStatus);
-    setStagedTitle(task.title ?? "");
-    setIsEditingTitle(false);
-    setTitleError(null);
-    setStagedAssignee(task.assignee ?? null);
-    setStagedDescription(task.description ?? "");
-    setStagedTags(
-      (task.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color ?? null }))
-    );
-    setIsEditingDescription(false);
-    setStatusError(null);
-    setAssigneeError(null);
-    setDescriptionError(null);
-    setIsDescriptionUpdating(false);
-    setTagsError(null);
-    setIsTagsUpdating(false);
-    setUpdatingTagId(null);
-    setCommentText("");
-    cancelEditComment();
-  }, [cancelEditComment, defaultTemplateTitle, setCommentText, task]);
 
   const handleSubmitComment = submitNewComment;
   const handleStartEditComment = startEditComment;
