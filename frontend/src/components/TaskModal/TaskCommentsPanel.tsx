@@ -5,7 +5,7 @@ import { DEFAULT_AVATAR_COLOR } from "../../constants/colors";
 import type { CommentWithUser } from "./types";
 import { Button, Input, Textarea } from "../ui";
 import { cn } from "../../lib/utils";
-import { timeAgo } from "./utils";
+import { formatRelativeTimeFromNow } from "../../utils/date";
 
 interface TaskCommentsPanelProps {
   comments: CommentWithUser[];
@@ -85,6 +85,7 @@ export function TaskCommentsPanel({
               const isEditing = editingCommentId === comment.id;
               const trimmedContent = (comment.content ?? "").trim();
               const isEdited = comment.updated_at && comment.updated_at !== comment.created_at;
+              const timestampLabel = formatRelativeTimeFromNow(comment.updated_at ?? comment.created_at);
 
               return (
                 <CommentItem
@@ -100,6 +101,7 @@ export function TaskCommentsPanel({
                   onDelete={() => onDeleteComment(comment.id)}
                   trimmedOriginal={trimmedContent}
                   isEdited={Boolean(isEdited)}
+                  timestampLabel={timestampLabel}
                 />
               );
             })}
@@ -122,6 +124,7 @@ interface CommentItemProps {
   onDelete: () => Promise<void>;
   trimmedOriginal: string;
   isEdited: boolean;
+  timestampLabel: string;
 }
 
 function CommentItem({
@@ -136,6 +139,7 @@ function CommentItem({
   onDelete,
   trimmedOriginal,
   isEdited,
+  timestampLabel,
 }: CommentItemProps) {
   const handleSave = async () => {
     if (!editingText.trim() || editingText.trim() === trimmedOriginal) {
@@ -164,7 +168,7 @@ function CommentItem({
           </span>
           {comment.user?.username && <span className="text-muted-foreground/80">@{comment.user.username}</span>}
           <Dot size={14} className="text-muted-foreground/50" />
-          <span>{timeAgo(Number(comment.created_at))}</span>
+          <span>{timestampLabel}</span>
           {isEdited && <span className="text-muted-foreground/70">(edited)</span>}
         </div>
 

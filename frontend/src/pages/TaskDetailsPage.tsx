@@ -50,7 +50,6 @@ import { CREATE_WORK_ITEM } from "../graphql/workItems";
 import { GET_PROJECT } from "../graphql/projects";
 import { formatDate, formatRelativeTimeFromNow } from "../utils/date";
 import { getPriorityLabel, resolveWorkItemLink } from "../utils/workItem";
-import { useCommentEditor } from "../hooks/useCommentEditor";
 
 type TaskQueryResult = {
   task: Task | null;

@@ -42,7 +42,6 @@ import { getWorkItemTypeLabel, WORK_ITEM_TYPE_LABELS } from "../constants/workIt
 import { getWorkItemIconMeta } from "../constants/workItemVisuals";
 import { formatDate, formatRelativeTimeFromNow } from "../utils/date";
 import { getPriorityLabel, resolveWorkItemLink } from "../utils/workItem";
-import { useCommentEditor } from "../hooks/useCommentEditor";
 
 type WorkItemQueryResult = {
   workItem: WorkItem | null;
