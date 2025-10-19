@@ -251,9 +251,6 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
   const [updatingTagId, setUpdatingTagId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [updatedByLabel, setUpdatedByLabel] = useState<string>("");
-  const [commentText, setCommentText] = useState("");
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentText, setEditingCommentText] = useState("");
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const titleSizerRef = useRef<HTMLSpanElement | null>(null);
 
@@ -280,34 +277,35 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
       setStatusError(null);
       setAssigneeError(null);
       setDescriptionError(null);
+      setIsDescriptionUpdating(false);
+      setTagsError(null);
+      setIsTagsUpdating(false);
+      setUpdatingTagId(null);
+      setCommentText("");
+      cancelEditComment();
+      return;
+    }
+
+    setStagedStatus((task.status ?? "new") as TaskStatus);
+    setStagedTitle(task.title ?? "");
+    setIsEditingTitle(false);
+    setTitleError(null);
+    setStagedAssignee(task.assignee ?? null);
+    setStagedDescription(task.description ?? "");
+    setStagedTags(
+      (task.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color ?? null }))
+    );
+    setIsEditingDescription(false);
+    setStatusError(null);
+    setAssigneeError(null);
+    setDescriptionError(null);
     setIsDescriptionUpdating(false);
     setTagsError(null);
     setIsTagsUpdating(false);
     setUpdatingTagId(null);
     setCommentText("");
-    setEditingCommentId(null);
-    setEditingCommentText("");
-    return;
-  }
-  setStagedStatus((task.status ?? "new") as TaskStatus);
-  setStagedTitle(task.title ?? "");
-  setIsEditingTitle(false);
-  setTitleError(null);
-  setStagedAssignee(task.assignee ?? null);
-  setStagedDescription(task.description ?? "");
-  setStagedTags((task.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color ?? null })));
-  setIsEditingDescription(false);
-  setStatusError(null);
-  setAssigneeError(null);
-  setDescriptionError(null);
-  setIsDescriptionUpdating(false);
-  setTagsError(null);
-  setIsTagsUpdating(false);
-  setUpdatingTagId(null);
-  setCommentText("");
-  setEditingCommentId(null);
-  setEditingCommentText("");
-}, [defaultTemplateTitle, task?.assignee, task?.description, task?.id, task?.status, task?.tags, task?.title]);
+    cancelEditComment();
+  }, [cancelEditComment, defaultTemplateTitle, setCommentText, task]);
 
   useEffect(() => {
     if (!task) {
@@ -368,58 +366,38 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     }
   }, []);
 
-  const handleSubmitComment = useCallback(async () => {
-    if (!taskId) return;
-    const trimmed = commentText.trim();
-    if (!trimmed) return;
-    try {
-      await addCommentMutation({ variables: { task_id: taskId, content: trimmed } });
+  const {
+    commentText,
+    setCommentText,
+    editingCommentId,
+    editingCommentText,
+    setEditingCommentText,
+    startEditComment,
+    cancelEditComment,
+    submitNewComment,
+    submitEditComment,
+    deleteComment: deleteCommentById,
+  } = useCommentEditor({
+    async onAdd(content) {
+      if (!taskId) return;
+      await addCommentMutation({ variables: { task_id: taskId, content } });
       await refetchComments();
-      setCommentText("");
-    } catch (error) {
-      console.error("Failed to add comment", error);
-    }
-  }, [addCommentMutation, commentText, refetchComments, taskId]);
-
-  const handleStartEditComment = useCallback((commentId: string, content: string | null) => {
-    setEditingCommentId(commentId);
-    setEditingCommentText(content ?? "");
-  }, []);
-
-  const handleCancelCommentEdit = useCallback(() => {
-    setEditingCommentId(null);
-    setEditingCommentText("");
-  }, []);
-
-  const handleSubmitCommentEdit = useCallback(async () => {
-    if (!editingCommentId) return;
-    const trimmed = editingCommentText.trim();
-    if (!trimmed) return;
-    try {
-      await updateCommentMutation({ variables: { id: editingCommentId, content: trimmed } });
-      await refetchComments();
-      setEditingCommentId(null);
-      setEditingCommentText("");
-    } catch (error) {
-      console.error("Failed to update comment", error);
-    }
-  }, [editingCommentId, editingCommentText, refetchComments, updateCommentMutation]);
-
-  const handleDeleteComment = useCallback(
-    async (commentId: string) => {
-      try {
-        await deleteCommentMutation({ variables: { id: commentId } });
-        await refetchComments();
-        if (editingCommentId === commentId) {
-          setEditingCommentId(null);
-          setEditingCommentText("");
-        }
-      } catch (error) {
-        console.error("Failed to delete comment", error);
-      }
     },
-    [deleteCommentMutation, editingCommentId, refetchComments]
-  );
+    async onUpdate(commentId, content) {
+      await updateCommentMutation({ variables: { id: commentId, content } });
+      await refetchComments();
+    },
+    async onDelete(commentId) {
+      await deleteCommentMutation({ variables: { id: commentId } });
+      await refetchComments();
+    },
+  });
+
+  const handleSubmitComment = submitNewComment;
+  const handleStartEditComment = startEditComment;
+  const handleCancelCommentEdit = cancelEditComment;
+  const handleSubmitCommentEdit = submitEditComment;
+  const handleDeleteComment = deleteCommentById;
 
   const stageAssigneeById = useCallback(
     (memberId: string | null) => {

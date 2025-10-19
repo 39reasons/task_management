@@ -170,9 +170,6 @@ export function WorkItemDetailsPage({ user: _user }: { user: AuthUser | null }) 
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [isTagsUpdating, setIsTagsUpdating] = useState(false);
   const [updatingTagId, setUpdatingTagId] = useState<string | null>(null);
-  const [commentText, setCommentText] = useState("");
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentText, setEditingCommentText] = useState("");
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const titleSizerRef = useRef<HTMLSpanElement | null>(null);
@@ -192,8 +189,7 @@ export function WorkItemDetailsPage({ user: _user }: { user: AuthUser | null }) 
       setIsTagsUpdating(false);
       setUpdatingTagId(null);
       setCommentText("");
-      setEditingCommentId(null);
-      setEditingCommentText("");
+      cancelEditComment();
       return;
     }
     setStagedTitle(workItem.title ?? "");
@@ -212,12 +208,11 @@ export function WorkItemDetailsPage({ user: _user }: { user: AuthUser | null }) 
     setIsTagsUpdating(false);
     setUpdatingTagId(null);
     setCommentText("");
-    setEditingCommentId(null);
-    setEditingCommentText("");
+    cancelEditComment();
     setIsEditingTitle(false);
     setTitleError(null);
     setIsEditingDescription(false);
-  }, [workItem?.assignee, workItem?.description, workItem?.id, workItem?.status, workItem?.tags, workItem?.title]);
+  }, [cancelEditComment, setCommentText, workItem]);
 
   const updateTitleWidth = useCallback(() => {
     if (!titleSizerRef.current || !titleInputRef.current) return;
@@ -668,72 +663,52 @@ export function WorkItemDetailsPage({ user: _user }: { user: AuthUser | null }) 
     }));
   }, [workItem?.comments]);
 
-  const handleSubmitComment = useCallback(async () => {
-    if (!workItem) return;
-    const trimmed = commentText.trim();
-    if (!trimmed) return;
-    try {
+  const {
+    commentText,
+    setCommentText,
+    editingCommentId,
+    editingCommentText,
+    setEditingCommentText,
+    startEditComment,
+    cancelEditComment,
+    submitNewComment,
+    submitEditComment,
+    deleteComment: deleteCommentById,
+  } = useCommentEditor({
+    async onAdd(content) {
+      if (!workItem) return;
       await addCommentMutation({
         variables: {
           input: {
             work_item_id: workItem.id,
-            content: trimmed,
+            content,
           },
         },
       });
       await refetch();
-      setCommentText("");
-    } catch (err) {
-      console.error("Failed to add comment", err);
-    }
-  }, [addCommentMutation, commentText, refetch, workItem]);
-
-  const handleStartEditComment = useCallback((commentId: string, content: string | null) => {
-    setEditingCommentId(commentId);
-    setEditingCommentText(content ?? "");
-  }, []);
-
-  const handleCancelCommentEdit = useCallback(() => {
-    setEditingCommentId(null);
-    setEditingCommentText("");
-  }, []);
-
-  const handleSubmitCommentEdit = useCallback(async () => {
-    if (!editingCommentId) return;
-    const trimmed = editingCommentText.trim();
-    if (!trimmed) return;
-    try {
+    },
+    async onUpdate(commentId, content) {
       await updateCommentMutation({
         variables: {
           input: {
-            id: editingCommentId,
-            content: trimmed,
+            id: commentId,
+            content,
           },
         },
       });
       await refetch();
-      setEditingCommentId(null);
-      setEditingCommentText("");
-    } catch (err) {
-      console.error("Failed to update comment", err);
-    }
-  }, [editingCommentId, editingCommentText, refetch, updateCommentMutation]);
-
-  const handleDeleteComment = useCallback(
-    async (commentId: string) => {
-      try {
-        await deleteCommentMutation({ variables: { id: commentId } });
-        await refetch();
-        if (editingCommentId === commentId) {
-          setEditingCommentId(null);
-          setEditingCommentText("");
-        }
-      } catch (err) {
-        console.error("Failed to delete comment", err);
-      }
     },
-    [deleteCommentMutation, editingCommentId, refetch]
-  );
+    async onDelete(commentId) {
+      await deleteCommentMutation({ variables: { id: commentId } });
+      await refetch();
+    },
+  });
+
+  const handleSubmitComment = submitNewComment;
+  const handleStartEditComment = startEditComment;
+  const handleCancelCommentEdit = cancelEditComment;
+  const handleSubmitCommentEdit = submitEditComment;
+  const handleDeleteComment = deleteCommentById;
 
   const hasTags = stagedTags.length > 0;
   const addTagTrigger = hasTags ? (
