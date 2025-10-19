@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLazyQuery, useMutation, useQuery } from "@apollo/client";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Save, X } from "lucide-react";
-import type { AuthUser, Task, TaskStatus } from "@shared/types";
+import type { AuthUser, Task, TaskStatus, WorkItemType } from "@shared/types";
 
 import {
   Alert,
@@ -29,6 +29,7 @@ import {
   ADD_COMMENT,
   ADD_TAG,
   ASSIGN_TAG_TO_TASK,
+  ASSIGN_TAG_TO_WORK_ITEM,
   DELETE_COMMENT,
   GET_COMMENTS,
   GET_PROJECT_TAGS,
@@ -42,10 +43,24 @@ import {
   UPDATE_TAG,
 } from "../graphql";
 import { DEFAULT_AVATAR_COLOR } from "../constants/colors";
+import { getWorkItemTypeFromSlug, getWorkItemTypeLabel } from "../constants/workItems";
+import { getWorkItemIconMeta } from "../constants/workItemVisuals";
 import { getFullName, getInitials } from "../utils/user";
+import { CREATE_WORK_ITEM } from "../graphql/workItems";
+import { GET_PROJECT } from "../graphql/projects";
 
 type TaskQueryResult = {
   task: Task | null;
+};
+
+type ProjectQueryResult = {
+  project: {
+    id: string;
+    teams: Array<{
+      id: string;
+      name: string;
+    }>;
+  } | null;
 };
 
 function formatDate(value?: string | null): string {
@@ -64,6 +79,13 @@ function formatDate(value?: string | null): string {
 function getPriorityLabel(priority?: Task["priority"] | null): string {
   if (!priority) return "None";
   return priority.charAt(0).toUpperCase() + priority.slice(1);
+}
+
+function resolveWorkItemLink(projectId: string, itemId: string, type: WorkItemType): string {
+  if (type === "TASK" || type === "BUG") {
+    return `/projects/${projectId}/tasks/${itemId}`;
+  }
+  return `/projects/${projectId}/work-items/${itemId}`;
 }
 
 function TaskDetailsSkeleton() {
@@ -151,9 +173,13 @@ function buildUpdatedByLabel(userLabel: string, timestamp?: string | null): stri
 }
 
 export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
-  const { id, taskId } = useParams<{ id: string; taskId: string }>();
+  const { id, taskId, type } = useParams<{ id: string; taskId?: string; type?: string }>();
   const projectId = id ?? null;
   const navigate = useNavigate();
+  const templateType = getWorkItemTypeFromSlug(type);
+  const isTemplateMode = !taskId && Boolean(templateType);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [teamError, setTeamError] = useState<string | null>(null);
 
   const { data, loading, error, refetch } = useQuery<TaskQueryResult>(GET_TASK, {
     variables: taskId ? { id: taskId } : undefined,
@@ -161,7 +187,15 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     fetchPolicy: "network-only",
   });
 
+  const { data: projectData, loading: isProjectLoading } = useQuery<ProjectQueryResult>(GET_PROJECT, {
+    variables: projectId ? { id: projectId } : undefined,
+    skip: !projectId || !isTemplateMode,
+    fetchPolicy: "cache-first",
+  });
+
   const task = data?.task ?? null;
+  const projectTeams = useMemo(() => projectData?.project?.teams ?? [], [projectData?.project?.teams]);
+  const isProjectTeamsLoading = isTemplateMode && isProjectLoading;
 
   const stageLabel = useMemo(() => {
     if (!task) return "Not assigned to a board stage";
@@ -213,11 +247,52 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     [commentsData?.task?.comments]
   );
 
+  useEffect(() => {
+    if (!isTemplateMode) return;
+    if (projectTeams.length === 0) {
+      setSelectedTeamId("");
+      return;
+    }
+    if (!selectedTeamId) {
+      setSelectedTeamId(projectTeams[0].id);
+    }
+  }, [isTemplateMode, projectTeams, selectedTeamId]);
+
+  useEffect(() => {
+    if (selectedTeamId) {
+      setTeamError(null);
+    }
+  }, [selectedTeamId]);
+
+  useEffect(() => {
+    if (!isTemplateMode || !user) {
+      return;
+    }
+    setStagedAssignee((previous) => {
+      if (previous) {
+        return previous;
+      }
+      return {
+        id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        username: user.username,
+        avatar_color: user.avatar_color ?? null,
+      };
+    });
+  }, [isTemplateMode, user]);
+
   const [searchUsers, { loading: isSearchingMembers }] = useLazyQuery(SEARCH_USERS, {
     fetchPolicy: "no-cache",
   });
 
-  const [stagedTitle, setStagedTitle] = useState("");
+  const defaultTemplateTitle = useMemo(() => {
+    if (!isTemplateMode) return "";
+    const label = getWorkItemTypeLabel(templateType);
+    return `Untitled ${label}`;
+  }, [isTemplateMode, templateType]);
+
+  const [stagedTitle, setStagedTitle] = useState(defaultTemplateTitle);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [stagedStatus, setStagedStatus] = useState<TaskStatus>("new");
@@ -254,7 +329,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
 
   useEffect(() => {
     if (!task) {
-      setStagedTitle("");
+      setStagedTitle(defaultTemplateTitle);
       setIsEditingTitle(false);
       setTitleError(null);
       setStagedStatus("new");
@@ -292,7 +367,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
   setCommentText("");
   setEditingCommentId(null);
   setEditingCommentText("");
-}, [task?.assignee, task?.description, task?.id, task?.status, task?.tags, task?.title]);
+}, [defaultTemplateTitle, task?.assignee, task?.description, task?.id, task?.status, task?.tags, task?.title]);
 
   useEffect(() => {
     if (!task) {
@@ -326,6 +401,8 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     updateTitleWidth();
   }, [updateTitleWidth, stagedTitle]);
 
+  const [createWorkItemMutation] = useMutation(CREATE_WORK_ITEM);
+  const [assignTagToWorkItemMutation] = useMutation(ASSIGN_TAG_TO_WORK_ITEM);
   const [updateTaskMutation] = useMutation(UPDATE_TASK);
   const [setTaskAssigneeMutation] = useMutation(SET_TASK_ASSIGNEE);
   const [assignTagToTaskMutation] = useMutation(ASSIGN_TAG_TO_TASK);
@@ -607,15 +684,77 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
   );
 
   const handleSave = useCallback(async () => {
+    const trimmedTitle = stagedTitle.trim();
+    const normalizedDescription = stagedDescription.trim();
+
+    if (isTemplateMode) {
+      const stagedTagIds = stagedTags.map((tag) => tag.id);
+      if (!templateType || !projectId) {
+        setTitleError("Work item context is missing.");
+        return;
+      }
+      if (!trimmedTitle) {
+        setTitleError("Title is required");
+        return;
+      }
+      if (!selectedTeamId) {
+        setTeamError("Select a team for this work item");
+        return;
+      }
+
+      setTitleError(null);
+      setTeamError(null);
+      setTagsError(null);
+      setIsSaving(true);
+      try {
+        const { data: createdData } = await createWorkItemMutation({
+          variables: {
+            input: {
+              type: templateType,
+              project_id: projectId,
+              team_id: selectedTeamId,
+              title: trimmedTitle,
+              description: normalizedDescription.length > 0 ? normalizedDescription : null,
+              status: stagedStatus,
+              assignee_id: stagedAssignee?.id ?? null,
+            },
+          },
+        });
+        const created = createdData?.createWorkItem;
+        if (created) {
+          if (stagedTagIds.length > 0) {
+            try {
+              await Promise.all(
+                stagedTagIds.map((tagId) =>
+                  assignTagToWorkItemMutation({
+                    variables: { work_item_id: created.id, tag_id: tagId },
+                  })
+                )
+              );
+            } catch (assignTagError) {
+              console.error("Failed to assign tags to new work item", assignTagError);
+            }
+          }
+          navigate(resolveWorkItemLink(projectId, created.id, created.type as WorkItemType));
+        }
+      } catch (createError) {
+        console.error("Failed to create work item", createError);
+        setTitleError(
+          createError instanceof Error ? createError.message : "Failed to create work item"
+        );
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     if (!task || !user) return;
 
     const currentTitleValue = (task.title ?? "").trim();
-    const trimmedTitle = stagedTitle.trim();
     const currentStatusValue = (task.status ?? "new") as TaskStatus;
     const currentAssigneeId = task.assignee?.id ?? null;
     const stagedAssigneeId = stagedAssignee?.id ?? null;
     const normalizedCurrentDescription = (task.description ?? "").trim();
-    const normalizedStagedDescription = stagedDescription.trim();
     const originalTagIds = (task.tags ?? []).map((tag) => tag.id);
     const stagedTagIds = stagedTags.map((tag) => tag.id);
     const originalTagIdSet = new Set(originalTagIds);
@@ -626,7 +765,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     const titleChanged = trimmedTitle !== currentTitleValue;
     const statusChanged = stagedStatus !== currentStatusValue;
     const assigneeChanged = currentAssigneeId !== stagedAssigneeId;
-    const descriptionChanged = normalizedStagedDescription !== normalizedCurrentDescription;
+    const descriptionChanged = normalizedDescription !== normalizedCurrentDescription;
     const tagsChanged = tagsToAdd.length > 0 || tagsToRemove.length > 0;
 
     if (titleChanged && trimmedTitle.length === 0) {
@@ -671,7 +810,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
           variables.status = stagedStatus;
         }
         if (descriptionChanged) {
-          variables.description = normalizedStagedDescription;
+          variables.description = normalizedDescription.length > 0 ? normalizedDescription : null;
         }
         await updateTaskMutation({
           variables,
@@ -768,18 +907,26 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     setIsTagsUpdating(false);
   }, [
     assignTagToTaskMutation,
+    assignTagToWorkItemMutation,
+    createWorkItemMutation,
+    isTemplateMode,
+    navigate,
+    projectId,
     refetch,
     removeTagFromTaskMutation,
+    selectedTeamId,
     setTaskAssigneeMutation,
     stagedAssignee,
     stagedDescription,
-    stagedTags,
     stagedStatus,
+    stagedTags,
     stagedTitle,
     task,
+    templateType,
     updateTaskMutation,
     user,
   ]);
+
   const {
     isOpen: isAssigneeMenuOpen,
     setIsOpen: setIsAssigneeMenuOpen,
@@ -802,8 +949,12 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     isAssigningAssignee: isAssigneeUpdating || isSaving,
   });
 
-  if (!projectId || !taskId) {
-    return <div className="p-6 text-destructive">Task or project identifier is missing.</div>;
+  if (!projectId) {
+    return <div className="p-6 text-destructive">Project identifier is missing.</div>;
+  }
+
+  if (!taskId && !isTemplateMode) {
+    return <div className="p-6 text-destructive">Task identifier is missing.</div>;
   }
 
   if (!user) {
@@ -815,8 +966,17 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
     );
   }
 
+  const headerLabel = isTemplateMode ? getWorkItemTypeLabel(templateType) : "Work item";
+  const { icon: HeaderIcon, colorClass: headerIconClass } = getWorkItemIconMeta(
+    isTemplateMode ? templateType ?? undefined : task?.type ?? undefined
+  );
+  const headerTimeLabel = updatedByLabel || (isTemplateMode ? "Not yet saved" : "Not yet updated");
   const sprintLabel = task?.sprint?.name ?? "Not added to a sprint";
   const dueDateLabel = formatDate(task?.due_date);
+  const priorityLabel = getPriorityLabel(task?.priority ?? null);
+  const estimateValue = task?.estimate;
+  const estimateLabel = typeof estimateValue === "number" ? estimateValue : "Not set";
+  const taskIdentifierLabel = task?.id ? `#${task.id}` : "Not created yet";
 
   const hasTags = stagedTags.length > 0;
   const currentAssignee = task?.assignee ?? null;
@@ -832,20 +992,31 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
   const hasAssigneeChanged = task ? currentAssigneeId !== stagedAssigneeId : false;
   const normalizedStagedDescription = stagedDescription.trim();
   const normalizedTaskDescription = (task?.description ?? "").trim();
-  const hasDescriptionChanged = task ? normalizedStagedDescription !== normalizedTaskDescription : false;
+  const hasDescriptionChanged = task
+    ? normalizedStagedDescription !== normalizedTaskDescription
+    : normalizedStagedDescription.length > 0;
   const hasTagsChanged = task
     ? stagedTagIdsSorted.length !== originalTagIdsSorted.length ||
       stagedTagIdsSorted.some((id, index) => id !== originalTagIdsSorted[index])
-    : stagedTagIdsSorted.length > 0;
-  const hasUnsavedChanges =
-    hasTitleChanged || hasStatusChanged || hasAssigneeChanged || hasDescriptionChanged || hasTagsChanged;
-  const isSaveDisabled = !task || !hasUnsavedChanges || isSaving;
+    : false;
+  const templateHasChanges =
+    normalizedStagedTitle.length > 0 ||
+    normalizedStagedDescription.length > 0 ||
+    stagedAssigneeId !== null ||
+    stagedStatus !== "new";
+  const hasUnsavedChanges = task
+    ? hasTitleChanged || hasStatusChanged || hasAssigneeChanged || hasDescriptionChanged || hasTagsChanged
+    : templateHasChanges;
+  const isSaveDisabled = isTemplateMode
+    ? normalizedStagedTitle.length === 0 || !selectedTeamId || isSaving
+    : !task || !hasUnsavedChanges || isSaving;
+  const isTagTriggerDisabled = isSaving || isTagsUpdating || (!isTemplateMode && !task);
   const addTagTrigger = hasTags ? (
     <Button
       type="button"
       size="icon"
       variant="ghost"
-      disabled={!task || isSaving || isTagsUpdating}
+      disabled={isTagTriggerDisabled}
       className="h-7 w-7 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
       aria-label="Add tag"
     >
@@ -856,12 +1027,47 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
       type="button"
       size="sm"
       variant="outline"
-      disabled={!task || isSaving || isTagsUpdating}
+      disabled={isTagTriggerDisabled}
       className="gap-1 border-dashed border-border/60 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
     >
       <Plus className="h-3.5 w-3.5" />
       Add tag
     </Button>
+  );
+  const stateSection = (
+    <div className="flex min-w-[11rem] flex-col gap-2">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">State</span>
+      <TaskStatusDropdown
+        value={stagedStatus}
+        onChange={handleStatusChange}
+        isUpdating={isStatusUpdating}
+        disabled={isSaving}
+        triggerClassName="rounded-full bg-muted/40 px-4 py-2 text-sm"
+      />
+      {statusError ? <span className="text-xs text-destructive">{statusError}</span> : null}
+    </div>
+  );
+  const assigneeSection = (
+    <div className="flex min-w-[14rem] flex-col gap-2">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Assignee</span>
+      <AssigneeDropdown
+        assignee={stagedAssignee ?? null}
+        isOpen={isAssigneeMenuOpen}
+        onOpenChange={setIsAssigneeMenuOpen}
+        query={assigneeQuery}
+        onQueryChange={handleQueryChange}
+        inputRef={assigneeSearchRef}
+        visibleMembers={visibleMembers}
+        isLoadingMembers={isLoadingVisibleMembers}
+        isShowingSearchResults={isShowingSearchResults}
+        trimmedQuery={trimmedQuery}
+        onSelectMember={handleSelectMember}
+        onClearAssignee={handleClearAssignee}
+        isAssigningAssignee={isAssigneeUpdating || isSaving}
+        onInputKeyDown={handleInputKeyDown}
+      />
+      {assigneeError ? <span className="text-xs text-destructive">{assigneeError}</span> : null}
+    </div>
   );
 
   return (
@@ -878,7 +1084,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
         </Button>
       </div>
 
-      {error ? (
+      {error && !isTemplateMode ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load task</AlertTitle>
           <AlertDescription>{error.message}</AlertDescription>
@@ -887,7 +1093,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
 
       {loading ? <TaskDetailsSkeleton /> : null}
 
-      {!loading && !task ? (
+      {!loading && !task && !isTemplateMode ? (
         <Alert>
           <AlertTitle>Task not found</AlertTitle>
           <AlertDescription>
@@ -896,106 +1102,124 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
         </Alert>
       ) : null}
 
-      {!loading && task ? (
+      {!loading && (task || isTemplateMode) ? (
         <div className="space-y-6">
           <div className="rounded-xl border border-border/70 bg-[hsl(var(--card))] p-6 shadow-sm">
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Work item</p>
-                  <div className="flex flex-wrap items-center gap-3 md:gap-4">
-                    <div className="relative flex items-center">
-                      <span
-                        className="pointer-events-none invisible absolute whitespace-pre text-3xl font-semibold leading-tight"
-                        ref={(element) => {
-                          titleSizerRef.current = element;
-                        }}
-                      >
-                        {stagedTitle || "Add a title..."}
-                      </span>
-                      {isEditingTitle ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    <HeaderIcon className={`h-3.5 w-3.5 ${headerIconClass}`} />
+                    <span>{headerLabel}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void handleSave()}
+                    disabled={isSaveDisabled}
+                    className="inline-flex items-center gap-2 rounded-full px-4"
+                  >
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {isSaving ? (task ? "Saving…" : "Creating…") : task ? "Save" : "Create"}
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-6">
+                    <div className="md:-mt-2">
+                      <div className="relative">
                         <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-y-0 left-0 flex h-full w-[1.25rem] items-center justify-center rounded-l-md border border-border bg-[hsl(var(--card))]"
+                          className="pointer-events-none invisible absolute whitespace-pre text-3xl font-semibold leading-tight"
+                          ref={(element) => {
+                            titleSizerRef.current = element;
+                          }}
+                        >
+                          {stagedTitle || "Add a title..."}
+                        </span>
+                        {isEditingTitle ? (
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-y-0 left-0 flex h-full w-[1.25rem] items-center justify-center rounded-l-md border border-border bg-[hsl(var(--card))]"
+                          />
+                        ) : null}
+                        <Input
+                          ref={titleInputRef}
+                          value={stagedTitle}
+                          readOnly={!isEditingTitle}
+                          onClick={() => {
+                            if (!isEditingTitle) {
+                              setIsEditingTitle(true);
+                              setTitleError(null);
+                            }
+                          }}
+                          onChange={(event) => handleTitleChange(event.target.value)}
+                          onBlur={() => setIsEditingTitle(false)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" && !event.shiftKey) {
+                              event.preventDefault();
+                              void handleSave();
+                            } else if (event.key === "Escape") {
+                              event.preventDefault();
+                              setIsEditingTitle(false);
+                              setStagedTitle(task?.title ?? "");
+                              setTitleError(null);
+                            }
+                          }}
+                          disabled={isEditingTitle && isSaving}
+                          aria-invalid={titleError ? "true" : "false"}
+                          className={
+                            isEditingTitle
+                              ? "relative z-10 h-11 min-w-[7.5rem] rounded-md border border-border bg-transparent pl-2 pr-1 text-left text-3xl font-semibold leading-tight text-foreground shadow-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                              : "relative z-10 h-11 min-w-[7.5rem] rounded-md border border-transparent bg-transparent pl-2 pr-1 text-left text-3xl font-semibold leading-tight text-foreground"
+                          }
+                          style={{ width: "auto" }}
                         />
-                      ) : null}
-                      <Input
-                        ref={titleInputRef}
-                        value={stagedTitle}
-                        readOnly={!isEditingTitle}
-                        onClick={() => {
-                          if (!isEditingTitle) {
-                            setIsEditingTitle(true);
-                            setTitleError(null);
-                          }
-                        }}
-                        onChange={(event) => handleTitleChange(event.target.value)}
-                        onBlur={() => setIsEditingTitle(false)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" && !event.shiftKey) {
-                            event.preventDefault();
-                            void handleSave();
-                          } else if (event.key === "Escape") {
-                            event.preventDefault();
-                            setIsEditingTitle(false);
-                            setStagedTitle(task.title ?? "");
-                            setTitleError(null);
-                          }
-                        }}
-                        disabled={isEditingTitle && isSaving}
-                        aria-invalid={titleError ? "true" : "false"}
-                        className={
-                          isEditingTitle
-                            ? "relative z-10 h-11 min-w-[7.5rem] rounded-md border border-border bg-transparent pl-2 pr-1 text-left text-3xl font-semibold leading-tight text-foreground shadow-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
-                            : "relative z-10 h-11 min-w-[7.5rem] rounded-md border border-transparent bg-transparent pl-2 pr-1 text-left text-3xl font-semibold leading-tight text-foreground cursor-text"
-                        }
-                        style={{ width: "auto" }}
-                      />
+                      </div>
+                      {titleError ? <p className="mt-2 text-xs text-destructive">{titleError}</p> : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 md:gap-3">
                       {hasTags
                         ? stagedTags.map((tag) => {
-                          const hasColor = Boolean(tag.color);
-                          const isUpdatingCurrentTag = updatingTagId === tag.id;
-                          const isToolbarForcedVisible = isTagsUpdating || isUpdatingCurrentTag;
-                          return (
-                            <div key={tag.id} className="group relative flex items-center pr-2">
-                              <div
-                                className={`flex min-h-[30px] items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide shadow-sm ${
-                                  hasColor
-                                    ? "border border-transparent text-primary-foreground"
-                                    : "border border-border/60 bg-muted/20 text-foreground"
-                                }`}
-                                style={hasColor ? { backgroundColor: tag.color ?? undefined } : undefined}
-                              >
-                                <span className="truncate">{tag.name}</span>
-                              </div>
-                              <div
-                                className={`pointer-events-none absolute right-0 top-0 flex -translate-y-1/2 -translate-x-2 items-center gap-[1px] rounded-sm border border-border/60 bg-[hsl(var(--card))] px-[2px] py-0 text-[10px] shadow-sm opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 z-10${
-                                  isToolbarForcedVisible ? " pointer-events-auto opacity-100" : ""
-                                }`}
-                              >
-                                <TagEditDialog
-                                  tag={tag}
-                                  isUpdating={isUpdatingCurrentTag || isTagsUpdating}
-                                  onSubmit={handleUpdateTag}
-                                  buttonClassName="pointer-events-auto"
-                                />
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => handleRemoveTag(tag.id)}
-                                  disabled={!task || isSaving || isTagsUpdating || isUpdatingCurrentTag}
-                                  className="pointer-events-auto h-[14px] w-[14px] rounded-sm border border-transparent text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-                                  aria-label={`Remove ${tag.name}`}
+                            const hasColor = Boolean(tag.color);
+                            const isUpdatingCurrentTag = updatingTagId === tag.id;
+                            const isToolbarForcedVisible = isTagsUpdating || isUpdatingCurrentTag;
+                            return (
+                              <div key={tag.id} className="group relative flex items-center pr-2">
+                                <div
+                                  className={`flex min-h-[30px] items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide shadow-sm ${
+                                    hasColor
+                                      ? "border border-transparent text-primary-foreground"
+                                      : "border border-border/60 bg-muted/20 text-foreground"
+                                  }`}
+                                  style={hasColor ? { backgroundColor: tag.color ?? undefined } : undefined}
                                 >
-                                  <X size={9} strokeWidth={2} />
-                                </Button>
+                                  <span className="truncate">{tag.name}</span>
+                                </div>
+                                <div
+                                  className={`pointer-events-none absolute right-0 top-0 flex -translate-y-1/2 -translate-x-2 items-center gap-[1px] rounded-sm border border-border/60 bg-[hsl(var(--card))] px-[2px] py-0 text-[10px] shadow-sm opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 z-10${
+                                    isToolbarForcedVisible ? " pointer-events-auto opacity-100" : ""
+                                  }`}
+                                >
+                                  <TagEditDialog
+                                    tag={tag}
+                                    isUpdating={isUpdatingCurrentTag || isTagsUpdating}
+                                    onSubmit={handleUpdateTag}
+                                    buttonClassName="pointer-events-auto"
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleRemoveTag(tag.id)}
+                                    disabled={!task || isSaving || isTagsUpdating || isUpdatingCurrentTag}
+                                    className="pointer-events-auto h-[14px] w-[14px] rounded-sm border border-transparent text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                                    aria-label={`Remove ${tag.name}`}
+                                  >
+                                    <X size={9} strokeWidth={2} />
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })
+                            );
+                          })
                         : null}
                       <TaskTagsAddButton
                         tags={stagedTags}
@@ -1007,60 +1231,24 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                       />
                     </div>
                   </div>
-                  {titleError ? <p className="text-xs text-destructive">{titleError}</p> : null}
                   {tagsError ? <p className="text-xs text-destructive">{tagsError}</p> : null}
                 </div>
-                <div className="lg:-mt-10">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => void handleSave()}
-                    disabled={isSaveDisabled}
-                    className="inline-flex items-center gap-2 px-4"
-                  >
-                    <Save className="h-4 w-4" />
-                    {isSaving ? "Saving…" : "Save"}
-                  </Button>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-start gap-6">
-                <div className="flex min-w-[11rem] flex-col gap-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">State</span>
-                  <TaskStatusDropdown
-                    value={stagedStatus}
-                    onChange={handleStatusChange}
-                    isUpdating={isStatusUpdating}
-                    disabled={isSaving}
-                  />
-                  {statusError ? <span className="text-xs text-destructive">{statusError}</span> : null}
-                </div>
-                <div className="flex min-w-[12rem] flex-col gap-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Assignee
-                  </span>
-                  <AssigneeDropdown
-                    assignee={stagedAssignee ?? null}
-                    isOpen={isAssigneeMenuOpen}
-                    onOpenChange={setIsAssigneeMenuOpen}
-                    query={assigneeQuery}
-                    onQueryChange={handleQueryChange}
-                    inputRef={assigneeSearchRef}
-                    visibleMembers={visibleMembers}
-                    isLoadingMembers={isLoadingVisibleMembers}
-                    isShowingSearchResults={isShowingSearchResults}
-                    trimmedQuery={trimmedQuery}
-                    onSelectMember={handleSelectMember}
-                    onClearAssignee={handleClearAssignee}
-                    isAssigningAssignee={isAssigneeUpdating || isSaving}
-                    onInputKeyDown={handleInputKeyDown}
-                  />
-                  {assigneeError ? <span className="text-xs text-destructive">{assigneeError}</span> : null}
-                </div>
-                {updatedByLabel ? (
-                  <div className="ml-auto mt-6 flex text-right lg:mt-10">
-                    <p className="text-xs text-muted-foreground">{updatedByLabel}</p>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex flex-wrap items-start gap-6">
+                    {isTemplateMode ? (
+                      <>
+                        {assigneeSection}
+                        {stateSection}
+                      </>
+                    ) : (
+                      <>
+                        {stateSection}
+                        {assigneeSection}
+                      </>
+                    )}
                   </div>
-                ) : null}
+                  <p className="text-xs text-muted-foreground lg:text-right">{headerTimeLabel}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1088,7 +1276,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                         <Button
                           type="button"
                           onClick={() => void handleSave()}
-                          disabled={!task || isSaving || isDescriptionUpdating || !hasDescriptionChanged}
+                          disabled={isSaving || isDescriptionUpdating || (!hasDescriptionChanged && !isTemplateMode)}
                           className="inline-flex items-center gap-2"
                         >
                           {isDescriptionUpdating || isSaving ? (
@@ -1121,24 +1309,28 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                       tabIndex={0}
                       className="rounded-lg border border-transparent px-4 py-3 transition-colors hover:border-primary/40"
                       onClick={() => {
-                        if (!task) return;
+                        if (isSaving) return;
                         setIsEditingDescription(true);
-                        setStagedDescription(task.description ?? "");
+                        if (task) {
+                          setStagedDescription(task.description ?? "");
+                        }
                         setDescriptionError(null);
                       }}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          if (!task) return;
+                          if (isSaving) return;
                           setIsEditingDescription(true);
-                          setStagedDescription(task.description ?? "");
+                          if (task) {
+                            setStagedDescription(task.description ?? "");
+                          }
                           setDescriptionError(null);
                         }
                       }}
                     >
                       {task?.description?.trim() ? (
                         <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                          {task.description}
+                          {task?.description}
                         </div>
                       ) : (
                         <p className="text-sm italic text-muted-foreground">
@@ -1161,28 +1353,41 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                 </CardContent>
               </Card>
 
-              <Card className="border border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold text-foreground">Discussion</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <TaskCommentsPanel
-                    comments={comments}
-                    loading={commentsLoading}
-                    commentText={commentText}
-                    onCommentTextChange={setCommentText}
-                    onSubmitComment={handleSubmitComment}
-                    editingCommentId={editingCommentId}
-                    editingCommentText={editingCommentText}
-                    onEditCommentTextChange={setEditingCommentText}
-                    onStartEditComment={handleStartEditComment}
-                    onCancelEditComment={handleCancelCommentEdit}
-                    onSubmitEditComment={handleSubmitCommentEdit}
-                    onDeleteComment={handleDeleteComment}
-                    currentUserId={user?.id ?? null}
-                  />
-                </CardContent>
-              </Card>
+              {isTemplateMode ? (
+                <Card className="border border-border/60">
+                  <CardHeader>
+                    <CardTitle className="text-base font-semibold text-foreground">Discussion</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Comments will be available once you create this work item.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="border border-border/60">
+                  <CardHeader>
+                    <CardTitle className="text-base font-semibold text-foreground">Discussion</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TaskCommentsPanel
+                      comments={comments}
+                      loading={commentsLoading}
+                      commentText={commentText}
+                      onCommentTextChange={setCommentText}
+                      onSubmitComment={handleSubmitComment}
+                      editingCommentId={editingCommentId}
+                      editingCommentText={editingCommentText}
+                      onEditCommentTextChange={setEditingCommentText}
+                      onStartEditComment={handleStartEditComment}
+                      onCancelEditComment={handleCancelCommentEdit}
+                      onSubmitEditComment={handleSubmitCommentEdit}
+                      onDeleteComment={handleDeleteComment}
+                      currentUserId={user?.id ?? null}
+                    />
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             <div className="space-y-6">
@@ -1192,6 +1397,38 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                 </CardHeader>
                 <CardContent>
                   <dl className="grid gap-3 text-sm">
+                    {isTemplateMode ? (
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Team</dt>
+                        <dd className="mt-1 space-y-1">
+                          {isProjectTeamsLoading ? (
+                            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading teams…
+                            </span>
+                          ) : projectTeams.length > 0 ? (
+                            <select
+                              value={selectedTeamId}
+                              onChange={(event) => setSelectedTeamId(event.target.value)}
+                              disabled={isSaving || isProjectTeamsLoading}
+                              className="w-full rounded-md border border-border bg-[hsl(var(--card))] px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                            >
+                              <option value="">Select a team</option>
+                              {projectTeams.map((team) => (
+                                <option key={team.id} value={team.id}>
+                                  {team.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              No teams available. Ask a project admin to create one.
+                            </span>
+                          )}
+                          {teamError ? <p className="text-xs text-destructive">{teamError}</p> : null}
+                        </dd>
+                      </div>
+                    ) : null}
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-muted-foreground">Assignee</dt>
                       <dd className="mt-1 text-foreground">
@@ -1219,13 +1456,11 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                     </div>
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-muted-foreground">Priority</dt>
-                      <dd className="mt-1 text-foreground">{getPriorityLabel(task.priority)}</dd>
+                      <dd className="mt-1 text-foreground">{priorityLabel}</dd>
                     </div>
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-muted-foreground">Estimate</dt>
-                      <dd className="mt-1 text-foreground">
-                        {typeof task.estimate === "number" ? task.estimate : "Not set"}
-                      </dd>
+                      <dd className="mt-1 text-foreground">{estimateLabel}</dd>
                     </div>
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-muted-foreground">Due date</dt>
@@ -1241,7 +1476,7 @@ export function TaskDetailsPage({ user }: { user: AuthUser | null }) {
                     </div>
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-muted-foreground">Task ID</dt>
-                      <dd className="mt-1 text-muted-foreground">#{task.id}</dd>
+                      <dd className="mt-1 text-muted-foreground">{taskIdentifierLabel}</dd>
                     </div>
                   </dl>
                 </CardContent>

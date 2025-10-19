@@ -17,6 +17,8 @@ import {
 } from "../components/ui";
 import { LIST_WORK_ITEMS } from "../graphql";
 import { getWorkItemTypeLabel } from "../constants/workItems";
+import { getWorkItemIconMeta } from "../constants/workItemVisuals";
+import { WorkItemTemplateDropdown } from "../components/workItems/WorkItemTemplateDropdown";
 
 type WorkItemsQueryResult = {
   workItems: WorkItem[];
@@ -114,9 +116,7 @@ export function ProjectWorkItemsPage({ user }: { user: AuthUser | null }) {
   const projectId = id ?? null;
 
   const { data, loading, error } = useQuery<WorkItemsQueryResult>(LIST_WORK_ITEMS, {
-    variables: projectId
-      ? { project_id: projectId, types: ["TASK", "BUG"] as WorkItemType[] }
-      : undefined,
+    variables: projectId ? { project_id: projectId } : undefined,
     skip: !projectId || !user,
     fetchPolicy: "network-only",
   });
@@ -154,11 +154,14 @@ export function ProjectWorkItemsPage({ user }: { user: AuthUser | null }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Work items</h1>
-        <p className="text-sm text-muted-foreground">
-          A focused view of tasks assigned to you in this project. We&apos;ll add more filters and sorting soon.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Work items</h1>
+          <p className="text-sm text-muted-foreground">
+            A focused view of tasks assigned to you in this project. We&apos;ll add more filters and sorting soon.
+          </p>
+        </div>
+        <WorkItemTemplateDropdown projectId={projectId} triggerLabel="Create from template" />
       </div>
 
       {error ? (
@@ -186,6 +189,7 @@ export function ProjectWorkItemsPage({ user }: { user: AuthUser | null }) {
             const statusMeta = STATUS_META[item.status as TaskStatus] ?? STATUS_META.new;
             const dueDateLabel = item.due_date ? formatDate(item.due_date) : "No due date";
             const typeLabel = getWorkItemTypeLabel(item.type);
+            const { icon: TypeIcon, colorClass: typeColorClass } = getWorkItemIconMeta(item.type);
             return (
               <Link
                 key={item.id}
@@ -195,8 +199,9 @@ export function ProjectWorkItemsPage({ user }: { user: AuthUser | null }) {
                 <Card className="transition hover:border-blue-500/40 hover:shadow-md">
                   <CardHeader className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
-                      <CardTitle className="text-lg font-semibold leading-tight text-foreground">
-                        {item.title}
+                      <CardTitle className="flex items-center gap-2 text-lg font-semibold leading-tight text-foreground">
+                        <TypeIcon className={`h-4 w-4 shrink-0 ${typeColorClass}`} />
+                        <span className="truncate">{item.title}</span>
                       </CardTitle>
                       <Badge className={statusMeta.badgeClass}>{statusMeta.label}</Badge>
                     </div>

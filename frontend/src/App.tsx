@@ -177,6 +177,10 @@ function AppContent() {
                     element={requireAuth(<ProjectWorkItemsPage user={user} />)}
                   />
                   <Route
+                    path="/projects/:id/work-items/templates/:type"
+                    element={requireAuth(<TaskDetailsPage user={user} />)}
+                  />
+                  <Route
                     path="/projects/:id/work-items/:workItemId"
                     element={requireAuth(<WorkItemDetailsPage user={user} />)}
                   />
