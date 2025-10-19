@@ -103,13 +103,16 @@ export default function Sidebar({ user }: SidebarProps) {
         },
       });
       await refetchTeams();
-      const createdId = response.data?.createTeam?.id ?? null;
+      const createdTeam = response.data?.createTeam ?? null;
       setShowCreateTeam(false);
       setTeamName("");
       setTeamDescription("");
       setSelectedProjectId(null);
-      if (createdId) {
-        navigate(`/teams/${createdId}`);
+      if (createdTeam?.id) {
+        const destination = createdTeam.project_id
+          ? `/projects/${createdTeam.project_id}/teams/${createdTeam.id}`
+          : "/";
+        navigate(destination);
       }
     } catch (error) {
       setTeamError((error as Error).message ?? "Unable to create team.");
@@ -164,15 +167,20 @@ export default function Sidebar({ user }: SidebarProps) {
               </p>
             ) : (
               <div className="space-y-1">
-                {sortedTeams.map((team) => (
-                  <SidebarLink
-                    key={team.id}
-                    to={`/teams/${team.id}`}
-                    icon={Users}
-                    label={team.name}
-                    exact={false}
-                  />
-                ))}
+                {sortedTeams.map((team) => {
+                  const destination = team.project_id
+                    ? `/projects/${team.project_id}/teams/${team.id}`
+                    : "/";
+                  return (
+                    <SidebarLink
+                      key={team.id}
+                      to={destination}
+                      icon={Users}
+                      label={team.name}
+                      exact={false}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>

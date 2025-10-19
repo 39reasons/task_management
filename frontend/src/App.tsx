@@ -19,13 +19,11 @@ import { ProjectWorkItemsPage } from "./pages/ProjectWorkItemsPage";
 import { WorkItemDetailsPage } from "./pages/WorkItemDetailsPage";
 import { ProjectBacklogPage } from "./pages/ProjectBacklogPage";
 import { ProjectSprintsPage } from "./pages/ProjectSprintsPage";
-import { TeamSettingsPage } from "./pages/TeamSettingsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
 import { GET_TASKS } from "./graphql";
 import { TeamProvider } from "./providers/TeamProvider";
-import { TeamPage } from "./pages/TeamPage";
 import { TaskDetailsPage } from "./pages/TaskDetailsPage";
 
 function AppContent() {
@@ -213,8 +211,6 @@ function AppContent() {
                     path="/projects/:id/teams/:teamId"
                     element={requireAuth(<ProjectTeamMembersPage />)}
                   />
-                  <Route path="/teams/:teamId" element={requireAuth(<TeamPage user={user} />)} />
-                  <Route path="/teams/:teamId/settings" element={requireAuth(<TeamSettingsPage user={user} />)} />
                   <Route
                     path="/settings"
                     element={

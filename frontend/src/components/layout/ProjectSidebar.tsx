@@ -97,7 +97,7 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
             size="icon"
             variant="outline"
             className="h-8 w-8 rounded-full border-border"
-            onClick={() => navigate(`/teams/${teamId}`)}
+            onClick={() => navigate(`/projects/${projectId}/teams/${teamId}`)}
             aria-label="Back to team"
           >
             <ArrowLeft className="h-4 w-4" />
